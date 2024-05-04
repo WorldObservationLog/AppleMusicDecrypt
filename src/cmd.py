@@ -14,6 +14,8 @@ from src.config import Config
 from src.rip import rip_song, rip_album
 from src.types import GlobalAuthParams
 from src.url import AppleMusicURL, URLType
+from src.url import AppleMusicURL, URLType, Song
+from src.utils import get_song_id_from_m3u8
 
 
 class NewInteractiveShell:
@@ -38,6 +40,12 @@ class NewInteractiveShell:
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
                                      default="alac")
         download_parser.add_argument("-f", "--force", type=bool, default=False)
+        m3u8_parser = subparser.add_parser("m3u8")
+        m3u8_parser.add_argument("url", type=str)
+        m3u8_parser.add_argument("-c", "--codec",
+                                 choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
+                                 default="alac")
+        m3u8_parser.add_argument("-f", "--force", type=bool, default=False)
         subparser.add_parser("exit")
 
         logger.remove()

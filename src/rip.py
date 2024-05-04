@@ -16,10 +16,10 @@ from src.utils import check_song_exists
 
 @logger.catch
 async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
-                   force_save: bool = False):
+                   force_save: bool = False, specified_m3u8: str = ""):
     logger.debug(f"Task of song id {song.id} was created")
     token = auth_params.anonymousAccessToken
-    song_data = await get_info_from_adam(song.id, token, song.storefront, config.language.language)
+    song_data = await get_info_from_adam(song.id, token, song.storefront, config.region.language)
     song_metadata = SongMetadata.parse_from_song_data(song_data)
     logger.info(f"Ripping song: {song_metadata.artist} - {song_metadata.title}")
     if not force_save and check_song_exists(song_metadata, config.download, codec):
@@ -28,10 +28,14 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
     await song_metadata.get_cover(config.download.coverFormat)
     if song_data.attributes.hasTimeSyncedLyrics:
         lyrics = await get_song_lyrics(song.id, song.storefront, auth_params.accountAccessToken,
-                                       auth_params.dsid, auth_params.accountToken, config.language.language)
+                                       auth_params.dsid, auth_params.accountToken, config.region.language)
         song_metadata.lyrics = lyrics
-    song_uri, keys = await extract_media(song_data.attributes.extendedAssetUrls.enhancedHls, codec, song_metadata,
-                                         config.download.codecPriority, config.download.codecAlternative)
+    if specified_m3u8:
+        song_uri, keys = await extract_media(specified_m3u8, codec, song_metadata,
+                                             config.download.codecPriority, config.download.codecAlternative)
+    else:
+        song_uri, keys = await extract_media(song_data.attributes.extendedAssetUrls.enhancedHls, codec, song_metadata,
+                                             config.download.codecPriority, config.download.codecAlternative)
     logger.info(f"Downloading song: {song_metadata.artist} - {song_metadata.title}")
     raw_song = await download_song(song_uri)
     song_info = extract_song(raw_song, codec)
@@ -51,12 +55,12 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
 
 async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                     force_save: bool = False):
-    album_info = await get_meta(album.id, auth_params.anonymousAccessToken, album.storefront, config.language.language)
+    album_info = await get_meta(album.id, auth_params.anonymousAccessToken, album.storefront, config.region.language)
     logger.info(f"Ripping Album: {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name}")
     async with asyncio.TaskGroup() as tg:
         for track in album_info.data[0].relationships.tracks.data:
             song = Song(id=track.id, storefront=album.storefront, url="", type=URLType.Song)
-            tg.create_task(rip_song(song, auth_params, codec, config, device, force_save))
+            tg.create_task(rip_song(song, auth_params, codec, config, device, force_save=force_save))
     logger.info(
         f"Album: {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name} finished ripping")
 
