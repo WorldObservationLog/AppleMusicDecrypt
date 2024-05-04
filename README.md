@@ -13,6 +13,10 @@ bugs and unfinished features. USE IT WITH CAUTION.**
 download https://music.apple.com/jp/album/nameless-name-single/1688539265
 # Download song/album with specified codec
 download https://music.apple.com/jp/song/caribbean-blue/339592231 -c aac
+# Download song from specified m3u8 with default codec (alac)
+m3u8 https://aod.itunes.apple.com/itunes-assets/HLSMusic116/v4/cb/f0/91/cbf09175-ce98-d133-1936-2e46b6992aa5/P631756252_lossless.m3u8
+# Start Mitm mode
+mitm
 ```
 
 # Support Codec
@@ -92,3 +96,25 @@ cd AppleMusicDecrypt
 poetry install
 poetry run python main.py
 ```
+
+# Mitm Mode
+
+## Prepare Environment
+
+1.
+Install [Proxifier](https://www.proxifier.com/), [Apple Music Windows](https://apps.microsoft.com/detail/9pfhdd62mxs1)
+1. Sign in to Apple Music Windows with your Apple account
+2. Run `poetry run mitmproxy` under the script directory and quit
+3. Install the CA certificate according
+   to [Mitmproxy's instructions](https://docs.mitmproxy.org/stable/concepts-certificates/#quick-setup)
+4. Create a new proxy server in Proxifier(`Profile -> Proxy Servers -> Add`). `Address` and `Port` are values
+   of `mitm.host` and `mitm.port` in `config.toml`, and `Protocol` is `SOCKS Version 5`
+5. Create a new proxification rule in Proxifier(`Profile -> Proxy Servers -> Add`). Fill in `Applications` field
+   with `amplibraryagent.exe; applemusic.exe` and select the proxy server just created in `Action`
+
+## Start Mitm
+
+1. Run the script, type command `mitm`
+2. Start Proxifier
+3. Start Apple Music Windows and play a song or an album.
+4. Now the script should catch the m3u8 link and start ripping
