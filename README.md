@@ -60,6 +60,9 @@ fridaPath = "/data/local/tmp/frida-server-16.2.1-android-x86_64"  # Replace this
 suMethod = "su 0"
 ```
 ## Run Script
+### Use pre-built script (For Windows)
+Download latest build from [Actions](https://github.com/WorldObservationLog/AppleMusicDecrypt/actions) (need login your GitHub account). Unzip it, and run `main.exe`
+### Manually Run
 ```shell
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt.git
 cd AppleMusicDecrypt
