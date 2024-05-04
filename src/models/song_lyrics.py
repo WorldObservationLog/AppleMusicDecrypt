@@ -1,23 +1,23 @@
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 
 
 class PlayParams(BaseModel):
-    id: str
-    kind: str
-    catalogId: str
-    displayType: int
+    id: Optional[str] = None
+    kind: Optional[str] = None
+    catalogId: Optional[str] = None
+    displayType: Optional[int] = None
 
 
 class Attributes(BaseModel):
-    ttml: str
+    ttml: Optional[str] = None
     playParams: PlayParams
 
 
 class Datum(BaseModel):
-    id: str
-    type: str
+    id: Optional[str] = None
+    type: Optional[str] = None
     attributes: Attributes
 
 
