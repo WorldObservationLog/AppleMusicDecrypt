@@ -19,7 +19,7 @@ download https://music.apple.com/jp/song/caribbean-blue/339592231 -c aac
 - `ac3 (audio-ac3)`
 - `aac (audio-stereo)`
 - `aac-binaural (audio-stereo-binaural)`
-- `aad-downmix (audio-stereo-downmix)`
+- `aac-downmix (audio-stereo-downmix)`
 
 # Support Link
 - Apple Music Song Share Link (https://music.apple.com/jp/album/%E5%90%8D%E3%82%82%E3%81%AA%E3%81%8D%E4%BD%95%E3%82%82%E3%81%8B%E3%82%82/1688539265?i=1688539274)
