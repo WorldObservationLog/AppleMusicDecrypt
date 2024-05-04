@@ -6,7 +6,6 @@ languageForGenre = "en_US"
 host = "127.0.0.1"
 port = 58526
 agentPort = 10020
-fridaPath = "/system/bin/frida-server"
 suMethod = "su -c"
 
 [download]

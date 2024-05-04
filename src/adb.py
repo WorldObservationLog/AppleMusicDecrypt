@@ -9,7 +9,7 @@ from loguru import logger
 from ppadb.client import Client as AdbClient
 from ppadb.device import Device as AdbDevice
 
-from src.exceptions import FridaNotExistException, ADBConnectException, FailedGetAuthParamException, \
+from src.exceptions import ADBConnectException, FailedGetAuthParamException, \
     FridaNotRunningException
 from src.types import AuthParams
 
@@ -18,7 +18,6 @@ class Device:
     host: str
     client: AdbClient
     device: AdbDevice
-    fridaPath: str
     fridaPort: int
     fridaDevice: frida.core.Device = None
     fridaSession: frida.core.Session = None
@@ -27,10 +26,8 @@ class Device:
     suMethod: str
     decryptLock: asyncio.Lock
 
-    def __init__(self, host="127.0.0.1", port=5037,
-                 frida_path="/data/local/tmp/frida-server-16.2.1-android-x86_64", su_method: str = "su -c"):
+    def __init__(self, host="127.0.0.1", port=5037, su_method: str = "su -c"):
         self.client = AdbClient(host, port)
-        self.fridaPath = frida_path
         self.suMethod = su_method
         self.host = host
         self.decryptLock = asyncio.Lock()
@@ -67,18 +64,6 @@ class Device:
         if not output or "frida" not in output:
             return False
         return True
-
-    def _start_remote_frida(self):
-        logger.debug("starting remote frida")
-        output = self._execute_command(f"(ls {self.fridaPath} && echo True) || echo False")
-        if not output or "True" not in output:
-            raise FridaNotExistException
-        permission = self._execute_command(f"ls -l {self.fridaPath}")
-        if not permission or "x" not in permission[:10]:
-            self._execute_command(f"chmod +x {self.fridaPath}", True)
-        self._execute_command(f"{self.fridaPath} &", su=True)
-        if not self._if_frida_running():
-            logger.error("Failed to start remote frida")
 
     def _start_forward(self, local_port: int, remote_port: int):
         self.device.forward(f"tcp:{local_port}", f"tcp:{remote_port}")

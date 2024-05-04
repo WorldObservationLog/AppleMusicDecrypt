@@ -12,7 +12,6 @@ class Device(BaseModel):
     host: str
     port: int
     agentPort: int
-    fridaPath: str
     suMethod: str
 
 
