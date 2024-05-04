@@ -18,7 +18,7 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
                    force_save: bool = False):
     logger.debug(f"Task of song id {song.id} was created")
     token = auth_params.anonymousAccessToken
-    song_data = await get_info_from_adam(song.id, token, song.storefront)
+    song_data = await get_info_from_adam(song.id, token, song.storefront, config.language.language)
     song_metadata = SongMetadata.parse_from_song_data(song_data)
     logger.info(f"Ripping song: {song_metadata.artist} - {song_metadata.title}")
     if not force_save and check_song_exists(song_metadata, config.download, codec):
@@ -27,7 +27,7 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
     await song_metadata.get_cover(config.download.coverFormat)
     if song_data.attributes.hasTimeSyncedLyrics:
         lyrics = await get_song_lyrics(song.id, song.storefront, auth_params.accountAccessToken,
-                                       auth_params.dsid, auth_params.accountToken)
+                                       auth_params.dsid, auth_params.accountToken, config.language.language)
         song_metadata.lyrics = lyrics
     song_uri, keys = await extract_media(song_data.attributes.extendedAssetUrls.enhancedHls, codec, song_metadata,
                                          config.download.codecPriority, config.download.codecAlternative)
@@ -46,7 +46,7 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
 
 async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                     force_save: bool = False):
-    album_info = await get_meta(album.id, auth_params.anonymousAccessToken, album.storefront)
+    album_info = await get_meta(album.id, auth_params.anonymousAccessToken, album.storefront, config.language.language)
     logger.info(f"Ripping Album: {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name}")
     async with asyncio.TaskGroup() as tg:
         for track in album_info.data[0].relationships.tracks.data:

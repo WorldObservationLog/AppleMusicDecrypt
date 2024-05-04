@@ -1,6 +1,5 @@
 [language]
-language = "zh-CN"
-languageForGenre = "en_US"
+language = "zh_CN"
 
 [[devices]]
 host = "127.0.0.1"
