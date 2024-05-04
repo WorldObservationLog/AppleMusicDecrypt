@@ -19,7 +19,6 @@ jobs:
             python -m pip install poetry
             poetry install
             poetry run python -m pip install nuitka
-      - name: Build
       - uses: Nuitka/Nuitka-Action@main
         with:
           nuitka-version: main
