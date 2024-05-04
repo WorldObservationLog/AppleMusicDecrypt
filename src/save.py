@@ -13,11 +13,11 @@ def save(song: bytes, codec: str, metadata: SongMetadata, config: Download):
     if not dir_path.exists() or not dir_path.is_dir():
         os.makedirs(dir_path.absolute())
     if codec == Codec.EC3 and not config.atmosConventToM4a:
-        song_path = dir_path / Path(song_name).with_suffix(".ec3")
+        song_path = dir_path / Path(song_name + ".ec3")
     elif codec == Codec.AC3 and not config.atmosConventToM4a:
-        song_path = dir_path / Path(song_name).with_suffix(".ac3")
+        song_path = dir_path / Path(song_name + ".ac3")
     else:
-        song_path = dir_path / Path(song_name).with_suffix(".m4a")
+        song_path = dir_path / Path(song_name + ".m4a")
     with open(song_path.absolute(), "wb") as f:
         f.write(song)
     if config.saveCover:
@@ -25,7 +25,7 @@ def save(song: bytes, codec: str, metadata: SongMetadata, config: Download):
         with open(cover_path.absolute(), "wb") as f:
             f.write(metadata.cover)
     if config.saveLyrics and metadata.lyrics:
-        lrc_path = dir_path / Path(song_name).with_suffix(".lrc")
+        lrc_path = dir_path / Path(song_name + ".lrc")
         with open(lrc_path.absolute(), "w", encoding="utf-8") as f:
             f.write(ttml_convent_to_lrc(metadata.lyrics))
     return song_path.absolute()
