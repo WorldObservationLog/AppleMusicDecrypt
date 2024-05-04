@@ -19,15 +19,9 @@ jobs:
             python -m pip install poetry
             poetry install
             poetry run python -m pip install nuitka
-      - uses: Nuitka/Nuitka-Action@main
-        with:
-          nuitka-version: main
-          script-name: main.py
-          standalone: true
-          include-data-dir: assets=assets
-          include-data-files: |
-            agent.js=agent.js
-            config.toml=config.toml
+      - name: Build
+        run: |
+            poetry run python -m nuitka main.py --assume-yes-for-downloads --standalone --follow-imports --include-data-dir=assets=assets --include-data-files=config.toml=config.toml --include-data-files=agent.js=agent.js
       - name: Generate ZIP
         run: |
             ren main.dist AppleMusicDecrypt
