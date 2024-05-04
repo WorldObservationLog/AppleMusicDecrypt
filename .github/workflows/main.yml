@@ -8,9 +8,9 @@ jobs:
     name: Build Windows Version
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v5
         with:
           python-version: 3.11
           architecture: x64
@@ -22,13 +22,12 @@ jobs:
       - name: Build
         run: |
             poetry run python -m nuitka main.py --assume-yes-for-downloads --standalone --follow-imports --include-data-dir=assets=assets --include-data-files=config.toml=config.toml --include-data-files=agent.js=agent.js
-      - name: Generate ZIP
+      - name: Rename
         run: |
             ren main.dist AppleMusicDecrypt
-            tar -a -cf AppleMusicDecrypt.zip AppleMusicDecrypt
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@v2.1.4
+        uses: actions/upload-artifact@v4
         with:
           name: AppleMusicDecrypt-Windows
-          path: AppleMusicDecrypt.zip
+          path: AppleMusicDecrypt
           
