@@ -35,7 +35,7 @@ class NewInteractiveShell:
         download_parser = subparser.add_parser("download")
         download_parser.add_argument("url", type=str)
         download_parser.add_argument("-c", "--codec",
-                                     choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix"], default="alac")
+                                     choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"], default="alac")
         download_parser.add_argument("-f", "--force", type=bool, default=False)
         subparser.add_parser("exit")
 

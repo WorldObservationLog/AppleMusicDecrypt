@@ -38,6 +38,8 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
     song = encapsulate(song_info, decrypted_song, config.download.atmosConventToM4a)
     if codec != Codec.EC3 or (codec == Codec.EC3 and config.download.atmosConventToM4a):
         song = write_metadata(song, song_metadata, config.metadata.embedMetadata, config.download.coverFormat)
+    if codec != Codec.AC3 or (codec == Codec.AC3 and config.download.atmosConventToM4a):
+        song = write_metadata(song, song_metadata, config.metadata.embedMetadata, config.download.coverFormat)
     save(song, codec, song_metadata, config.download)
     logger.info(f"Song {song_metadata.artist} - {song_metadata.title} saved!")
 

@@ -109,9 +109,11 @@ def check_song_exists(metadata, config: Download, codec: str):
     dir_path = Path(config.dirPathFormat.format(**metadata.model_dump()))
     if not config.atmosConventToM4a and codec == Codec.EC3:
         return (Path(dir_path) / Path(song_name).with_suffix(".ec3")).exists()
+    elif not config.atmosConventToM4a and codec == Codec.AC3:
+        return (Path(dir_path) / Path(song_name).with_suffix(".ac3")).exists()
     else:
         return (Path(dir_path) / Path(song_name).with_suffix(".m4a")).exists()
 
 
 def get_valid_filename(filename: str):
-    return "".join(i for i in filename if i not in "\/:*?<>|")
+    return "".join(i for i in filename if i not in r"\/:*?<>|")

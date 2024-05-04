@@ -21,8 +21,6 @@ async def extract_media(m3u8_url: str, codec: str) -> Tuple[str, list[str], str]
     if not specifyPlaylist:
         raise CodecNotFoundException
     selected_codec = specifyPlaylist.media[0].group_id
-    if not specifyPlaylist:
-        raise
     stream = m3u8.load(specifyPlaylist.absolute_uri)
     skds = [key.uri for key in stream.keys if regex.match('(skd?://[^"]*)', key.uri)]
     keys = [prefetchKey]
@@ -30,7 +28,7 @@ async def extract_media(m3u8_url: str, codec: str) -> Tuple[str, list[str], str]
     match codec:
         case Codec.ALAC:
             key_suffix = CodecKeySuffix.KeySuffixAlac
-        case Codec.EC3:
+        case Codec.EC3 | Codec.AC3:
             key_suffix = CodecKeySuffix.KeySuffixAtmos
         case Codec.AAC:
             key_suffix = CodecKeySuffix.KeySuffixAAC
@@ -103,6 +101,8 @@ def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool
         f.write(decrypted_media)
     if song_info.codec == Codec.EC3 and not atmos_convent:
         song_name = Path(tmp_dir.name) / Path(name).with_suffix(".ec3")
+    elif song_info.codec == Codec.AC3 and not atmos_convent:
+        song_name = Path(tmp_dir.name) / Path(name).with_suffix(".ac3")
     else:
         song_name = Path(tmp_dir.name) / Path(name).with_suffix(".m4a")
     match song_info.codec:
@@ -122,12 +122,13 @@ def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool
                 f"mp4edit --insert moov/trak/mdia/minf/stbl/stsd/alac:{alac_params_atom_name.absolute()} {song_name.absolute()} {final_m4a_name.absolute()}",
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             song_name = final_m4a_name
-        case Codec.EC3:
+        case Codec.EC3 | Codec.AC3:
             if not atmos_convent:
                 with open(song_name.absolute(), "wb") as f:
                     f.write(decrypted_media)
-            subprocess.run(f"gpac -i {media.absolute()} -o {song_name.absolute()}",
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:
+                subprocess.run(f"gpac -i {media.absolute()} -o {song_name.absolute()}",
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         case Codec.AAC_BINAURAL | Codec.AAC_DOWNMIX | Codec.AAC:
             nhml_name = Path(tmp_dir.name) / Path(f"{name}.nhml")
             with open(nhml_name.absolute(), "w", encoding="utf-8") as f:

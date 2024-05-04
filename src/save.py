@@ -14,6 +14,8 @@ def save(song: bytes, codec: str, metadata: SongMetadata, config: Download):
         os.makedirs(dir_path.absolute())
     if codec == Codec.EC3 and not config.atmosConventToM4a:
         song_path = dir_path / Path(song_name).with_suffix(".ec3")
+    elif codec == Codec.AC3 and not config.atmosConventToM4a:
+        song_path = dir_path / Path(song_name).with_suffix(".ac3")
     else:
         song_path = dir_path / Path(song_name).with_suffix(".m4a")
     with open(song_path.absolute(), "wb") as f:
