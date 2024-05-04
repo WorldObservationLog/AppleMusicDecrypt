@@ -39,7 +39,7 @@ async def download_song(url: str) -> bytes:
 @retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
        stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logger, logging.WARN))
-async def get_meta(album_id: str, token: str, storefront: str):
+async def get_meta(album_id: str, token: str, storefront: str, lang: str):
     if "pl." in album_id:
         mtype = "playlists"
     else:
@@ -48,7 +48,7 @@ async def get_meta(album_id: str, token: str, storefront: str):
                            params={"omit[resource]": "autos", "include": "tracks,artists,record-labels",
                                    "include[songs]": "artists", "fields[artists]": "name",
                                    "fields[albums:albums]": "artistName,artwork,name,releaseDate,url",
-                                   "fields[record-labels]": "name"},
+                                   "fields[record-labels]": "name", "l": lang},
                            headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_browser,
                                     "Origin": "https://music.apple.com"})
     if mtype == "albums":
@@ -61,7 +61,8 @@ async def get_meta(album_id: str, token: str, storefront: str):
             while True:
                 page += 100
                 page_req = await client.get(
-                    f"https://amp-api.music.apple.com/v1/catalog/{storefront}/{mtype}/{album_id}/tracks?offset={page}",
+                    f"https://amp-api.music.apple.com/v1/catalog/{storefront}/{mtype}/{album_id}/tracks",
+                    params={"offset": page, "l": lang},
                     headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_browser,
                              "Origin": "https://music.apple.com"})
                 page_result = TracksMeta.model_validate(page_req.json())
@@ -84,9 +85,9 @@ async def get_cover(url: str, cover_format: str):
 @retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
        stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logger, logging.WARN))
-async def get_info_from_adam(adam_id: str, token: str, storefront: str):
+async def get_info_from_adam(adam_id: str, token: str, storefront: str, lang: str):
     req = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/songs/{adam_id}",
-                           params={"extend": "extendedAssetUrls", "include": "albums"},
+                           params={"extend": "extendedAssetUrls", "include": "albums", "l": lang},
                            headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_itunes,
                                     "Origin": "https://music.apple.com"})
     song_data_obj = SongData.model_validate(req.json())
@@ -99,8 +100,9 @@ async def get_info_from_adam(adam_id: str, token: str, storefront: str):
 @retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
        stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logger, logging.WARN))
-async def get_song_lyrics(song_id: str, storefront: str, token: str, dsid: str, account_token: str) -> str:
+async def get_song_lyrics(song_id: str, storefront: str, token: str, dsid: str, account_token: str, lang: str) -> str:
     req = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/songs/{song_id}/lyrics",
+                           params={"l": lang},
                            headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_app,
                                     "X-Dsid": dsid},
                            cookies={f"mz_at_ssl-{dsid}": account_token})
