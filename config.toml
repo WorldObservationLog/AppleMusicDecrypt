@@ -23,3 +23,7 @@ afterDownloaded = ""
 embedMetadata = ["title", "artist", "album", "album_artist", "composer",
     "genre", "created", "track", "tracknum", "disk", "lyrics", "cover", "copyright",
     "record_company", "upc", "isrc"]
+
+[mitm]
+host = "127.0.0.1"
+port = "11080"

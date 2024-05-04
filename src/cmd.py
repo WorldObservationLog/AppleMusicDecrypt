@@ -13,9 +13,9 @@ from src.api import get_token
 from src.config import Config
 from src.rip import rip_song, rip_album
 from src.types import GlobalAuthParams
-from src.url import AppleMusicURL, URLType
 from src.url import AppleMusicURL, URLType, Song
 from src.utils import get_song_id_from_m3u8
+from src.mitm import start_proxy
 
 
 class NewInteractiveShell:
@@ -47,6 +47,11 @@ class NewInteractiveShell:
                                  default="alac")
         m3u8_parser.add_argument("-f", "--force", type=bool, default=False)
         subparser.add_parser("exit")
+        mitm_parser = subparser.add_parser("mitm")
+        mitm_parser.add_argument("-c", "--codec",
+                                 choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
+                                 default="alac")
+        mitm_parser.add_argument("-f", "--force", type=bool, default=False)
 
         logger.remove()
         logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True, level="INFO")
@@ -74,20 +79,17 @@ class NewInteractiveShell:
         match cmds[0]:
             case "download":
                 await self.do_download(args.url, args.codec, args.force)
+            case "m3u8":
+                await self.do_m3u8(args.url, args.codec, args.force)
+            case "mitm":
+                await self.do_mitm(args.codec, args.force)
             case "exit":
                 self.loop.stop()
                 sys.exit()
 
     async def do_download(self, raw_url: str, codec: str, force_download: bool):
         url = AppleMusicURL.parse_url(raw_url)
-        devices = self.storefront_device_mapping.get(url.storefront)
-        if not devices:
-            logger.error(f"No device is available to decrypt the specified region: {url.storefront}")
-        available_devices = [device for device in devices if not device.decryptLock.locked()]
-        if not available_devices:
-            available_device: Device = random.choice(devices)
-        else:
-            available_device: Device = random.choice(available_devices)
+        available_device = await self._get_available_device(url.storefront)
         global_auth_param = GlobalAuthParams.from_auth_params_and_token(available_device.get_auth_params(),
                                                                         self.anonymous_access_token)
         match url.type:
@@ -96,6 +98,50 @@ class NewInteractiveShell:
                     rip_song(url, global_auth_param, codec, self.config, available_device, force_download))
             case URLType.Album:
                 task = self.loop.create_task(rip_album(url, global_auth_param, codec, self.config, available_device))
+
+    async def do_m3u8(self, m3u8_url: str, codec: str, force_download: bool):
+        song_id = get_song_id_from_m3u8(m3u8_url)
+        song = Song(id=song_id, storefront=self.config.region.defaultStorefront, url="", type=URLType.Song)
+        available_device = await self._get_available_device(self.config.region.defaultStorefront)
+        global_auth_param = GlobalAuthParams.from_auth_params_and_token(available_device.get_auth_params(),
+                                                                        self.anonymous_access_token)
+        self.loop.create_task(
+            rip_song(song, global_auth_param, codec, self.config, available_device, force_save=force_download,
+                     specified_m3u8=m3u8_url)
+        )
+
+    async def do_mitm(self, codec: str, force_download: bool):
+        available_device = await self._get_available_device(self.config.region.defaultStorefront)
+        global_auth_param = GlobalAuthParams.from_auth_params_and_token(available_device.get_auth_params(),
+                                                                        self.anonymous_access_token)
+        m3u8_urls = set()
+        tasks = set()
+
+        def callback(m3u8_url):
+            if m3u8_url in m3u8_urls:
+                return
+            song_id = get_song_id_from_m3u8(m3u8_url)
+            song = Song(id=song_id, storefront=self.config.region.defaultStorefront, url="", type=URLType.Song)
+            task = self.loop.create_task(
+                rip_song(song, global_auth_param, codec, self.config, available_device, force_save=force_download,
+                         specified_m3u8=m3u8_url)
+            )
+            tasks.update(task)
+            task.add_done_callback(tasks.remove)
+            m3u8_urls.update(m3u8_url)
+
+        self.loop.create_task(start_proxy(self.config.mitm.host, self.config.mitm.port, callback))
+
+    async def _get_available_device(self, storefront: str):
+        devices = self.storefront_device_mapping.get(storefront)
+        if not devices:
+            logger.error(f"No device is available to decrypt the specified region: {storefront}")
+        available_devices = [device for device in devices if not device.decryptLock.locked()]
+        if not available_devices:
+            available_device: Device = random.choice(devices)
+        else:
+            available_device: Device = random.choice(available_devices)
+        return available_device
 
     async def handle_command(self):
         session = PromptSession("> ")

@@ -20,6 +20,7 @@ pure-python-adb = "^0.3.0.dev0"
 frida = "^16.2.1"
 tenacity = "^8.2.3"
 prompt-toolkit = "^3.0.43"
+mitmproxy = "^10.3.0"
 
 [build-system]
 requires = ["poetry-core"]

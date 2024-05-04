@@ -31,11 +31,17 @@ class Metadata(BaseModel):
     embedMetadata: list[str]
 
 
+class Mitm(BaseModel):
+    host: str
+    port: int
+
+
 class Config(BaseModel):
-    language: Language
+    region: Region
     devices: list[Device]
     download: Download
     metadata: Metadata
+    mitm: Mitm
 
     @classmethod
     def load_from_config(cls, config_file: str = "config.toml"):
