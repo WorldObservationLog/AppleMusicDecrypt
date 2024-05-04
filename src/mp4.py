@@ -168,7 +168,7 @@ def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str
         with open(cover_path.absolute(), "wb") as f:
             f.write(metadata.cover)
     subprocess.run(["mp4box", "-time", "0", "-mtime", "0", "-keep-utc", "-name", f"1={metadata.title}", "-itags",
-                    ":".join(["tool=\"\"", f"cover={absolute_cover_path}",
+                    ":".join(["tool=", f"cover={absolute_cover_path}",
                               metadata.to_itags_params(embed_metadata, cover_format)]),
                     song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(song_name.absolute(), "rb") as f:
