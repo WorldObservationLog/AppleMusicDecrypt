@@ -9,9 +9,11 @@ agentPort = 10020
 suMethod = "su -c"
 
 [download]
-atmosConventToM4a = false
+codecAlternative = true
+codecPriority = ["alac", "ec3", "ac3", "aac"]
+atmosConventToM4a = true
 songNameFormat = "{disk}-{tracknum:02d} {title}"
-dirPathFormat = "downloads/{artist}/{album}"
+dirPathFormat = "downloads/{album_artist}/{album}"
 saveLyrics = true
 saveCover = true
 coverFormat = "jpg"

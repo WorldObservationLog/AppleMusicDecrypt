@@ -16,6 +16,8 @@ class Device(BaseModel):
 
 
 class Download(BaseModel):
+    codecAlternative: bool
+    codecPriority: list[str]
     atmosConventToM4a: bool
     songNameFormat: str
     dirPathFormat: str
