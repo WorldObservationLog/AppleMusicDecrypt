@@ -29,8 +29,8 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         lyrics = await get_song_lyrics(song.id, song.storefront, auth_params.accountAccessToken,
                                        auth_params.dsid, auth_params.accountToken)
         song_metadata.lyrics = lyrics
-    song_uri, keys, selected_codec = await extract_media(song_data.attributes.extendedAssetUrls.enhancedHls, codec)
-    logger.info(f"Selected codec: {selected_codec} for song: {song_metadata.artist} - {song_metadata.title}")
+    song_uri, keys = await extract_media(song_data.attributes.extendedAssetUrls.enhancedHls, codec, song_metadata,
+                                         config.download.codecPriority, config.download.codecAlternative)
     logger.info(f"Downloading song: {song_metadata.artist} - {song_metadata.title}")
     raw_song = await download_song(song_uri)
     song_info = extract_song(raw_song, codec)

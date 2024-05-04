@@ -8,6 +8,7 @@ from typing import Tuple
 import m3u8
 import regex
 from bs4 import BeautifulSoup
+from loguru import logger
 
 from src.exceptions import CodecNotFoundException
 from src.metadata import SongMetadata
@@ -22,12 +23,21 @@ async def get_available_codecs(m3u8_url: str) -> Tuple[list[str], list[str]]:
     return codecs, codec_ids
 
 
-async def extract_media(m3u8_url: str, codec: str) -> Tuple[str, list[str], str]:
+async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
+                        codec_priority: list[str], alternative_codec: bool = False ) -> Tuple[str, list[str]]:
     parsed_m3u8 = m3u8.load(m3u8_url)
     specifyPlaylist = find_best_codec(parsed_m3u8, codec)
+    if not specifyPlaylist and alternative_codec:
+        logger.warning(f"Codec {codec} of song: {song_metadata.artist} - {song_metadata.title} did not found")
+        for a_codec in codec_priority:
+            specifyPlaylist = find_best_codec(parsed_m3u8, a_codec)
+            if specifyPlaylist:
+                codec = a_codec
+                break
     if not specifyPlaylist:
         raise CodecNotFoundException
     selected_codec = specifyPlaylist.media[0].group_id
+    logger.info(f"Selected codec: {selected_codec} for song: {song_metadata.artist} - {song_metadata.title}")
     stream = m3u8.load(specifyPlaylist.absolute_uri)
     skds = [key.uri for key in stream.keys if regex.match('(skd?://[^"]*)', key.uri)]
     keys = [prefetchKey]
@@ -46,7 +56,7 @@ async def extract_media(m3u8_url: str, codec: str) -> Tuple[str, list[str], str]
     for key in skds:
         if key.endswith(key_suffix) or key.endswith(CodecKeySuffix.KeySuffixDefault):
             keys.append(key)
-    return stream.segment_map[0].absolute_uri, keys, selected_codec
+    return stream.segment_map[0].absolute_uri, keys
 
 
 def extract_song(raw_song: bytes, codec: str) -> SongInfo:
