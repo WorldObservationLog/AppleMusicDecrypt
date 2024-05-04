@@ -9,7 +9,8 @@ from loguru import logger
 from ppadb.client import Client as AdbClient
 from ppadb.device import Device as AdbDevice
 
-from src.exceptions import FridaNotExistException, ADBConnectException, FailedGetAuthParamException
+from src.exceptions import FridaNotExistException, ADBConnectException, FailedGetAuthParamException, \
+    FridaNotRunningException
 from src.types import AuthParams
 
 
@@ -69,13 +70,15 @@ class Device:
 
     def _start_remote_frida(self):
         logger.debug("starting remote frida")
-        output = f"(ls {self.fridaPath} && echo True) || echo False"
+        output = self._execute_command(f"(ls {self.fridaPath} && echo True) || echo False")
         if not output or "True" not in output:
             raise FridaNotExistException
         permission = self._execute_command(f"ls -l {self.fridaPath}")
         if not permission or "x" not in permission[:10]:
             self._execute_command(f"chmod +x {self.fridaPath}", True)
-        self._execute_command(f"{self.fridaPath} &", True)
+        self._execute_command(f"{self.fridaPath} &", su=True)
+        if not self._if_frida_running():
+            logger.error("Failed to start remote frida")
 
     def _start_forward(self, local_port: int, remote_port: int):
         self.device.forward(f"tcp:{local_port}", f"tcp:{remote_port}")
@@ -104,7 +107,8 @@ class Device:
 
     def start_inject_frida(self, frida_port):
         if not self._if_frida_running():
-            self._start_remote_frida()
+            # self._start_remote_frida()
+            raise FridaNotRunningException
         self._start_forward(frida_port, frida_port)
         self._inject_frida(frida_port)
 

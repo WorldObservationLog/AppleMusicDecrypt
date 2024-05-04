@@ -2,6 +2,10 @@ class FridaNotExistException(Exception):
     ...
 
 
+class FridaNotRunningException(Exception):
+    ...
+
+
 class ADBConnectException(Exception):
     ...
 
