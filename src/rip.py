@@ -10,6 +10,7 @@ from src.mp4 import extract_media, extract_song, encapsulate, write_metadata
 from src.save import save
 from src.types import GlobalAuthParams, Codec
 from src.url import Song, Album, URLType
+from src.utils import check_song_exists
 
 
 async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
