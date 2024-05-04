@@ -44,12 +44,18 @@ class Device:
             raise ADBConnectException
         self.device = self.client.device(f"{host}:{port}")
 
-    def _execute_command(self, cmd: str, su: bool = False) -> Optional[str]:
-        if su:
-            cmd = cmd.replace("\"", "\\\"")
-            output = self.device.shell(f"{self.suMethod} \"{cmd}\"")
-        else:
-            output = self.device.shell(cmd, timeout=30)
+    def _execute_command(self, cmd: str, su: bool = False, sh: bool = False) -> Optional[str]:
+        whoami = self.device.shell("whoami")
+        final_cmd = cmd
+        if whoami.strip() != "root" and su:
+            if self.suMethod == "su -c":
+                replaced_cmd = cmd.replace("\"", "\\\"")
+                final_cmd = f"{self.suMethod} \"{replaced_cmd}\""
+            else:
+                final_cmd = f"{self.suMethod} {final_cmd}"
+        if sh:
+            final_cmd = f"sh -c '{final_cmd}'"
+        output = self.device.shell(final_cmd, timeout=30)
         if not output:
             return ""
         return output

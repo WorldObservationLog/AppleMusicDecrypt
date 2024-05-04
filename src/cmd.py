@@ -43,7 +43,7 @@ class NewInteractiveShell:
         logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True, level="INFO")
 
         for device_info in self.config.devices:
-            device = Device(frida_path=device_info.fridaPath)
+            device = Device(frida_path=device_info.fridaPath, su_method=device_info.suMethod)
             device.connect(device_info.host, device_info.port)
             logger.info(f"Device {device_info.host}:{device_info.port} has connected")
             self.devices.append(device)

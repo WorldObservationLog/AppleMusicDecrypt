@@ -13,6 +13,7 @@ class Device(BaseModel):
     port: int
     agentPort: int
     fridaPath: str
+    suMethod: str
 
 
 class Download(BaseModel):
