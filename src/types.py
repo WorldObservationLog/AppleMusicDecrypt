@@ -23,6 +23,7 @@ class SongInfo(BaseModel):
 class Codec:
     ALAC = "alac"
     EC3 = "ec3"
+    AC3 = "ac3"
     AAC_BINAURAL = "aac-binaural"
     AAC_DOWNMIX = "aac-downmix"
     AAC = "aac"
@@ -38,7 +39,8 @@ class CodecKeySuffix:
 
 
 class CodecRegex:
-    RegexCodecAtmos = "audio-atmos-\\d{4}$"
+    RegexCodecAtmos = "audio-(atmos|ec3)-\\d{4}$"
+    RegexCodecAC3 = "audio-ac3-\\d{3}$"
     RegexCodecAlac = "audio-alac-stereo-\\d{5}-\\d{2}$"
     RegexCodecBinaural = "audio-stereo-\\d{3}-binaural$"
     RegexCodecDownmix = "audio-stereo-\\d{3}-downmix$"
@@ -48,7 +50,7 @@ class CodecRegex:
     def get_pattern_by_codec(cls, codec: str):
         codec_pattern_mapping = {Codec.ALAC: cls.RegexCodecAlac, Codec.EC3: cls.RegexCodecAtmos,
                                  Codec.AAC_DOWNMIX: cls.RegexCodecDownmix, Codec.AAC_BINAURAL: cls.RegexCodecBinaural,
-                                 Codec.AAC: cls.RegexCodecAAC}
+                                 Codec.AAC: cls.RegexCodecAAC, Codec.AC3: cls.RegexCodecAC3}
         return codec_pattern_mapping.get(codec)
 
 
