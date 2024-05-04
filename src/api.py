@@ -5,9 +5,8 @@ from ssl import SSLError
 import httpcore
 import httpx
 import regex
-
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_sleep_log
 from loguru import logger
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_sleep_log
 
 from src.models import *
 
@@ -18,7 +17,8 @@ user_agent_itunes = "iTunes/12.11.3 (Windows; Microsoft Windows 10 x64 Professio
 user_agent_app = "Music/5.7 Android/10 model/Pixel6GR1YH build/1234 (dt:66)"
 
 
-@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)), stop=stop_after_attempt(5),
+@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
+       stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_token():
     req = await client.get("https://beta.music.apple.com")
@@ -28,14 +28,16 @@ async def get_token():
     return token
 
 
-@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)), stop=stop_after_attempt(5),
+@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
+       stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logger, logging.WARN))
 async def download_song(url: str) -> bytes:
     async with lock:
         return (await client.get(url)).content
 
 
-@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)), stop=stop_after_attempt(5),
+@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
+       stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_meta(album_id: str, token: str, storefront: str):
     if "pl." in album_id:
@@ -69,7 +71,8 @@ async def get_meta(album_id: str, token: str, storefront: str):
         return result
 
 
-@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)), stop=stop_after_attempt(5),
+@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
+       stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_cover(url: str, cover_format: str):
     formatted_url = regex.sub('bb.jpg', f'bb.{cover_format}', url)
@@ -78,7 +81,8 @@ async def get_cover(url: str, cover_format: str):
     return req.content
 
 
-@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)), stop=stop_after_attempt(5),
+@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
+       stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_info_from_adam(adam_id: str, token: str, storefront: str):
     req = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/songs/{adam_id}",
@@ -92,7 +96,8 @@ async def get_info_from_adam(adam_id: str, token: str, storefront: str):
     return None
 
 
-@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)), stop=stop_after_attempt(5),
+@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
+       stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_song_lyrics(song_id: str, storefront: str, token: str, dsid: str, account_token: str) -> str:
     req = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/songs/{song_id}/lyrics",
