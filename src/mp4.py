@@ -9,6 +9,7 @@ import m3u8
 import regex
 from bs4 import BeautifulSoup
 
+from src.exceptions import CodecNotFoundException
 from src.metadata import SongMetadata
 from src.types import *
 from src.utils import find_best_codec
@@ -17,6 +18,8 @@ from src.utils import find_best_codec
 async def extract_media(m3u8_url: str, codec: str) -> Tuple[str, list[str], str]:
     parsed_m3u8 = m3u8.load(m3u8_url)
     specifyPlaylist = find_best_codec(parsed_m3u8, codec)
+    if not specifyPlaylist:
+        raise CodecNotFoundException
     selected_codec = specifyPlaylist.media[0].group_id
     if not specifyPlaylist:
         raise
