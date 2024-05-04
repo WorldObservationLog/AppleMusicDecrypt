@@ -6,55 +6,55 @@ from pydantic import BaseModel
 
 
 class Artwork(BaseModel):
-    width: int
-    url: str
-    height: int
-    textColor3: str
-    textColor2: str
-    textColor4: str
-    textColor1: str
-    bgColor: str
-    hasP3: bool
+    width: Optional[int] = None
+    url: Optional[str] = None
+    height: Optional[int] = None
+    textColor3: Optional[str] = None
+    textColor2: Optional[str] = None
+    textColor4: Optional[str] = None
+    textColor1: Optional[str] = None
+    bgColor: Optional[str] = None
+    hasP3: Optional[bool] = None
 
 
 class PlayParams(BaseModel):
-    id: str
-    kind: str
+    id: Optional[str] = None
+    kind: Optional[str] = None
 
 
 class Preview(BaseModel):
-    url: str
+    url: Optional[str] = None
 
 
 class Attributes(BaseModel):
-    hasTimeSyncedLyrics: bool
-    albumName: str
-    genreNames: List[str]
-    trackNumber: int
-    releaseDate: str
-    durationInMillis: int
-    isVocalAttenuationAllowed: bool
-    isMasteredForItunes: bool
-    isrc: str
+    hasTimeSyncedLyrics: Optional[bool] = None
+    albumName: Optional[str] = None
+    genreNames: List[Optional[str]] = None
+    trackNumber: Optional[int] = None
+    releaseDate: Optional[str] = None
+    durationInMillis: Optional[int] = None
+    isVocalAttenuationAllowed: Optional[bool] = None
+    isMasteredForItunes: Optional[bool] = None
+    isrc: Optional[str] = None
     artwork: Artwork
     composerName: Optional[str] = None
-    audioLocale: str
-    url: str
+    audioLocale: Optional[str] = None
+    url: Optional[str] = None
     playParams: PlayParams
-    discNumber: int
-    hasCredits: bool
-    isAppleDigitalMaster: bool
-    hasLyrics: bool
-    audioTraits: List[str]
-    name: str
+    discNumber: Optional[int] = None
+    hasCredits: Optional[bool] = None
+    isAppleDigitalMaster: Optional[bool] = None
+    hasLyrics: Optional[bool] = None
+    audioTraits: Optional[str] = None
+    name: Optional[str] = None
     previews: List[Preview]
-    artistName: str
+    artistName: Optional[str] = None
 
 
 class Datum(BaseModel):
-    id: str
-    type: str
-    href: str
+    id: Optional[str] = None
+    type: Optional[str] = None
+    href: Optional[str] = None
     attributes: Attributes
 
 

@@ -1,122 +1,122 @@
 from __future__ import annotations
 
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel
 
 
 class Artwork(BaseModel):
-    width: int
-    url: str
-    height: int
-    textColor3: str
-    textColor2: str
-    textColor4: str
-    textColor1: str
-    bgColor: str
-    hasP3: bool
+    width: Optional[int] = None
+    url: Optional[str] = None
+    height: Optional[int] = None
+    textColor3: Optional[str] = None
+    textColor2: Optional[str] = None
+    textColor4: Optional[str] = None
+    textColor1: Optional[str] = None
+    bgColor: Optional[str] = None
+    hasP3: Optional[bool] = None
 
 
 class PlayParams(BaseModel):
-    id: str
-    kind: str
+    id: Optional[str] = None
+    kind: Optional[str] = None
 
 
 class Preview(BaseModel):
-    url: str
+    url: Optional[str] = None
 
 
 class ExtendedAssetUrls(BaseModel):
-    plus: str
-    lightweight: str
-    superLightweight: str
-    lightweightPlus: str
-    enhancedHls: str
+    plus: Optional[str] = None
+    lightweight: Optional[str] = None
+    superLightweight: Optional[str] = None
+    lightweightPlus: Optional[str] = None
+    enhancedHls: Optional[str] = None
 
 
 class Attributes(BaseModel):
-    hasTimeSyncedLyrics: bool
-    albumName: str
-    genreNames: List[str]
-    trackNumber: int
-    durationInMillis: int
-    releaseDate: str
-    isVocalAttenuationAllowed: bool
-    isMasteredForItunes: bool
-    isrc: str
+    hasTimeSyncedLyrics: Optional[bool] = None
+    albumName: Optional[str] = None
+    genreNames: List[Optional[str]] = None
+    trackNumber: Optional[int] = None
+    durationInMillis: Optional[int] = None
+    releaseDate: Optional[str] = None
+    isVocalAttenuationAllowed: Optional[bool] = None
+    isMasteredForItunes: Optional[bool] = None
+    isrc: Optional[str] = None
     artwork: Artwork
-    composerName: str
-    audioLocale: str
-    url: str
+    composerName: Optional[str] = None
+    audioLocale: Optional[str] = None
+    url: Optional[str] = None
     playParams: PlayParams
-    discNumber: int
-    hasCredits: bool
-    isAppleDigitalMaster: bool
-    hasLyrics: bool
-    audioTraits: List[str]
-    name: str
+    discNumber: Optional[int] = None
+    hasCredits: Optional[bool] = None
+    isAppleDigitalMaster: Optional[bool] = None
+    hasLyrics: Optional[bool] = None
+    audioTraits: List[Optional[str]] = None
+    name: Optional[str] = None
     previews: List[Preview]
-    artistName: str
+    artistName: Optional[str] = None
     extendedAssetUrls: ExtendedAssetUrls
 
 
 class Artwork1(BaseModel):
-    width: int
-    url: str
-    height: int
-    textColor3: str
-    textColor2: str
-    textColor4: str
-    textColor1: str
-    bgColor: str
-    hasP3: bool
+    width: Optional[int] = None
+    url: Optional[str] = None
+    height: Optional[int] = None
+    textColor3: Optional[str] = None
+    textColor2: Optional[str] = None
+    textColor4: Optional[str] = None
+    textColor1: Optional[str] = None
+    bgColor: Optional[str] = None
+    hasP3: Optional[bool] = None
 
 
 class PlayParams1(BaseModel):
-    id: str
-    kind: str
+    id: Optional[str] = None
+    kind: Optional[str] = None
 
 
 class Attributes1(BaseModel):
-    copyright: str
-    genreNames: List[str]
-    releaseDate: str
-    isMasteredForItunes: bool
-    upc: str
+    copyright: Optional[str] = None
+    genreNames: List[Optional[str]] = None
+    releaseDate: Optional[str] = None
+    isMasteredForItunes: Optional[bool] = None
+    upc: Optional[str] = None
     artwork: Artwork1
-    url: str
+    url: Optional[str] = None
     playParams: PlayParams1
-    recordLabel: str
-    isCompilation: bool
-    trackCount: int
-    isPrerelease: bool
-    audioTraits: List[str]
-    isSingle: bool
-    name: str
-    artistName: str
-    isComplete: bool
+    recordLabel: Optional[str] = None
+    isCompilation: Optional[bool] = None
+    trackCount: Optional[int] = None
+    isPrerelease: Optional[bool] = None
+    audioTraits: List[Optional[str]] = None
+    isSingle: Optional[bool] = None
+    name: Optional[str] = None
+    artistName: Optional[str] = None
+    isComplete: Optional[bool] = None
 
 
 class Datum1(BaseModel):
-    id: str
-    type: str
-    href: str
+    id: Optional[str] = None
+    type: Optional[str] = None
+    href: Optional[str] = None
     attributes: Attributes1
 
 
 class Albums(BaseModel):
-    href: str
+    href: Optional[str] = None
     data: List[Datum1]
 
 
 class Datum2(BaseModel):
-    id: str
-    type: str
-    href: str
+    id: Optional[str] = None
+    type: Optional[str] = None
+    href: Optional[str] = None
 
 
 class Artists(BaseModel):
-    href: str
+    href: Optional[str] = None
     data: List[Datum2]
 
 
@@ -126,9 +126,9 @@ class Relationships(BaseModel):
 
 
 class Datum(BaseModel):
-    id: str
-    type: str
-    href: str
+    id: Optional[str] = None
+    type: Optional[str] = None
+    href: Optional[str] = None
     attributes: Attributes
     relationships: Relationships
 

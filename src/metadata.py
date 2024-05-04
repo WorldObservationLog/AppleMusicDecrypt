@@ -1,3 +1,5 @@
+from typing import Optional
+
 from pydantic import BaseModel
 
 from src.api import get_cover
@@ -6,27 +8,29 @@ from src.utils import ttml_convent_to_lrc
 
 
 class SongMetadata(BaseModel):
-    title: str
-    artist: str
-    album_artist: str
-    album: str
-    composer: str
-    genre: str
-    created: str
-    track: str
-    tracknum: int
-    disk: int
-    lyrics: str
+    title: Optional[str] = None
+    artist: Optional[str] = None
+    album_artist: Optional[str] = None
+    album: Optional[str] = None
+    composer: Optional[str] = None
+    genre: Optional[str] = None
+    created: Optional[str] = None
+    track: Optional[str] = None
+    tracknum: Optional[int] = None
+    disk: Optional[int] = None
+    lyrics: Optional[str] = None
     cover: bytes = None
-    cover_url: str
-    copyright: str
-    record_company: str
-    upc: str
-    isrc: str
+    cover_url: Optional[str] = None
+    copyright: Optional[str] = None
+    record_company: Optional[str] = None
+    upc: Optional[str] = None
+    isrc: Optional[str] = None
 
     def to_itags_params(self, embed_metadata: list[str], cover_format: str):
         tags = []
         for key, value in self.model_dump().items():
+            if not value:
+                continue
             if key in embed_metadata and value:
                 if key == "cover":
                     continue
