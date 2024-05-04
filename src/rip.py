@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 
 from loguru import logger
 
@@ -40,8 +41,12 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         song = write_metadata(song, song_metadata, config.metadata.embedMetadata, config.download.coverFormat)
     if codec != Codec.AC3 or (codec == Codec.AC3 and config.download.atmosConventToM4a):
         song = write_metadata(song, song_metadata, config.metadata.embedMetadata, config.download.coverFormat)
-    save(song, codec, song_metadata, config.download)
+    filename = save(song, codec, song_metadata, config.download)
     logger.info(f"Song {song_metadata.artist} - {song_metadata.title} saved!")
+    if config.download.afterDownloaded:
+        command = config.download.afterDownloaded.format(filename=filename)
+        logger.info(f"Executing command: {command}")
+        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
