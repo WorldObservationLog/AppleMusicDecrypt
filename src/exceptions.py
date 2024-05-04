@@ -20,3 +20,7 @@ class DecryptException(Exception):
 
 class NotTimeSyncedLyricsException(Exception):
     ...
+
+
+class CodecNotFoundException(Exception):
+    ...
