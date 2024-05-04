@@ -33,9 +33,10 @@ download https://music.apple.com/jp/song/caribbean-blue/339592231 -c aac
 ## Prepare Android Environment
 ### For WSA (Recommend):
 1. Install Apple Music (3.6.0-beta) and login
-2. Install WSA from [LSPosed/MagiskOnWSALocal](https://github.com/LSPosed/MagiskOnWSALocal). Choose the version that includes Magisk but not GApps
-3. Install following Magisk modules: [magisk-frida](https://github.com/ViRb3/magisk-frida), [sqlite3-magisk-module](https://github.com/rojenzaman/sqlite3-magisk-module)
-4. Edit `config.toml`
+2. Play a song in Apple Music
+3. Install WSA from [LSPosed/MagiskOnWSALocal](https://github.com/LSPosed/MagiskOnWSALocal). Choose the version that includes Magisk but not GApps
+4. Install following Magisk modules: [magisk-frida](https://github.com/ViRb3/magisk-frida), [sqlite3-magisk-module](https://github.com/rojenzaman/sqlite3-magisk-module)
+5. Edit `config.toml`
 ```toml
 [[devices]]
 host = "127.0.0.1"
@@ -46,8 +47,9 @@ suMethod = "su -c"
 ```
 ### For Google Android Emulator
 1. Install Apple Music (3.6.0-beta) and login
-2. Manually install Frida and start frida-server in background
-3. Edit `config.toml`
+2. Play a song in Apple Music
+3. Manually install Frida and start frida-server in background
+4. Edit `config.toml`
 ```toml
 [[devices]]
 host = "127.0.0.1"
