@@ -1,4 +1,5 @@
-[language]
+[region]
+defaultStorefront = "jp"
 language = "zh_CN"
 
 [[devices]]

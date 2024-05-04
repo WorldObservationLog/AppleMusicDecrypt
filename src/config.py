@@ -3,8 +3,9 @@ import tomllib
 from pydantic import BaseModel
 
 
-class Language(BaseModel):
+class Region(BaseModel):
     language: str
+    defaultStorefront: str
 
 
 class Device(BaseModel):

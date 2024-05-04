@@ -124,3 +124,8 @@ def get_codec_from_codec_id(codec_id: str) -> str:
         if regex.match(CodecRegex.get_pattern_by_codec(codec), codec_id):
             return codec
     return ""
+
+
+def get_song_id_from_m3u8(m3u8_url: str) -> str:
+    parsed_m3u8 = m3u8.load(m3u8_url)
+    return regex.search(r"_A(\d*)_", parsed_m3u8.playlists[0].uri)[1]
