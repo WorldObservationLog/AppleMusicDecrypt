@@ -13,6 +13,7 @@ from src.url import Song, Album, URLType
 from src.utils import check_song_exists
 
 
+@logger.catch
 async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                    force_save: bool = False):
     logger.debug(f"Task of song id {song.id} was created")
