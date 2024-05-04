@@ -35,7 +35,8 @@ class NewInteractiveShell:
         download_parser = subparser.add_parser("download")
         download_parser.add_argument("url", type=str)
         download_parser.add_argument("-c", "--codec",
-                                     choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"], default="alac")
+                                     choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
+                                     default="alac")
         download_parser.add_argument("-f", "--force", type=bool, default=False)
         subparser.add_parser("exit")
 
@@ -79,12 +80,14 @@ class NewInteractiveShell:
             available_device: Device = random.choice(devices)
         else:
             available_device: Device = random.choice(available_devices)
-        global_auth_param = GlobalAuthParams.from_auth_params_and_token(available_device.get_auth_params(), self.anonymous_access_token)
+        global_auth_param = GlobalAuthParams.from_auth_params_and_token(available_device.get_auth_params(),
+                                                                        self.anonymous_access_token)
         match url.type:
             case URLType.Song:
-                self.loop.create_task(rip_song(url, global_auth_param, codec, self.config, available_device, force_download))
+                task = self.loop.create_task(
+                    rip_song(url, global_auth_param, codec, self.config, available_device, force_download))
             case URLType.Album:
-                self.loop.create_task(rip_album(url, global_auth_param, codec, self.config, available_device))
+                task = self.loop.create_task(rip_album(url, global_auth_param, codec, self.config, available_device))
 
     async def handle_command(self):
         session = PromptSession("> ")

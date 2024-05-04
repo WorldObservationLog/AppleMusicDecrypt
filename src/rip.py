@@ -10,10 +10,8 @@ from src.mp4 import extract_media, extract_song, encapsulate, write_metadata
 from src.save import save
 from src.types import GlobalAuthParams, Codec
 from src.url import Song, Album, URLType
-from src.utils import check_song_exists
 
 
-@logger.catch
 async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                    force_save: bool = False):
     logger.debug(f"Task of song id {song.id} was created")
@@ -52,7 +50,8 @@ async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, con
         for track in album_info.data[0].relationships.tracks.data:
             song = Song(id=track.id, storefront=album.storefront, url="", type=URLType.Song)
             tg.create_task(rip_song(song, auth_params, codec, config, device, force_save))
-    logger.info(f"Album: {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name} finished ripping")
+    logger.info(
+        f"Album: {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name} finished ripping")
 
 
 async def rip_playlist():

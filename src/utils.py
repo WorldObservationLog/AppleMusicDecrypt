@@ -9,7 +9,6 @@ from bs4 import BeautifulSoup
 
 from src.config import Download
 from src.exceptions import NotTimeSyncedLyricsException
-
 from src.types import *
 
 
@@ -117,3 +116,11 @@ def check_song_exists(metadata, config: Download, codec: str):
 
 def get_valid_filename(filename: str):
     return "".join(i for i in filename if i not in r"\/:*?<>|")
+
+
+def get_codec_from_codec_id(codec_id: str) -> str:
+    codecs = [Codec.AC3, Codec.EC3, Codec.AAC, Codec.ALAC, Codec.AAC_BINAURAL, Codec.AAC_DOWNMIX]
+    for codec in codecs:
+        if regex.match(CodecRegex.get_pattern_by_codec(codec), codec_id):
+            return codec
+    return ""

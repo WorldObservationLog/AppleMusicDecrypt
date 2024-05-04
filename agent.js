@@ -14,7 +14,7 @@ setTimeout(() => {
         addr.add(Process.pointerSize).writeULong(size);
         addr.add(Process.pointerSize * 2).writePointer(buffer);
 
-        return { buffer: buffer, str: addr };
+        return {buffer: buffer, str: addr};
     }
 
     function newStdString(content) {
@@ -28,7 +28,7 @@ setTimeout(() => {
         addr.add(Process.pointerSize).writeULong(size);
         addr.add(Process.pointerSize * 2).writePointer(buffer);
 
-        return { buffer: buffer, str: addr };
+        return {buffer: buffer, str: addr};
     }
 
 

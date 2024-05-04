@@ -12,7 +12,14 @@ from bs4 import BeautifulSoup
 from src.exceptions import CodecNotFoundException
 from src.metadata import SongMetadata
 from src.types import *
-from src.utils import find_best_codec
+from src.utils import find_best_codec, get_codec_from_codec_id
+
+
+async def get_available_codecs(m3u8_url: str) -> Tuple[list[str], list[str]]:
+    parsed_m3u8 = m3u8.load(m3u8_url)
+    codec_ids = [playlist.stream_info.audio for playlist in parsed_m3u8.playlists]
+    codecs = [get_codec_from_codec_id(codec_id) for codec_id in codec_ids]
+    return codecs, codec_ids
 
 
 async def extract_media(m3u8_url: str, codec: str) -> Tuple[str, list[str], str]:
@@ -161,7 +168,8 @@ def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str
         with open(cover_path.absolute(), "wb") as f:
             f.write(metadata.cover)
     subprocess.run(["mp4box", "-time", "0", "-mtime", "0", "-keep-utc", "-name", f"1={metadata.title}", "-itags",
-                    ":".join(["tool=\"\"", f"cover={absolute_cover_path}", metadata.to_itags_params(embed_metadata, cover_format)]),
+                    ":".join(["tool=\"\"", f"cover={absolute_cover_path}",
+                              metadata.to_itags_params(embed_metadata, cover_format)]),
                     song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(song_name.absolute(), "rb") as f:
         embed_song = f.read()

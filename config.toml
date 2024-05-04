@@ -19,5 +19,5 @@ afterDownloaded = ""
 
 [metadata]
 embedMetadata = ["title", "artist", "album", "album_artist", "composer",
-"genre", "created", "track", "tracknum", "disk", "lyrics", "cover", "copyright",
-"record_company", "upc", "isrc"]
+    "genre", "created", "track", "tracknum", "disk", "lyrics", "cover", "copyright",
+    "record_company", "upc", "isrc"]

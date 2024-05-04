@@ -100,7 +100,8 @@ class Device:
     def _get_dsid(self) -> str:
         logger.debug("getting dsid")
         dsid = self._execute_command(
-            "sqlite3 /data/data/com.apple.android.music/files/mpl_db/cookies.sqlitedb \"select value from cookies where name='X-Dsid';\"", True)
+            "sqlite3 /data/data/com.apple.android.music/files/mpl_db/cookies.sqlitedb \"select value from cookies where name='X-Dsid';\"",
+            True)
         if not dsid:
             raise FailedGetAuthParamException
         return dsid.strip()
@@ -108,7 +109,8 @@ class Device:
     def _get_account_token(self, dsid: str) -> str:
         logger.debug("getting account token")
         account_token = self._execute_command(
-            f"sqlite3 /data/data/com.apple.android.music/files/mpl_db/cookies.sqlitedb \"select value from cookies where name='mz_at_ssl-{dsid}';\"", True)
+            f"sqlite3 /data/data/com.apple.android.music/files/mpl_db/cookies.sqlitedb \"select value from cookies where name='mz_at_ssl-{dsid}';\"",
+            True)
         if not account_token:
             raise FailedGetAuthParamException
         return account_token.strip()
@@ -124,7 +126,8 @@ class Device:
     def _get_storefront(self) -> str | None:
         logger.debug("getting storefront")
         storefront_id = self._execute_command(
-            "sqlite3 /data/data/com.apple.android.music/files/mpl_db/accounts.sqlitedb \"select storeFront from account;\"", True)
+            "sqlite3 /data/data/com.apple.android.music/files/mpl_db/accounts.sqlitedb \"select storeFront from account;\"",
+            True)
         if not storefront_id:
             raise FailedGetAuthParamException
         with open("assets/storefront_ids.json") as f:

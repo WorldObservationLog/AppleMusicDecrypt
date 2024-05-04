@@ -1,10 +1,6 @@
 import asyncio
-import logging
-import sys
 
-from prompt_toolkit.shortcuts import ProgressBar
 from loguru import logger
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_sleep_log
 
 from src.adb import Device
 from src.exceptions import DecryptException
