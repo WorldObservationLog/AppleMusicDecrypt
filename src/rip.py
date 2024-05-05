@@ -31,14 +31,14 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         lyrics = await get_song_lyrics(song.id, song.storefront, auth_params.accountAccessToken,
                                        auth_params.dsid, auth_params.accountToken, config.region.language)
         song_metadata.lyrics = lyrics
-    if "http" in config.download.check:
+    if "http" in config.download.check and codec == Codec.ALAC:
         params = (
             ('songid', song.id),
         )
-        m3u8_url = httpx.get(config.download.check, params=params).text
+        m3u8_url = httpx.get(config.download.check, params=params, verify=False).text
         if "m3u8" in m3u8_url:
             song_data.attributes.extendedAssetUrls.enhancedHls = m3u8_url
-            logger.info("Find m3u8 from API")
+            logger.info("Found m3u8 from API")
     if specified_m3u8:
         song_uri, keys = await extract_media(specified_m3u8, codec, song_metadata,
                                              config.download.codecPriority, config.download.codecAlternative)
