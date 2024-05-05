@@ -4,6 +4,7 @@ from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Tuple
+from datetime import datetime
 
 import m3u8
 import regex
@@ -177,7 +178,8 @@ def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str
         absolute_cover_path = cover_path.absolute()
         with open(cover_path.absolute(), "wb") as f:
             f.write(metadata.cover)
-    subprocess.run(["mp4box", "-time", "0", "-mtime", "0", "-keep-utc", "-name", f"1={metadata.title}", "-itags",
+    time = datetime.strptime(metadata.created, "%Y-%m-%d").strftime("%d/%m/%Y")
+    subprocess.run(["mp4box", "-time", time, "-mtime", time, "-keep-utc", "-name", f"1={metadata.title}", "-itags",
                     ":".join(["tool=", f"cover={absolute_cover_path}",
                               metadata.to_itags_params(embed_metadata, cover_format)]),
                     song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
