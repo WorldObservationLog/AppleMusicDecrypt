@@ -61,7 +61,6 @@ mitm
 host = "127.0.0.1"
 port = 58526 # Replace this value to your WSA ADB port!
 agentPort = 10020
-fridaPath = "/system/bin/frida-server"
 suMethod = "su -c"
 ```
 
@@ -77,7 +76,6 @@ suMethod = "su -c"
 host = "127.0.0.1"
 port = 5555
 agentPort = 10020
-fridaPath = "/data/local/tmp/frida-server-16.2.1-android-x86_64"  # Replace this value to your frida-server path!
 suMethod = "su 0"
 ```
 
