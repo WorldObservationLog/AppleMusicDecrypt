@@ -21,7 +21,7 @@ jobs:
           poetry run python -m pip install nuitka
       - name: Build
         run: |
-          poetry run python -m nuitka main.py --assume-yes-for-downloads --standalone --follow-imports --include-data-dir=assets=assets --include-data-files=config.toml=config.toml --include-data-files=agent.js=agent.js
+          poetry run python -m nuitka main.py --assume-yes-for-downloads --standalone --follow-imports --include-data-dir=assets=assets --include-data-files=config.toml=config.toml --include-data-files=agent.js=agent.js --include-module=mitmproxy_windows
       - name: Rename
         run: |
           ren main.dist AppleMusicDecrypt
