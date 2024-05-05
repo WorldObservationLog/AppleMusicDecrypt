@@ -19,6 +19,7 @@ dirPathFormat = "downloads/{album_artist}/{album}"
 saveLyrics = true
 saveCover = true
 coverFormat = "jpg"
+coverSize = "5000x5000"
 afterDownloaded = ""
 check = ""
 
