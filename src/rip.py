@@ -26,7 +26,7 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
     if not force_save and check_song_exists(song_metadata, config.download, codec):
         logger.info(f"Song: {song_metadata.artist} - {song_metadata.title} already exists")
         return
-    await song_metadata.get_cover(config.download.coverFormat)
+    await song_metadata.get_cover(config.download.coverFormat, config.download.coverSize)
     if song_data.attributes.hasTimeSyncedLyrics:
         lyrics = await get_song_lyrics(song.id, song.storefront, auth_params.accountAccessToken,
                                        auth_params.dsid, auth_params.accountToken, config.region.language)
