@@ -27,6 +27,7 @@ class Download(BaseModel):
     saveCover: bool
     coverFormat: str
     afterDownloaded: str
+    check: str
 
 
 class Metadata(BaseModel):

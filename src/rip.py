@@ -1,5 +1,6 @@
 import asyncio
 import subprocess
+import httpx
 
 from loguru import logger
 
@@ -30,6 +31,12 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         lyrics = await get_song_lyrics(song.id, song.storefront, auth_params.accountAccessToken,
                                        auth_params.dsid, auth_params.accountToken, config.region.language)
         song_metadata.lyrics = lyrics
+    if "http" in config.download.check:
+        params = (
+            ('songid', song.id),
+        )
+        song_data.attributes.extendedAssetUrls.enhancedHls = httpx.get(config.download.check, params=params).text
+        logger.info("Find m3u8 from API")
     if specified_m3u8:
         song_uri, keys = await extract_media(specified_m3u8, codec, song_metadata,
                                              config.download.codecPriority, config.download.codecAlternative)
