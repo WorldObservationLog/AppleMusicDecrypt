@@ -20,6 +20,7 @@ saveLyrics = true
 saveCover = true
 coverFormat = "jpg"
 afterDownloaded = ""
+check = ""
 
 [metadata]
 embedMetadata = ["title", "artist", "album", "album_artist", "composer",
