@@ -10,11 +10,19 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_
 
 from src.models import *
 
-client = httpx.AsyncClient()
-lock = asyncio.Semaphore(1)
+client: httpx.AsyncClient
+lock: asyncio.Semaphore
 user_agent_browser = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 user_agent_itunes = "iTunes/12.11.3 (Windows; Microsoft Windows 10 x64 Professional Edition (Build 19041); x64) AppleWebKit/7611.1022.4001.1 (dt:2)"
-user_agent_app = "Music/5.7 Android/10 model/Pixel6GR1YH build/1234 (dt:66)"
+
+
+def init_client_and_lock(proxy: str, parallel_num: int):
+    global client, lock
+    if proxy:
+        client = httpx.AsyncClient(proxy=proxy)
+    else:
+        client = httpx.AsyncClient()
+    lock = asyncio.Semaphore(parallel_num)
 
 
 @retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),

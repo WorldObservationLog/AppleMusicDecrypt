@@ -9,6 +9,8 @@ agentPort = 10020
 suMethod = "su -c"
 
 [download]
+proxy = ""
+parallelNum = 1
 codecAlternative = true
 codecPriority = ["alac", "ec3", "ac3", "aac"]
 atmosConventToM4a = true
