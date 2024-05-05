@@ -26,6 +26,7 @@ class Download(BaseModel):
     saveLyrics: bool
     saveCover: bool
     coverFormat: str
+    coverSize: str
     afterDownloaded: str
     check: str
 

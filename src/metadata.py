@@ -58,5 +58,5 @@ class SongMetadata(BaseModel):
     def set_lyrics(self, lyrics: str):
         self.lyrics = lyrics
 
-    async def get_cover(self, cover_format: str):
-        self.cover = await get_cover(self.cover_url, cover_format)
+    async def get_cover(self, cover_format: str, cover_size: str):
+        self.cover = await get_cover(self.cover_url, cover_format, cover_size)

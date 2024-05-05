@@ -84,9 +84,9 @@ async def get_meta(album_id: str, token: str, storefront: str, lang: str):
 @retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
        stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logger, logging.WARN))
-async def get_cover(url: str, cover_format: str):
+async def get_cover(url: str, cover_format: str, cover_size: str):
     formatted_url = regex.sub('bb.jpg', f'bb.{cover_format}', url)
-    req = await client.get(formatted_url.replace("{w}x{h}", "10000x10000"),
+    req = await client.get(formatted_url.replace("{w}x{h}", cover_size),
                            headers={"User-Agent": user_agent_browser})
     return req.content
 
