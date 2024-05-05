@@ -35,8 +35,10 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         params = (
             ('songid', song.id),
         )
-        song_data.attributes.extendedAssetUrls.enhancedHls = httpx.get(config.download.check, params=params).text
-        logger.info("Find m3u8 from API")
+        m3u8_url = httpx.get(config.download.check, params=params).text
+        if "m3u8" in m3u8_url:
+            song_data.attributes.extendedAssetUrls.enhancedHls = m3u8_url
+            logger.info("Find m3u8 from API")
     if specified_m3u8:
         song_uri, keys = await extract_media(specified_m3u8, codec, song_metadata,
                                              config.download.codecPriority, config.download.codecAlternative)
