@@ -16,6 +16,8 @@ class Device(BaseModel):
 
 
 class Download(BaseModel):
+    proxy: str
+    parallelNum: int
     codecAlternative: bool
     codecPriority: list[str]
     atmosConventToM4a: bool

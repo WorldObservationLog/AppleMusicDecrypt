@@ -9,7 +9,7 @@ from prompt_toolkit import PromptSession, print_formatted_text, ANSI
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from src.adb import Device
-from src.api import get_token
+from src.api import get_token, init_client_and_lock
 from src.config import Config
 from src.rip import rip_song, rip_album
 from src.types import GlobalAuthParams
@@ -30,6 +30,7 @@ class NewInteractiveShell:
     def __init__(self, loop: asyncio.AbstractEventLoop):
         self.loop = loop
         self.config = Config.load_from_config()
+        init_client_and_lock(self.config.download.proxy, self.config.download.parallelNum)
         self.anonymous_access_token = loop.run_until_complete(get_token())
 
         self.parser = argparse.ArgumentParser(exit_on_error=False)
