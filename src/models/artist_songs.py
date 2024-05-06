@@ -1,0 +1,73 @@
+from __future__ import annotations
+
+from typing import List, Optional
+
+from pydantic import BaseModel
+
+
+class Artwork(BaseModel):
+    width: Optional[int] = None
+    url: Optional[str] = None
+    height: Optional[int] = None
+    textColor3: Optional[str] = None
+    textColor2: Optional[str] = None
+    textColor4: Optional[str] = None
+    textColor1: Optional[str] = None
+    bgColor: Optional[str] = None
+    hasP3: bool
+
+
+class PlayParams(BaseModel):
+    id: Optional[str] = None
+    kind: Optional[str] = None
+
+
+class Preview(BaseModel):
+    url: Optional[str] = None
+
+
+class Attributes(BaseModel):
+    hasTimeSyncedLyrics: bool
+    albumName: Optional[str] = None
+    genreNames: List[str]
+    trackNumber: Optional[int] = None
+    releaseDate: Optional[str] = None
+    durationInMillis: Optional[int] = None
+    isVocalAttenuationAllowed: bool
+    isMasteredForItunes: bool
+    isrc: Optional[str] = None
+    artwork: Artwork
+    audioLocale: Optional[str] = None
+    composerName: Optional[str] = None
+    url: Optional[str] = None
+    playParams: PlayParams
+    discNumber: Optional[int] = None
+    hasCredits: bool
+    hasLyrics: bool
+    isAppleDigitalMaster: bool
+    audioTraits: List[str]
+    name: Optional[str] = None
+    previews: List[Preview]
+    artistName: Optional[str] = None
+
+
+class ContentVersion(BaseModel):
+    RTCI: Optional[int] = None
+    MZ_INDEXER: Optional[int] = None
+
+
+class Meta(BaseModel):
+    contentVersion: ContentVersion
+
+
+class Datum(BaseModel):
+    id: Optional[str] = None
+    type: Optional[str] = None
+    href: Optional[str] = None
+    attributes: Attributes
+    meta: Meta
+
+
+class ArtistSongs(BaseModel):
+    next: Optional[str] = None
+    data: List[Datum]

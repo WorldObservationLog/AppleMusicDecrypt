@@ -138,3 +138,46 @@ async def get_song_lyrics(song_id: str, storefront: str, token: str, dsid: str, 
                            cookies={f"mz_at_ssl-{dsid}": account_token})
     result = SongLyrics.model_validate(req.json())
     return result.data[0].attributes.ttml
+
+
+@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
+       stop=stop_after_attempt(5),
+       before_sleep=before_sleep_log(logger, logging.WARN))
+async def get_albums_from_artist(artist_id: str, storefront: str, token: str, lang: str, offset: int = 0):
+    resp = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/artists/{artist_id}/albums",
+                            params={"l": lang},
+                            headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_browser,
+                                     "Origin": "https://music.apple.com"})
+    artist_album = ArtistAlbums.parse_obj(resp.json())
+    albums = [album.attributes.url for album in artist_album.data]
+    if artist_album.next:
+        next_albums = await get_albums_from_artist(artist_id, storefront, token, lang, offset + 25)
+        albums.extend(next_albums)
+    return list(set(albums))
+
+
+@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
+       stop=stop_after_attempt(5),
+       before_sleep=before_sleep_log(logger, logging.WARN))
+async def get_songs_from_artist(artist_id: str, storefront: str, token: str, lang: str, offset: int = 0):
+    resp = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/artists/{artist_id}/songs",
+                            params={"l": lang},
+                            headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_browser,
+                                     "Origin": "https://music.apple.com"})
+    artist_song = ArtistSongs.parse_obj(resp.json())
+    songs = [song.attributes.url for song in artist_song.data]
+    if artist_song.next:
+        next_songs = await get_songs_from_artist(artist_id, storefront, token, lang, offset + 20)
+        songs.extend(next_songs)
+    return list[set(songs)]
+
+
+@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
+       stop=stop_after_attempt(5),
+       before_sleep=before_sleep_log(logger, logging.WARN))
+async def get_artist_info(artist_id: str, storefront: str, token: str, lang: str):
+    resp = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/artists/{artist_id}",
+                            params={"l": lang},
+                            headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_browser,
+                                     "Origin": "https://music.apple.com"})
+    return ArtistInfo.parse_obj(resp.json())

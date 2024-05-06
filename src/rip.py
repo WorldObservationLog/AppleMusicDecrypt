@@ -3,14 +3,15 @@ import subprocess
 
 from loguru import logger
 
-from src.api import get_info_from_adam, get_song_lyrics, get_meta, download_song, get_m3u8_from_api
+from src.api import (get_info_from_adam, get_song_lyrics, get_meta, download_song,
+                     get_m3u8_from_api, get_artist_info, get_songs_from_artist, get_albums_from_artist)
 from src.config import Config, Device
 from src.decrypt import decrypt
 from src.metadata import SongMetadata
 from src.mp4 import extract_media, extract_song, encapsulate, write_metadata
 from src.save import save
 from src.types import GlobalAuthParams, Codec
-from src.url import Song, Album, URLType
+from src.url import Song, Album, URLType, Artist
 from src.utils import check_song_exists
 
 
@@ -74,5 +75,17 @@ async def rip_playlist():
     pass
 
 
-async def rip_artist():
-    pass
+async def rip_artist(artist: Artist, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
+                     force_save: bool = False, include_participate_in_works: bool = False):
+    artist_info = await get_artist_info(artist.id, artist.storefront, auth_params.anonymousAccessToken, config.region.language)
+    logger.info(f"Ripping Artist: {artist_info.data[0].attributes.name}")
+    async with asyncio.TaskGroup() as tg:
+        if include_participate_in_works:
+            songs = await get_songs_from_artist(artist.id, artist.storefront, auth_params.anonymousAccessToken, config.region.language)
+            for song_url in songs:
+                tg.create_task(rip_song(Song.parse_url(song_url), auth_params, codec, config, device, force_save))
+        else:
+            albums = await get_albums_from_artist(artist.id, artist.storefront, auth_params.anonymousAccessToken, config.region.language)
+            for album_url in albums:
+                tg.create_task(rip_album(Album.parse_url(album_url), auth_params, codec, config, device, force_save))
+    logger.info(f"Artist: {artist_info.data[0].attributes.name} finished ripping")
