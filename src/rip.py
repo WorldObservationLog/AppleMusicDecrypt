@@ -9,7 +9,7 @@ from src.api import (get_song_info, get_song_lyrics, get_album_info, download_so
 from src.config import Config, Device
 from src.decrypt import decrypt
 from src.metadata import SongMetadata
-from src.models import PlaylistMeta
+from src.models import PlaylistInfo
 from src.mp4 import extract_media, extract_song, encapsulate, write_metadata
 from src.save import save
 from src.types import GlobalAuthParams, Codec
@@ -19,7 +19,7 @@ from src.utils import check_song_exists, if_raw_atmos
 
 @logger.catch
 async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
-                   force_save: bool = False, specified_m3u8: str = "", playlist: PlaylistMeta = None):
+                   force_save: bool = False, specified_m3u8: str = "", playlist: PlaylistInfo = None):
     logger.debug(f"Task of song id {song.id} was created")
     token = auth_params.anonymousAccessToken
     song_data = await get_song_info(song.id, token, song.storefront, config.region.language)

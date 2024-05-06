@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup
 
 from src.config import Download
 from src.exceptions import NotTimeSyncedLyricsException
-from src.models import PlaylistMeta
+from src.models import PlaylistInfo
 from src.types import *
 
 
@@ -105,7 +105,7 @@ def ttml_convent_to_lrc(ttml: str) -> str:
     return "\n".join(lrc_lines)
 
 
-def check_song_exists(metadata, config: Download, codec: str, playlist: PlaylistMeta = None):
+def check_song_exists(metadata, config: Download, codec: str, playlist: PlaylistInfo = None):
     song_name, dir_path = get_song_name_and_dir_path(codec, config, metadata, playlist)
     return (Path(dir_path) / Path(song_name + get_suffix(codec, config.atmosConventToM4a))).exists()
 
@@ -142,7 +142,7 @@ def get_suffix(codec: str, save_raw_atmos: bool):
         return ".m4a"
 
 
-def playlist_metadata_to_params(playlist: PlaylistMeta):
+def playlist_metadata_to_params(playlist: PlaylistInfo):
     return {"playlistName": playlist.data[0].attributes.name,
             "playlistCuratorName": playlist.data[0].attributes.curatorName}
 
