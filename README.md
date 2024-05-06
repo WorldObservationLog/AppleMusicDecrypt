@@ -92,6 +92,7 @@ GitHub account). Unzip it, and run `main.exe`
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt.git
 cd AppleMusicDecrypt
 poetry install
+cp config.example.toml config.toml
 poetry run python main.py
 ```
 
