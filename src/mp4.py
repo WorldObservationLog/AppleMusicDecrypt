@@ -1,16 +1,17 @@
 import subprocess
 import uuid
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Tuple
-from datetime import datetime
 
 import m3u8
 import regex
 from bs4 import BeautifulSoup
 from loguru import logger
 
+from src.api import download_m3u8
 from src.exceptions import CodecNotFoundException
 from src.metadata import SongMetadata
 from src.types import *
@@ -18,7 +19,7 @@ from src.utils import find_best_codec, get_codec_from_codec_id, get_suffix
 
 
 async def get_available_codecs(m3u8_url: str) -> Tuple[list[str], list[str]]:
-    parsed_m3u8 = m3u8.load(m3u8_url)
+    parsed_m3u8 = m3u8.loads(await download_m3u8(m3u8_url), uri=m3u8_url)
     codec_ids = [playlist.stream_info.audio for playlist in parsed_m3u8.playlists]
     codecs = [get_codec_from_codec_id(codec_id) for codec_id in codec_ids]
     return codecs, codec_ids
@@ -26,7 +27,7 @@ async def get_available_codecs(m3u8_url: str) -> Tuple[list[str], list[str]]:
 
 async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
                         codec_priority: list[str], alternative_codec: bool = False) -> Tuple[str, list[str]]:
-    parsed_m3u8 = m3u8.load(m3u8_url)
+    parsed_m3u8 = m3u8.loads(await download_m3u8(m3u8_url), uri=m3u8_url)
     specifyPlaylist = find_best_codec(parsed_m3u8, codec)
     if not specifyPlaylist and alternative_codec:
         logger.warning(f"Codec {codec} of song: {song_metadata.artist} - {song_metadata.title} did not found")
@@ -39,7 +40,7 @@ async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
         raise CodecNotFoundException
     selected_codec = specifyPlaylist.media[0].group_id
     logger.info(f"Selected codec: {selected_codec} for song: {song_metadata.artist} - {song_metadata.title}")
-    stream = m3u8.load(specifyPlaylist.absolute_uri)
+    stream = m3u8.loads(await download_m3u8(specifyPlaylist.absolute_uri), uri=specifyPlaylist.absolute_uri)
     skds = [key.uri for key in stream.keys if regex.match('(skd?://[^"]*)', key.uri)]
     keys = [prefetchKey]
     key_suffix = CodecKeySuffix.KeySuffixDefault

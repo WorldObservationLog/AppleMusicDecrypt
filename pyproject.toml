@@ -21,6 +21,7 @@ frida = "^16.2.1"
 tenacity = "^8.2.3"
 prompt-toolkit = "^3.0.43"
 mitmproxy = "^10.3.0"
+async-lru = "^2.0.4"
 
 [build-system]
 requires = ["poetry-core"]
