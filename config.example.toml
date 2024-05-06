@@ -1,0 +1,71 @@
+[region]
+# Used when the song region cannot be obtained, currently only used for m3u8 command and mitm command
+# Recommend value: Your Apple Music's subscription region
+defaultStorefront = "jp"
+# The language of song metadata. Influence song title, author and other information.
+# Simplified Chinese: zh-Hans-CN, Tradidional Chinese(Hong Kong): zh-Hant-HK, Tradidional Chinese(Taiwan): zh-Hant-TW
+# English(British): en-GB, English(American): en-US, Japanese: ja, Korean: ko
+language = "zh-Hans-CN"
+
+[[devices]]
+# ADB service host of Android device
+host = "127.0.0.1"
+# ADB service port of Android device
+port = 58526
+# For decryption service. This value should not be repeated when using multiple devices
+agentPort = 10020
+# The method the script executes commands with Root permissions
+# For Magisk user, the recommend value is "su -c". For other Root solutions, the recommend value is "su 0"
+# If not sure which method to use, execute “su 0 ls /” and “su -c ls /” respectively in adb shell and choose the output method
+suMethod = "su -c"
+
+[m3u8Api]
+# Use zhaarey's m3u8 api to get higher song m3u8.
+enable = false
+endpoint = ""
+
+[download]
+# Send request to Apple Music through proxy. Only support http and https protocol
+proxy = ""
+# Number of concurrent song downloads
+parallelNum = 1
+# After enabling this feature, if the specified codec does not exist, the script will look for other codec to download
+codecAlternative = true
+# Priority for script to look for alternative codec
+codecPriority = ["alac", "ec3", "ac3", "aac"]
+# Encapsulate Atmos(ec-3/ac-3) as M4A and write the song metadata
+atmosConventToM4a = true
+# Follow the Python Format format (https://docs.python.org/3/library/string.html#formatstrings)
+# Available values:
+# title, artist, album, album_artist, composer,
+# genre, created, track, tracknum, disk,
+# record_company, upc, isrc, copyright,
+songNameFormat = "{disk}-{tracknum:02d} {title}"
+# Ditto
+dirPathFormat = "downloads/{album_artist}/{album}"
+# Save lyrics as .lrc file
+saveLyrics = true
+saveCover = true
+coverFormat = "jpg"
+coverSize = "5000x5000"
+# The command to be executed after the song is ripped successfully, passing in the filename parameter.
+# Example: "\"C:\\Program Files\\DAUM\\PotPlayer\\PotPlayerMini64.exe\" \"{filename}\""
+# Pay attention to escaping issues
+afterDownloaded = ""
+
+[metadata]
+# Metadata to be written to the song
+# Available values:
+# title, artist, album, album_artist, composer,
+# genre, created, track, tracknum, disk,
+# record_company, upc, isrc, copyright,
+# lyrics, cover
+embedMetadata = ["title", "artist", "album", "album_artist", "composer",
+    "genre", "created", "track", "tracknum", "disk", "lyrics", "cover", "copyright",
+    "record_company", "upc", "isrc"]
+
+[mitm]
+# The host proxy server listens on
+host = "127.0.0.1"
+# The port proxy server listens on
+port = "11080"
