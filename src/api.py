@@ -91,7 +91,7 @@ async def get_playlist_info_and_tracks(playlist_id: str, token: str, storefront:
     playlist_info_obj = PlaylistInfo.parse_obj(resp.json())
     if playlist_info_obj.data[0].relationships.tracks.next:
         all_tracks = await get_playlist_tracks(playlist_id, token, storefront, lang)
-        playlist_info_obj.data[0].relationships.tracks = all_tracks
+        playlist_info_obj.data[0].relationships.tracks.data = all_tracks
     return playlist_info_obj
 
 
