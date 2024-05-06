@@ -27,7 +27,10 @@ def init_client_and_lock(proxy: str, parallel_num: int):
 
 
 async def get_m3u8_from_api(endpoint: str, song_id: str) -> str:
-    return (await client.get(endpoint, params={"songid": song_id})).text
+    resp = (await client.get(endpoint, params={"songid": song_id})).text
+    if resp == "no_found":
+        return ""
+    return resp
 
 
 @retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
