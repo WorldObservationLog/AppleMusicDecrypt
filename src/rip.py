@@ -1,10 +1,9 @@
 import asyncio
 import subprocess
-import httpx
 
 from loguru import logger
 
-from src.api import get_info_from_adam, get_song_lyrics, get_meta, download_song
+from src.api import get_info_from_adam, get_song_lyrics, get_meta, download_song, get_m3u8_from_api
 from src.config import Config, Device
 from src.decrypt import decrypt
 from src.metadata import SongMetadata
@@ -31,14 +30,11 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         lyrics = await get_song_lyrics(song.id, song.storefront, auth_params.accountAccessToken,
                                        auth_params.dsid, auth_params.accountToken, config.region.language)
         song_metadata.lyrics = lyrics
-    if "http" in config.download.check and codec == Codec.ALAC:
-        params = (
-            ('songid', song.id),
-        )
-        m3u8_url = httpx.get(config.download.check, params=params, verify=False).text
+    if config.m3u8Api.enable and codec == Codec.ALAC:
+        m3u8_url = await get_m3u8_from_api(config.m3u8Api.endpoint, song.id)
         if "m3u8" in m3u8_url:
-            song_data.attributes.extendedAssetUrls.enhancedHls = m3u8_url
-            logger.info("Found m3u8 from API")
+            specified_m3u8 = m3u8_url
+            logger.info("Use m3u8 from API")
     if specified_m3u8:
         song_uri, keys = await extract_media(specified_m3u8, codec, song_metadata,
                                              config.download.codecPriority, config.download.codecAlternative)
@@ -52,7 +48,7 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
     song = encapsulate(song_info, decrypted_song, config.download.atmosConventToM4a)
     if codec != Codec.EC3 or (codec == Codec.EC3 and config.download.atmosConventToM4a):
         song = write_metadata(song, song_metadata, config.metadata.embedMetadata, config.download.coverFormat)
-    if codec != Codec.AC3 or (codec == Codec.AC3 and config.download.atmosConventToM4a):
+    elif codec != Codec.AC3 or (codec == Codec.AC3 and config.download.atmosConventToM4a):
         song = write_metadata(song, song_metadata, config.metadata.embedMetadata, config.download.coverFormat)
     filename = save(song, codec, song_metadata, config.download)
     logger.info(f"Song {song_metadata.artist} - {song_metadata.title} saved!")

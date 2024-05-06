@@ -15,6 +15,11 @@ class Device(BaseModel):
     suMethod: str
 
 
+class M3U8Api(BaseModel):
+    enable: bool
+    endpoint: str
+
+
 class Download(BaseModel):
     proxy: str
     parallelNum: int
@@ -28,7 +33,6 @@ class Download(BaseModel):
     coverFormat: str
     coverSize: str
     afterDownloaded: str
-    check: str
 
 
 class Metadata(BaseModel):
@@ -43,6 +47,7 @@ class Mitm(BaseModel):
 class Config(BaseModel):
     region: Region
     devices: list[Device]
+    m3u8Api: M3U8Api
     download: Download
     metadata: Metadata
     mitm: Mitm

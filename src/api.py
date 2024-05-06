@@ -26,6 +26,10 @@ def init_client_and_lock(proxy: str, parallel_num: int):
     lock = asyncio.Semaphore(parallel_num)
 
 
+async def get_m3u8_from_api(endpoint: str, song_id: str) -> str:
+    return (await client.get(endpoint, params={"songid": song_id})).text
+
+
 @retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
        stop=stop_after_attempt(5),
        before_sleep=before_sleep_log(logger, logging.WARN))
