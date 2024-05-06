@@ -9,6 +9,7 @@ from loguru import logger
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_sleep_log
 
 from src.models import *
+from src.models.song_data import Datum
 
 client: httpx.AsyncClient
 lock: asyncio.Semaphore
@@ -31,6 +32,19 @@ async def get_m3u8_from_api(endpoint: str, song_id: str) -> str:
     if resp == "no_found":
         return ""
     return resp
+
+
+async def upload_m3u8_to_api(endpoint: str, m3u8_url: str, song_info: Datum):
+    await client.post(endpoint, json={
+        "method": "add_m3u8",
+        "params": {
+            "songid": song_info.id,
+            "song_title": f"Disk {song_info.attributes.discNumber} Track {song_info.attributes.trackNumber} - {song_info.attributes.name}",
+            "albumid": song_info.relationships.albums.data[0].id,
+            "album_title": song_info.attributes.albumName,
+            "m3u8": m3u8_url,
+        }
+    })
 
 
 @retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),

@@ -9,7 +9,7 @@ from prompt_toolkit import PromptSession, print_formatted_text, ANSI
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from src.adb import Device
-from src.api import get_token, init_client_and_lock
+from src.api import get_token, init_client_and_lock, upload_m3u8_to_api, get_info_from_adam
 from src.config import Config
 from src.rip import rip_song, rip_album
 from src.types import GlobalAuthParams
@@ -118,17 +118,26 @@ class NewInteractiveShell:
         m3u8_urls = set()
         tasks = set()
 
+        async def upload(song_id: str, m3u8_url: str):
+            song_info = await get_info_from_adam(song_id, self.anonymous_access_token,
+                                                 self.config.region.defaultStorefront, self.config.region.language)
+            await upload_m3u8_to_api(self.config.m3u8Api.endpoint, m3u8_url, song_info)
+
         def callback(m3u8_url):
             if m3u8_url in m3u8_urls:
                 return
             song_id = get_song_id_from_m3u8(m3u8_url)
             song = Song(id=song_id, storefront=self.config.region.defaultStorefront, url="", type=URLType.Song)
-            task = self.loop.create_task(
+            rip_task = self.loop.create_task(
                 rip_song(song, global_auth_param, codec, self.config, available_device, force_save=force_download,
                          specified_m3u8=m3u8_url)
             )
-            tasks.update(task)
-            task.add_done_callback(tasks.remove)
+            tasks.update(rip_task)
+            rip_task.add_done_callback(tasks.remove)
+            if self.config.m3u8Api.enable:
+                upload_task = self.loop.create_task(upload(song_id, m3u8_url))
+                tasks.update(upload_task)
+                upload_task.add_done_callback(tasks.remove)
             m3u8_urls.update(m3u8_url)
 
         self.loop.create_task(start_proxy(self.config.mitm.host, self.config.mitm.port, callback))
