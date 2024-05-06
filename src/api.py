@@ -57,7 +57,7 @@ async def upload_m3u8_to_api(endpoint: str, m3u8_url: str, song_info: Datum):
        before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_token():
     async with request_lock:
-        req = await client.get("https://beta.music.apple.com")
+        req = await client.get("https://beta.music.apple.com", follow_redirects=True)
         index_js_uri = regex.findall(r"/assets/index-legacy-[^/]+\.js", req.text)[0]
         js_req = await client.get("https://beta.music.apple.com" + index_js_uri)
         token = regex.search(r'eyJh([^"]*)', js_req.text)[0]
@@ -235,4 +235,5 @@ async def get_artist_info(artist_id: str, storefront: str, token: str, lang: str
     before_sleep=before_sleep_log(logger, logging.WARN))
 async def download_m3u8(m3u8_url: str) -> str:
     async with request_lock:
-        return (await client.get(m3u8_url)).text
+        resp = await client.get(m3u8_url)
+        return resp.text
