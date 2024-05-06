@@ -32,9 +32,9 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         song_metadata.lyrics = lyrics
     if config.m3u8Api.enable and codec == Codec.ALAC:
         m3u8_url = await get_m3u8_from_api(config.m3u8Api.endpoint, song.id)
-        if "m3u8" in m3u8_url:
+        if m3u8_url:
             specified_m3u8 = m3u8_url
-            logger.info("Use m3u8 from API")
+            logger.info(f"Use m3u8 from API for song: {song_metadata.artist} - {song_metadata.title}")
     if specified_m3u8:
         song_uri, keys = await extract_media(specified_m3u8, codec, song_metadata,
                                              config.download.codecPriority, config.download.codecAlternative)
