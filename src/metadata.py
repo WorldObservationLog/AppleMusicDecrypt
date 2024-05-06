@@ -26,7 +26,7 @@ class SongMetadata(BaseModel):
     upc: Optional[str] = None
     isrc: Optional[str] = None
 
-    def to_itags_params(self, embed_metadata: list[str], cover_format: str):
+    def to_itags_params(self, embed_metadata: list[str]):
         tags = []
         for key, value in self.model_dump().items():
             if not value:

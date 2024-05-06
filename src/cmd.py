@@ -9,9 +9,9 @@ from prompt_toolkit import PromptSession, print_formatted_text, ANSI
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from src.adb import Device
-from src.api import get_token, init_client_and_lock, upload_m3u8_to_api, get_info_from_adam
+from src.api import get_token, init_client_and_lock, upload_m3u8_to_api, get_song_info
 from src.config import Config
-from src.rip import rip_song, rip_album, rip_artist
+from src.rip import rip_song, rip_album, rip_artist, rip_playlist
 from src.types import GlobalAuthParams
 from src.url import AppleMusicURL, URLType, Song
 from src.utils import get_song_id_from_m3u8
@@ -100,10 +100,14 @@ class NewInteractiveShell:
                 task = self.loop.create_task(
                     rip_song(url, global_auth_param, codec, self.config, available_device, force_download))
             case URLType.Album:
-                task = self.loop.create_task(rip_album(url, global_auth_param, codec, self.config, available_device))
+                task = self.loop.create_task(rip_album(url, global_auth_param, codec, self.config, available_device,
+                                                       force_download))
             case URLType.Artist:
                 task = self.loop.create_task(rip_artist(url, global_auth_param, codec, self.config, available_device,
                                                         force_download, include))
+            case URLType.Playlist:
+                task = self.loop.create_task(rip_playlist(url, global_auth_param, codec, self.config, available_device,
+                                                          force_download))
             case _:
                 logger.error("Unsupported URLType")
                 return
@@ -129,8 +133,8 @@ class NewInteractiveShell:
         tasks = set()
 
         async def upload(song_id: str, m3u8_url: str):
-            song_info = await get_info_from_adam(song_id, self.anonymous_access_token,
-                                                 self.config.region.defaultStorefront, self.config.region.language)
+            song_info = await get_song_info(song_id, self.anonymous_access_token,
+                                            self.config.region.defaultStorefront, self.config.region.language)
             await upload_m3u8_to_api(self.config.m3u8Api.endpoint, m3u8_url, song_info)
 
         def callback(m3u8_url):

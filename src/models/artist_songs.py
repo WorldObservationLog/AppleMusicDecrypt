@@ -14,7 +14,7 @@ class Artwork(BaseModel):
     textColor4: Optional[str] = None
     textColor1: Optional[str] = None
     bgColor: Optional[str] = None
-    hasP3: bool
+    hasP3: Optional[bool] = None
 
 
 class PlayParams(BaseModel):
@@ -27,14 +27,14 @@ class Preview(BaseModel):
 
 
 class Attributes(BaseModel):
-    hasTimeSyncedLyrics: bool
+    hasTimeSyncedLyrics: Optional[bool] = None
     albumName: Optional[str] = None
     genreNames: List[str]
     trackNumber: Optional[int] = None
     releaseDate: Optional[str] = None
     durationInMillis: Optional[int] = None
-    isVocalAttenuationAllowed: bool
-    isMasteredForItunes: bool
+    isVocalAttenuationAllowed: Optional[bool] = None
+    isMasteredForItunes: Optional[bool] = None
     isrc: Optional[str] = None
     artwork: Artwork
     audioLocale: Optional[str] = None
@@ -42,9 +42,9 @@ class Attributes(BaseModel):
     url: Optional[str] = None
     playParams: PlayParams
     discNumber: Optional[int] = None
-    hasCredits: bool
-    hasLyrics: bool
-    isAppleDigitalMaster: bool
+    hasCredits: Optional[bool] = None
+    hasLyrics: Optional[bool] = None
+    isAppleDigitalMaster: Optional[bool] = None
     audioTraits: List[str]
     name: Optional[str] = None
     previews: List[Preview]

@@ -14,7 +14,7 @@ class Artwork(BaseModel):
     textColor4: Optional[str] = None
     textColor1: Optional[str] = None
     bgColor: Optional[str] = None
-    hasP3: bool
+    hasP3: Optional[bool] = None
 
 
 class Attributes(BaseModel):

@@ -28,6 +28,8 @@ class Download(BaseModel):
     atmosConventToM4a: bool
     songNameFormat: str
     dirPathFormat: str
+    playlistDirPathFormat: str
+    playlistSongNameFormat: str
     saveLyrics: bool
     saveCover: bool
     coverFormat: str

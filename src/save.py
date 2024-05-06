@@ -3,24 +3,18 @@ from pathlib import Path
 
 from src.config import Download
 from src.metadata import SongMetadata
-from src.types import Codec
-from src.utils import ttml_convent_to_lrc, get_valid_filename
+from src.models import PlaylistMeta
+from src.utils import ttml_convent_to_lrc, get_song_name_and_dir_path, get_suffix
 
 
-def save(song: bytes, codec: str, metadata: SongMetadata, config: Download):
-    song_name = get_valid_filename(config.songNameFormat.format(**metadata.model_dump()))
-    dir_path = Path(config.dirPathFormat.format(**metadata.model_dump()))
+def save(song: bytes, codec: str, metadata: SongMetadata, config: Download, playlist: PlaylistMeta = None):
+    song_name, dir_path = get_song_name_and_dir_path(codec, config, metadata, playlist)
     if not dir_path.exists() or not dir_path.is_dir():
         os.makedirs(dir_path.absolute())
-    if codec == Codec.EC3 and not config.atmosConventToM4a:
-        song_path = dir_path / Path(song_name + ".ec3")
-    elif codec == Codec.AC3 and not config.atmosConventToM4a:
-        song_path = dir_path / Path(song_name + ".ac3")
-    else:
-        song_path = dir_path / Path(song_name + ".m4a")
+    song_path = dir_path / Path(song_name + get_suffix(codec, config.atmosConventToM4a))
     with open(song_path.absolute(), "wb") as f:
         f.write(song)
-    if config.saveCover:
+    if config.saveCover and not playlist:
         cover_path = dir_path / Path(f"cover.{config.coverFormat}")
         with open(cover_path.absolute(), "wb") as f:
             f.write(metadata.cover)

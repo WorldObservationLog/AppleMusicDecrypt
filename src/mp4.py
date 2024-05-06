@@ -14,7 +14,7 @@ from loguru import logger
 from src.exceptions import CodecNotFoundException
 from src.metadata import SongMetadata
 from src.types import *
-from src.utils import find_best_codec, get_codec_from_codec_id
+from src.utils import find_best_codec, get_codec_from_codec_id, get_suffix
 
 
 async def get_available_codecs(m3u8_url: str) -> Tuple[list[str], list[str]]:
@@ -25,7 +25,7 @@ async def get_available_codecs(m3u8_url: str) -> Tuple[list[str], list[str]]:
 
 
 async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
-                        codec_priority: list[str], alternative_codec: bool = False ) -> Tuple[str, list[str]]:
+                        codec_priority: list[str], alternative_codec: bool = False) -> Tuple[str, list[str]]:
     parsed_m3u8 = m3u8.load(m3u8_url)
     specifyPlaylist = find_best_codec(parsed_m3u8, codec)
     if not specifyPlaylist and alternative_codec:
@@ -117,12 +117,7 @@ def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool
     media = Path(tmp_dir.name) / Path(name).with_suffix(".media")
     with open(media.absolute(), "wb") as f:
         f.write(decrypted_media)
-    if song_info.codec == Codec.EC3 and not atmos_convent:
-        song_name = Path(tmp_dir.name) / Path(name).with_suffix(".ec3")
-    elif song_info.codec == Codec.AC3 and not atmos_convent:
-        song_name = Path(tmp_dir.name) / Path(name).with_suffix(".ac3")
-    else:
-        song_name = Path(tmp_dir.name) / Path(name).with_suffix(".m4a")
+    song_name = Path(tmp_dir.name) / Path(name).with_suffix(get_suffix(song_info.codec, atmos_convent))
     match song_info.codec:
         case Codec.ALAC:
             nhml_name = Path(tmp_dir.name) / Path(f"{name}.nhml")
@@ -181,7 +176,7 @@ def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str
     time = datetime.strptime(metadata.created, "%Y-%m-%d").strftime("%d/%m/%Y")
     subprocess.run(["mp4box", "-time", time, "-mtime", time, "-keep-utc", "-name", f"1={metadata.title}", "-itags",
                     ":".join(["tool=", f"cover={absolute_cover_path}",
-                              metadata.to_itags_params(embed_metadata, cover_format)]),
+                              metadata.to_itags_params(embed_metadata)]),
                     song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(song_name.absolute(), "rb") as f:
         embed_song = f.read()
