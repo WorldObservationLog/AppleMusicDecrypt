@@ -49,8 +49,12 @@ dirPathFormat = "downloads/{album_artist}/{album}"
 # record_company, upc, isrc, copyright,
 # playlistName, playlistCuratorName
 playlistDirPathFormat = "downloads/playlists/{playlistName}"
-# Ditto
-playlistSongNameFormat = "{artist} - {title}"
+# Available values:
+# title, artist, album, album_artist, composer,
+# genre, created, track, tracknum, disk,
+# record_company, upc, isrc, copyright,
+# playlistName, playlistCuratorName, playlistSongIndex
+playlistSongNameFormat = "{playlistSongIndex:02d}. {artist} - {title}"
 # Save lyrics as .lrc file
 saveLyrics = true
 saveCover = true
