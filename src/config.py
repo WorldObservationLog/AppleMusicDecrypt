@@ -54,6 +54,6 @@ class Config(BaseModel):
 
     @classmethod
     def load_from_config(cls, config_file: str = "config.toml"):
-        with open(config_file, "r") as f:
+        with open(config_file, "r", encoding="utf-8") as f:
             config = tomllib.loads(f.read())
         return cls.parse_obj(config)
