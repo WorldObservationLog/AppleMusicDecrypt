@@ -147,11 +147,12 @@ def playlist_metadata_to_params(playlist: PlaylistInfo):
             "playlistCuratorName": playlist.data[0].attributes.curatorName}
 
 
-def get_song_name_and_dir_path(codec: str, config: Download, metadata, playlist: PlaylistMeta = None):
+def get_song_name_and_dir_path(codec: str, config: Download, metadata, playlist: PlaylistInfo = None):
     if playlist:
-        song_name = config.playlistSongNameFormat.format(codec=codec, **metadata.model_dump(),
-                                                         **playlist_metadata_to_params(playlist))
-        dir_path = Path(config.playlistDirPathFormat.format(codec=codec, **metadata.model_dump(),
+        song_name = config.playlistSongNameFormat.format(codec=codec, playlistSongIndex=metadata.playlistIndex,
+                                                         **metadata.model_dump())
+        dir_path = Path(config.playlistDirPathFormat.format(codec=codec,
+                                                            **metadata.model_dump(),
                                                             **playlist_metadata_to_params(playlist)))
     else:
         song_name = config.songNameFormat.format(codec=codec, **metadata.model_dump())
@@ -160,3 +161,9 @@ def get_song_name_and_dir_path(codec: str, config: Download, metadata, playlist:
         song_name = get_valid_filename(song_name)
         dir_path = Path(*[get_valid_filename(part) if ":\\" not in part else part for part in dir_path.parts])
     return song_name, dir_path
+
+
+def playlist_write_song_index(playlist: PlaylistInfo):
+    for track_index, track in enumerate(playlist.data[0].relationships.tracks.data):
+        playlist.songIdIndexMapping[track.id] = track_index + 1
+    return playlist

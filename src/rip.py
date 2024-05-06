@@ -14,7 +14,7 @@ from src.mp4 import extract_media, extract_song, encapsulate, write_metadata
 from src.save import save
 from src.types import GlobalAuthParams, Codec
 from src.url import Song, Album, URLType, Artist, Playlist
-from src.utils import check_song_exists, if_raw_atmos
+from src.utils import check_song_exists, if_raw_atmos, playlist_write_song_index
 
 
 @logger.catch
@@ -24,6 +24,8 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
     token = auth_params.anonymousAccessToken
     song_data = await get_song_info(song.id, token, song.storefront, config.region.language)
     song_metadata = SongMetadata.parse_from_song_data(song_data)
+    if playlist:
+        song_metadata.set_playlist_index(playlist.songIdIndexMapping.get(song.id))
     logger.info(f"Ripping song: {song_metadata.artist} - {song_metadata.title}")
     if not force_save and check_song_exists(song_metadata, config.download, codec, playlist):
         logger.info(f"Song: {song_metadata.artist} - {song_metadata.title} already exists")
@@ -74,13 +76,17 @@ async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, con
 
 async def rip_playlist(playlist: Playlist, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                        force_save: bool = False):
-    playlist_info = await get_playlist_info_and_tracks(playlist.id, auth_params.anonymousAccessToken, playlist.storefront,
+    playlist_info = await get_playlist_info_and_tracks(playlist.id, auth_params.anonymousAccessToken,
+                                                       playlist.storefront,
                                                        config.region.language)
-    logger.info(f"Ripping Playlist: {playlist_info.data[0].attributes.curatorName} - {playlist_info.data[0].attributes.name}")
+    playlist_info = playlist_write_song_index(playlist_info)
+    logger.info(
+        f"Ripping Playlist: {playlist_info.data[0].attributes.curatorName} - {playlist_info.data[0].attributes.name}")
     async with asyncio.TaskGroup() as tg:
         for track in playlist_info.data[0].relationships.tracks.data:
             song = Song(id=track.id, storefront=playlist.storefront, url="", type=URLType.Song)
-            tg.create_task(rip_song(song, auth_params, codec, config, device, force_save=force_save, playlist=playlist_info))
+            tg.create_task(
+                rip_song(song, auth_params, codec, config, device, force_save=force_save, playlist=playlist_info))
     logger.info(
         f"Playlist: {playlist_info.data[0].attributes.curatorName} - {playlist_info.data[0].attributes.name} finished ripping")
 

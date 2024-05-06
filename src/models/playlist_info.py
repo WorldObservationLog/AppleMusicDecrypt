@@ -132,3 +132,4 @@ class Datum(BaseModel):
 
 class PlaylistInfo(BaseModel):
     data: List[Datum]
+    songIdIndexMapping: dict[str, int] = {}
