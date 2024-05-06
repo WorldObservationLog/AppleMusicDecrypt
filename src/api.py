@@ -145,7 +145,7 @@ async def get_song_lyrics(song_id: str, storefront: str, token: str, dsid: str, 
        before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_albums_from_artist(artist_id: str, storefront: str, token: str, lang: str, offset: int = 0):
     resp = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/artists/{artist_id}/albums",
-                            params={"l": lang},
+                            params={"l": lang, "offset": offset},
                             headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_browser,
                                      "Origin": "https://music.apple.com"})
     artist_album = ArtistAlbums.parse_obj(resp.json())
@@ -161,7 +161,7 @@ async def get_albums_from_artist(artist_id: str, storefront: str, token: str, la
        before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_songs_from_artist(artist_id: str, storefront: str, token: str, lang: str, offset: int = 0):
     resp = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/artists/{artist_id}/songs",
-                            params={"l": lang},
+                            params={"l": lang, "offset": offset},
                             headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_browser,
                                      "Origin": "https://music.apple.com"})
     artist_song = ArtistSongs.parse_obj(resp.json())
