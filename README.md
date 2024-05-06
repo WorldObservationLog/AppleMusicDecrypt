@@ -13,6 +13,10 @@ bugs and unfinished features. USE IT WITH CAUTION.**
 download https://music.apple.com/jp/album/nameless-name-single/1688539265
 # Download song/album with specified codec
 download https://music.apple.com/jp/song/caribbean-blue/339592231 -c aac
+# Download specify artist's all albums
+download https://music.apple.com/jp/artist/%E3%83%88%E3%82%B2%E3%83%8A%E3%82%B7%E3%83%88%E3%82%B2%E3%82%A2%E3%83%AA/1688539273
+# Download specify artist's all songs
+download https://music.apple.com/jp/artist/%E3%83%88%E3%82%B2%E3%83%8A%E3%82%B7%E3%83%88%E3%82%B2%E3%82%A2%E3%83%AA/1688539273 --include-participate-songs
 # Download song from specified m3u8 with default codec (alac)
 m3u8 https://aod.itunes.apple.com/itunes-assets/HLSMusic116/v4/cb/f0/91/cbf09175-ce98-d133-1936-2e46b6992aa5/P631756252_lossless.m3u8
 # Start Mitm mode
@@ -34,6 +38,7 @@ mitm
   Link (https://music.apple.com/jp/album/%E5%90%8D%E3%82%82%E3%81%AA%E3%81%8D%E4%BD%95%E3%82%82%E3%81%8B%E3%82%82/1688539265?i=1688539274)
 - Apple Music Album Share Link (https://music.apple.com/jp/album/nameless-name-single/1688539265)
 - Apple Music Song Link (https://music.apple.com/jp/song/caribbean-blue/339592231)
+- Apple Music Artist Link (https://music.apple.com/jp/artist/%E3%82%A8%E3%83%B3%E3%83%A4/160847)
 
 # Deploy
 
