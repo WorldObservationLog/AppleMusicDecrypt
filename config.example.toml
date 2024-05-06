@@ -43,6 +43,14 @@ atmosConventToM4a = true
 songNameFormat = "{disk}-{tracknum:02d} {title}"
 # Ditto
 dirPathFormat = "downloads/{album_artist}/{album}"
+# Available values:
+# title, artist, album, album_artist, composer,
+# genre, created, track, tracknum, disk,
+# record_company, upc, isrc, copyright,
+# playlistName, playlistCuratorName
+playlistDirPathFormat = "downloads/playlists/{playlistName}"
+# Ditto
+playlistSongNameFormat = "{artist} - {title}"
 # Save lyrics as .lrc file
 saveLyrics = true
 saveCover = true

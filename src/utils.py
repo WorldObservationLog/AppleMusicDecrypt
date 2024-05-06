@@ -1,4 +1,5 @@
 import asyncio
+import sys
 import time
 from itertools import islice
 from pathlib import Path
@@ -9,6 +10,7 @@ from bs4 import BeautifulSoup
 
 from src.config import Download
 from src.exceptions import NotTimeSyncedLyricsException
+from src.models import PlaylistMeta
 from src.types import *
 
 
@@ -103,15 +105,9 @@ def ttml_convent_to_lrc(ttml: str) -> str:
     return "\n".join(lrc_lines)
 
 
-def check_song_exists(metadata, config: Download, codec: str):
-    song_name = get_valid_filename(config.songNameFormat.format(**metadata.model_dump()))
-    dir_path = Path(config.dirPathFormat.format(**metadata.model_dump()))
-    if not config.atmosConventToM4a and codec == Codec.EC3:
-        return (Path(dir_path) / Path(song_name).with_suffix(".ec3")).exists()
-    elif not config.atmosConventToM4a and codec == Codec.AC3:
-        return (Path(dir_path) / Path(song_name).with_suffix(".ac3")).exists()
-    else:
-        return (Path(dir_path) / Path(song_name).with_suffix(".m4a")).exists()
+def check_song_exists(metadata, config: Download, codec: str, playlist: PlaylistMeta = None):
+    song_name, dir_path = get_song_name_and_dir_path(codec, config, metadata, playlist)
+    return (Path(dir_path) / Path(song_name + get_suffix(codec, config.atmosConventToM4a))).exists()
 
 
 def get_valid_filename(filename: str):
@@ -129,3 +125,38 @@ def get_codec_from_codec_id(codec_id: str) -> str:
 def get_song_id_from_m3u8(m3u8_url: str) -> str:
     parsed_m3u8 = m3u8.load(m3u8_url)
     return regex.search(r"_A(\d*)_", parsed_m3u8.playlists[0].uri)[1]
+
+
+def if_raw_atmos(codec: str, save_raw_atmos: bool):
+    if (codec == Codec.EC3 or codec == Codec.AC3) and save_raw_atmos:
+        return True
+    return False
+
+
+def get_suffix(codec: str, save_raw_atmos: bool):
+    if not save_raw_atmos and codec == Codec.EC3:
+        return ".ec3"
+    elif not save_raw_atmos and codec == Codec.AC3:
+        return ".ac3"
+    else:
+        return ".m4a"
+
+
+def playlist_metadata_to_params(playlist: PlaylistMeta):
+    return {"playlistName": playlist.data[0].attributes.name,
+            "playlistCuratorName": playlist.data[0].attributes.curatorName}
+
+
+def get_song_name_and_dir_path(codec: str, config: Download, metadata, playlist: PlaylistMeta = None):
+    if playlist:
+        song_name = config.playlistSongNameFormat.format(codec=codec, **metadata.model_dump(),
+                                                         **playlist_metadata_to_params(playlist))
+        dir_path = Path(config.playlistDirPathFormat.format(codec=codec, **metadata.model_dump(),
+                                                            **playlist_metadata_to_params(playlist)))
+    else:
+        song_name = config.songNameFormat.format(codec=codec, **metadata.model_dump())
+        dir_path = Path(config.dirPathFormat.format(codec=codec, **metadata.model_dump()))
+    if sys.platform == "win32":
+        song_name = get_valid_filename(song_name)
+        dir_path = Path(*[get_valid_filename(part) if ":\\" not in part else part for part in dir_path.parts])
+    return song_name, dir_path
