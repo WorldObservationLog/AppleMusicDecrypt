@@ -11,7 +11,7 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from src.adb import Device
 from src.api import get_token, init_client_and_lock, upload_m3u8_to_api, get_info_from_adam
 from src.config import Config
-from src.rip import rip_song, rip_album
+from src.rip import rip_song, rip_album, rip_artist
 from src.types import GlobalAuthParams
 from src.url import AppleMusicURL, URLType, Song
 from src.utils import get_song_id_from_m3u8
@@ -41,6 +41,7 @@ class NewInteractiveShell:
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
                                      default="alac")
         download_parser.add_argument("-f", "--force", type=bool, default=False)
+        download_parser.add_argument("--include-participate-songs", type=bool, default=False, dest="include")
         m3u8_parser = subparser.add_parser("m3u8")
         m3u8_parser.add_argument("url", type=str)
         m3u8_parser.add_argument("-c", "--codec",
@@ -79,7 +80,7 @@ class NewInteractiveShell:
             return
         match cmds[0]:
             case "download":
-                await self.do_download(args.url, args.codec, args.force)
+                await self.do_download(args.url, args.codec, args.force, args.include)
             case "m3u8":
                 await self.do_m3u8(args.url, args.codec, args.force)
             case "mitm":
@@ -88,17 +89,26 @@ class NewInteractiveShell:
                 self.loop.stop()
                 sys.exit()
 
-    async def do_download(self, raw_url: str, codec: str, force_download: bool):
+    async def do_download(self, raw_url: str, codec: str, force_download: bool, include: bool = False):
         url = AppleMusicURL.parse_url(raw_url)
         available_device = await self._get_available_device(url.storefront)
         global_auth_param = GlobalAuthParams.from_auth_params_and_token(available_device.get_auth_params(),
                                                                         self.anonymous_access_token)
+        tasks = set()
         match url.type:
             case URLType.Song:
                 task = self.loop.create_task(
                     rip_song(url, global_auth_param, codec, self.config, available_device, force_download))
             case URLType.Album:
                 task = self.loop.create_task(rip_album(url, global_auth_param, codec, self.config, available_device))
+            case URLType.Artist:
+                task = self.loop.create_task(rip_artist(url, global_auth_param, codec, self.config, available_device,
+                                                        force_download, include))
+            case _:
+                logger.error("Unsupported URLType")
+                return
+        tasks.add(task)
+        task.add_done_callback(tasks.remove)
 
     async def do_m3u8(self, m3u8_url: str, codec: str, force_download: bool):
         song_id = get_song_id_from_m3u8(m3u8_url)
