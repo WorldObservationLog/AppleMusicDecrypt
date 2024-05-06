@@ -25,6 +25,7 @@ class SongMetadata(BaseModel):
     record_company: Optional[str] = None
     upc: Optional[str] = None
     isrc: Optional[str] = None
+    playlistIndex: Optional[int] = None
 
     def to_itags_params(self, embed_metadata: list[str]):
         tags = []
@@ -32,6 +33,8 @@ class SongMetadata(BaseModel):
             if not value:
                 continue
             if key in embed_metadata and value:
+                if "playlist" in key:
+                    continue
                 if key == "cover":
                     continue
                 if key == "lyrics":
@@ -60,3 +63,6 @@ class SongMetadata(BaseModel):
 
     async def get_cover(self, cover_format: str, cover_size: str):
         self.cover = await get_cover(self.cover_url, cover_format, cover_size)
+
+    def set_playlist_index(self, index: int):
+        self.playlistIndex = index
