@@ -130,7 +130,7 @@ class Device:
             True)
         if not storefront_id:
             raise FailedGetAuthParamException
-        with open("assets/storefront_ids.json") as f:
+        with open("assets/storefront_ids.json", encoding="utf-8") as f:
             storefront_ids = json.load(f)
         for storefront_mapping in storefront_ids:
             if storefront_mapping["storefrontId"] == int(storefront_id.split("-")[0]):
