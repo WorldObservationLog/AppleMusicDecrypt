@@ -22,6 +22,8 @@ suMethod = "su -c"
 [m3u8Api]
 # Use zhaarey's m3u8 api to get higher song m3u8.
 enable = false
+# Only use m3u8 api to download song
+force = false
 endpoint = ""
 
 [download]

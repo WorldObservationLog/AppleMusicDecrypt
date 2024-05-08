@@ -30,14 +30,23 @@ def init_client_and_lock(proxy: str, parallel_num: int):
     request_lock = asyncio.Semaphore(64)
 
 
-async def get_m3u8_from_api(endpoint: str, song_id: str) -> str:
+@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
+       stop=stop_after_attempt(5),
+       before_sleep=before_sleep_log(logger, logging.WARN))
+async def get_m3u8_from_api(endpoint: str, song_id: str, wait_and_retry: bool = False, recursion_times: int = 0) -> str:
     async with request_lock:
         resp = (await client.get(endpoint, params={"songid": song_id})).text
         if resp == "no_found":
+            if wait_and_retry and recursion_times <= 5:
+                await asyncio.sleep(5)
+                return await get_m3u8_from_api(endpoint, song_id, recursion_times=recursion_times+1)
             return ""
         return resp
 
 
+@retry(retry=retry_if_exception_type((httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError)),
+       stop=stop_after_attempt(5),
+       before_sleep=before_sleep_log(logger, logging.WARN))
 async def upload_m3u8_to_api(endpoint: str, m3u8_url: str, song_info: Datum):
     async with request_lock:
         await client.post(endpoint, json={

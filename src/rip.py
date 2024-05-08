@@ -14,7 +14,7 @@ from src.mp4 import extract_media, extract_song, encapsulate, write_metadata
 from src.save import save
 from src.types import GlobalAuthParams, Codec
 from src.url import Song, Album, URLType, Artist, Playlist
-from src.utils import check_song_exists, if_raw_atmos, playlist_write_song_index
+from src.utils import check_song_exists, if_raw_atmos, playlist_write_song_index, get_codec_from_codec_id
 
 
 @logger.catch
@@ -35,18 +35,22 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         lyrics = await get_song_lyrics(song.id, song.storefront, auth_params.accountAccessToken,
                                        auth_params.dsid, auth_params.accountToken, config.region.language)
         song_metadata.lyrics = lyrics
-    if config.m3u8Api.enable and codec == Codec.ALAC:
-        m3u8_url = await get_m3u8_from_api(config.m3u8Api.endpoint, song.id)
+    if config.m3u8Api.enable and codec == Codec.ALAC and not specified_m3u8:
+        m3u8_url = await get_m3u8_from_api(config.m3u8Api.endpoint, song.id, config.m3u8Api.enable)
         if m3u8_url:
             specified_m3u8 = m3u8_url
             logger.info(f"Use m3u8 from API for song: {song_metadata.artist} - {song_metadata.title}")
+        elif not m3u8_url and config.m3u8Api.force:
+            logger.error(f"Failed to get m3u8 from API for song: {song_metadata.artist} - {song_metadata.title}")
+            return
     if specified_m3u8:
-        song_uri, keys = await extract_media(specified_m3u8, codec, song_metadata,
-                                             config.download.codecPriority, config.download.codecAlternative)
+        song_uri, keys, codec_id = await extract_media(specified_m3u8, codec, song_metadata,
+                                                       config.download.codecPriority, config.download.codecAlternative)
     else:
-        song_uri, keys = await extract_media(song_data.attributes.extendedAssetUrls.enhancedHls, codec, song_metadata,
-                                             config.download.codecPriority, config.download.codecAlternative)
+        song_uri, keys, codec_id = await extract_media(song_data.attributes.extendedAssetUrls.enhancedHls, codec, song_metadata,
+                                                       config.download.codecPriority, config.download.codecAlternative)
     logger.info(f"Downloading song: {song_metadata.artist} - {song_metadata.title}")
+    codec = get_codec_from_codec_id(codec_id)
     raw_song = await download_song(song_uri)
     song_info = extract_song(raw_song, codec)
     decrypted_song = await decrypt(song_info, keys, song_data, device)
