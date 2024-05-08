@@ -41,7 +41,7 @@ class CodecKeySuffix:
 class CodecRegex:
     RegexCodecAtmos = "audio-(atmos|ec3)-\\d{4}$"
     RegexCodecAC3 = "audio-ac3-\\d{3}$"
-    RegexCodecAlac = "audio-alac-stereo-\\d{6}-\\d{2}$"
+    RegexCodecAlac = "audio-alac-stereo-\\d{5,6}-\\d{2}$"
     RegexCodecBinaural = "audio-stereo-\\d{3}-binaural$"
     RegexCodecDownmix = "audio-stereo-\\d{3}-downmix$"
     RegexCodecAAC = "audio-stereo-\\d{3}$"
