@@ -17,6 +17,7 @@ class Device(BaseModel):
 
 class M3U8Api(BaseModel):
     enable: bool
+    force: bool
     endpoint: str
 
 
