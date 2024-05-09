@@ -129,7 +129,7 @@ class Datum3(BaseModel):
     id: Optional[str] = None
     type: Optional[str] = None
     href: Optional[str] = None
-    attributes: Attributes3
+    attributes: Optional[Attributes3] = None
 
 
 class Artists1(BaseModel):
