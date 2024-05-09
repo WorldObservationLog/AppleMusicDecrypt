@@ -65,6 +65,7 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+@logger.catch
 async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                     force_save: bool = False):
     album_info = await get_album_info(album.id, auth_params.anonymousAccessToken, album.storefront,
@@ -78,6 +79,7 @@ async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, con
         f"Album: {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name} finished ripping")
 
 
+@logger.catch
 async def rip_playlist(playlist: Playlist, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                        force_save: bool = False):
     playlist_info = await get_playlist_info_and_tracks(playlist.id, auth_params.anonymousAccessToken,
@@ -95,6 +97,7 @@ async def rip_playlist(playlist: Playlist, auth_params: GlobalAuthParams, codec:
         f"Playlist: {playlist_info.data[0].attributes.curatorName} - {playlist_info.data[0].attributes.name} finished ripping")
 
 
+@logger.catch
 async def rip_artist(artist: Artist, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                      force_save: bool = False, include_participate_in_works: bool = False):
     artist_info = await get_artist_info(artist.id, artist.storefront, auth_params.anonymousAccessToken,
