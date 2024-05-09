@@ -48,7 +48,7 @@ class Attributes(BaseModel):
     composerName: Optional[str] = None
     audioLocale: Optional[str] = None
     url: Optional[str] = None
-    playParams: PlayParams
+    playParams: Optional[PlayParams] = None
     discNumber: Optional[int] = None
     hasCredits: Optional[bool] = None
     isAppleDigitalMaster: Optional[bool] = None
@@ -85,7 +85,7 @@ class Attributes1(BaseModel):
     upc: Optional[str] = None
     artwork: Artwork1
     url: Optional[str] = None
-    playParams: PlayParams1
+    playParams: Optional[PlayParams1] = None
     recordLabel: Optional[str] = None
     isCompilation: Optional[bool] = None
     trackCount: Optional[int] = None
