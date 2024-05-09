@@ -16,53 +16,59 @@ from src.types import GlobalAuthParams, Codec
 from src.url import Song, Album, URLType, Artist, Playlist
 from src.utils import check_song_exists, if_raw_atmos, playlist_write_song_index, get_codec_from_codec_id
 
+task_lock = asyncio.Semaphore(16)
+
 
 @logger.catch
 async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                    force_save: bool = False, specified_m3u8: str = "", playlist: PlaylistInfo = None):
-    logger.debug(f"Task of song id {song.id} was created")
-    token = auth_params.anonymousAccessToken
-    song_data = await get_song_info(song.id, token, song.storefront, config.region.language)
-    song_metadata = SongMetadata.parse_from_song_data(song_data)
-    if playlist:
-        song_metadata.set_playlist_index(playlist.songIdIndexMapping.get(song.id))
-    logger.info(f"Ripping song: {song_metadata.artist} - {song_metadata.title}")
-    if not force_save and check_song_exists(song_metadata, config.download, codec, playlist):
-        logger.info(f"Song: {song_metadata.artist} - {song_metadata.title} already exists")
-        return
-    await song_metadata.get_cover(config.download.coverFormat, config.download.coverSize)
-    if song_data.attributes.hasTimeSyncedLyrics:
-        lyrics = await get_song_lyrics(song.id, song.storefront, auth_params.accountAccessToken,
-                                       auth_params.dsid, auth_params.accountToken, config.region.language)
-        song_metadata.lyrics = lyrics
-    if config.m3u8Api.enable and codec == Codec.ALAC and not specified_m3u8:
-        m3u8_url = await get_m3u8_from_api(config.m3u8Api.endpoint, song.id, config.m3u8Api.enable)
-        if m3u8_url:
-            specified_m3u8 = m3u8_url
-            logger.info(f"Use m3u8 from API for song: {song_metadata.artist} - {song_metadata.title}")
-        elif not m3u8_url and config.m3u8Api.force:
-            logger.error(f"Failed to get m3u8 from API for song: {song_metadata.artist} - {song_metadata.title}")
+    async with task_lock:
+        logger.debug(f"Task of song id {song.id} was created")
+        token = auth_params.anonymousAccessToken
+        song_data = await get_song_info(song.id, token, song.storefront, config.region.language)
+        song_metadata = SongMetadata.parse_from_song_data(song_data)
+        if playlist:
+            song_metadata.set_playlist_index(playlist.songIdIndexMapping.get(song.id))
+        logger.info(f"Ripping song: {song_metadata.artist} - {song_metadata.title}")
+        if not force_save and check_song_exists(song_metadata, config.download, codec, playlist):
+            logger.info(f"Song: {song_metadata.artist} - {song_metadata.title} already exists")
             return
-    if specified_m3u8:
-        song_uri, keys, codec_id = await extract_media(specified_m3u8, codec, song_metadata,
-                                                       config.download.codecPriority, config.download.codecAlternative)
-    else:
-        song_uri, keys, codec_id = await extract_media(song_data.attributes.extendedAssetUrls.enhancedHls, codec, song_metadata,
-                                                       config.download.codecPriority, config.download.codecAlternative)
-    logger.info(f"Downloading song: {song_metadata.artist} - {song_metadata.title}")
-    codec = get_codec_from_codec_id(codec_id)
-    raw_song = await download_song(song_uri)
-    song_info = extract_song(raw_song, codec)
-    decrypted_song = await decrypt(song_info, keys, song_data, device)
-    song = encapsulate(song_info, decrypted_song, config.download.atmosConventToM4a)
-    if not if_raw_atmos(codec, config.download.atmosConventToM4a):
-        song = write_metadata(song, song_metadata, config.metadata.embedMetadata, config.download.coverFormat)
-    filename = save(song, codec, song_metadata, config.download, playlist)
-    logger.info(f"Song {song_metadata.artist} - {song_metadata.title} saved!")
-    if config.download.afterDownloaded:
-        command = config.download.afterDownloaded.format(filename=filename)
-        logger.info(f"Executing command: {command}")
-        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        await song_metadata.get_cover(config.download.coverFormat, config.download.coverSize)
+        if song_data.attributes.hasTimeSyncedLyrics:
+            lyrics = await get_song_lyrics(song.id, song.storefront, auth_params.accountAccessToken,
+                                           auth_params.dsid, auth_params.accountToken, config.region.language)
+            song_metadata.lyrics = lyrics
+        if config.m3u8Api.enable and codec == Codec.ALAC and not specified_m3u8:
+            m3u8_url = await get_m3u8_from_api(config.m3u8Api.endpoint, song.id, config.m3u8Api.enable)
+            if m3u8_url:
+                specified_m3u8 = m3u8_url
+                logger.info(f"Use m3u8 from API for song: {song_metadata.artist} - {song_metadata.title}")
+            elif not m3u8_url and config.m3u8Api.force:
+                logger.error(f"Failed to get m3u8 from API for song: {song_metadata.artist} - {song_metadata.title}")
+                return
+        if specified_m3u8:
+            song_uri, keys, codec_id = await extract_media(specified_m3u8, codec, song_metadata,
+                                                           config.download.codecPriority,
+                                                           config.download.codecAlternative)
+        else:
+            song_uri, keys, codec_id = await extract_media(song_data.attributes.extendedAssetUrls.enhancedHls, codec,
+                                                           song_metadata,
+                                                           config.download.codecPriority,
+                                                           config.download.codecAlternative)
+        logger.info(f"Downloading song: {song_metadata.artist} - {song_metadata.title}")
+        codec = get_codec_from_codec_id(codec_id)
+        raw_song = await download_song(song_uri)
+        song_info = extract_song(raw_song, codec)
+        decrypted_song = await decrypt(song_info, keys, song_data, device)
+        song = encapsulate(song_info, decrypted_song, config.download.atmosConventToM4a)
+        if not if_raw_atmos(codec, config.download.atmosConventToM4a):
+            song = write_metadata(song, song_metadata, config.metadata.embedMetadata, config.download.coverFormat)
+        filename = save(song, codec, song_metadata, config.download, playlist)
+        logger.info(f"Song {song_metadata.artist} - {song_metadata.title} saved!")
+        if config.download.afterDownloaded:
+            command = config.download.afterDownloaded.format(filename=filename)
+            logger.info(f"Executing command: {command}")
+            subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 @logger.catch
