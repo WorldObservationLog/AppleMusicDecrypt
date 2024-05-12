@@ -165,8 +165,8 @@ class NewInteractiveShell:
     async def _get_available_device(self, storefront: str):
         devices = self.storefront_device_mapping.get(storefront)
         if not devices:
-            logger.warning(f"No device is available to decrypt the specified region: {storefront}. "
-                           f"Use storefront {self.config.region.defaultStorefront} to decrypt")
+            logger.warning(f"No device is available to decrypt the specified region: {storefront.upper()}. "
+                           f"Use storefront {self.config.region.defaultStorefront.upper()} to decrypt")
             storefront = self.config.region.defaultStorefront
             devices = self.storefront_device_mapping.get(storefront)
         available_devices = [device for device in devices if not device.decryptLock.locked()]
