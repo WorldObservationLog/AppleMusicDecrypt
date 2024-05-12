@@ -5,8 +5,9 @@ from loguru import logger
 
 from src.api import (get_song_info, get_song_lyrics, get_album_info, download_song,
                      get_m3u8_from_api, get_artist_info, get_songs_from_artist, get_albums_from_artist,
-                     get_playlist_info_and_tracks)
-from src.config import Config, Device
+                     get_playlist_info_and_tracks, exist_on_storefront_by_album_id, exist_on_storefront_by_song_id)
+from src.config import Config
+from src.adb import Device
 from src.decrypt import decrypt
 from src.metadata import SongMetadata
 from src.models import PlaylistInfo
@@ -30,6 +31,13 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         if playlist:
             song_metadata.set_playlist_index(playlist.songIdIndexMapping.get(song.id))
         logger.info(f"Ripping song: {song_metadata.artist} - {song_metadata.title}")
+        if not await exist_on_storefront_by_song_id(song.id, song.storefront, auth_params.storefront,
+                                                     auth_params.anonymousAccessToken, config.region.language):
+            logger.error(
+                f"Unable to download song {song_metadata.artist} - {song_metadata.title}. "
+                f"This song does not exist in storefront {auth_params.storefront.upper()} "
+                f"and no device is available to decrypt it")
+            return
         if not force_save and check_song_exists(song_metadata, config.download, codec, playlist):
             logger.info(f"Song: {song_metadata.artist} - {song_metadata.title} already exists")
             return
@@ -77,6 +85,11 @@ async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, con
     album_info = await get_album_info(album.id, auth_params.anonymousAccessToken, album.storefront,
                                       config.region.language)
     logger.info(f"Ripping Album: {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name}")
+    if not await exist_on_storefront_by_album_id(album.id, album.storefront, auth_params.storefront, auth_params.anonymousAccessToken, config.region.language):
+        logger.error(f"Unable to download album {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name}. "
+                     f"This album does not exist in storefront {auth_params.storefront.upper()} "
+                     f"and no device is available to decrypt it")
+        return
     async with asyncio.TaskGroup() as tg:
         for track in album_info.data[0].relationships.tracks.data:
             song = Song(id=track.id, storefront=album.storefront, url="", type=URLType.Song)
