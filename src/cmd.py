@@ -35,7 +35,7 @@ class NewInteractiveShell:
 
         self.parser = argparse.ArgumentParser(exit_on_error=False)
         subparser = self.parser.add_subparsers()
-        download_parser = subparser.add_parser("download")
+        download_parser = subparser.add_parser("download", aliases=["dl"])
         download_parser.add_argument("url", type=str)
         download_parser.add_argument("-c", "--codec",
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
@@ -79,7 +79,7 @@ class NewInteractiveShell:
             logger.warning(f"Unknown command: {cmd}")
             return
         match cmds[0]:
-            case "download":
+            case "download" | "dl":
                 await self.do_download(args.url, args.codec, args.force, args.include)
             case "m3u8":
                 await self.do_m3u8(args.url, args.codec, args.force)
@@ -166,7 +166,7 @@ class NewInteractiveShell:
         devices = self.storefront_device_mapping.get(storefront)
         if not devices:
             logger.warning(f"No device is available to decrypt the specified region: {storefront}. "
-                           f"Overwriting storefront to {self.config.region.defaultStorefront}")
+                           f"Use storefront {self.config.region.defaultStorefront} to decrypt")
             storefront = self.config.region.defaultStorefront
             devices = self.storefront_device_mapping.get(storefront)
         available_devices = [device for device in devices if not device.decryptLock.locked()]
