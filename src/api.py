@@ -256,3 +256,48 @@ async def download_m3u8(m3u8_url: str) -> str:
 async def get_real_url(url: str):
     req = await client.get(url, follow_redirects=True, headers={"User-Agent": user_agent_browser})
     return str(req.url)
+
+
+@alru_cache
+@retry(retry=retry_if_exception_type(httpx.HTTPError), stop=stop_after_attempt(5))
+async def get_album_by_upc(upc: str, storefront: str, token: str):
+    req = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/albums",
+                           params={"filter[upc]": upc},
+                           headers={"Authorization": f"Bearer {token}", "Origin": "https://music.apple.com"})
+    resp = req.json()
+    try:
+        if resp["data"]:
+            return req.json()
+        else:
+            return None
+    except KeyError:
+        logger.debug(f"UPC: {upc}, Storefront: {storefront}")
+        return None
+
+
+@alru_cache
+@retry(retry=retry_if_exception_type(
+    (httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError, httpcore.RemoteProtocolError)),
+    stop=stop_after_attempt(5),
+    before_sleep=before_sleep_log(logger, logging.WARN))
+async def exist_on_storefront_by_song_id(song_id: str, storefront: str, check_storefront: str, token: str, lang: str):
+    if storefront == check_storefront:
+        return True
+    song = await get_song_info(song_id, token, storefront, lang)
+    album_id = song.relationships.albums.data[0].id
+    album = await get_album_info(album_id, token, storefront, lang)
+    upc = album.data[0].attributes.upc
+    upc_result = await get_album_by_upc(upc, check_storefront, token)
+    return bool(upc_result)
+
+
+@alru_cache
+@retry(retry=retry_if_exception_type(
+    (httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError, httpcore.RemoteProtocolError)),
+    stop=stop_after_attempt(5),
+    before_sleep=before_sleep_log(logger, logging.WARN))
+async def exist_on_storefront_by_album_id(album_id: str, storefront: str, check_storefront: str, token: str, lang: str):
+    album = await get_album_info(album_id, token, storefront, lang)
+    upc = album.data[0].attributes.upc
+    upc_result = await get_album_by_upc(upc, check_storefront, token)
+    return bool(upc_result)
