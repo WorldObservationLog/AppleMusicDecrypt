@@ -39,7 +39,7 @@ async def get_m3u8_from_api(endpoint: str, song_id: str, wait_and_retry: bool = 
         if resp == "no_found":
             if wait_and_retry and recursion_times <= 5:
                 await asyncio.sleep(5)
-                return await get_m3u8_from_api(endpoint, song_id, recursion_times=recursion_times+1)
+                return await get_m3u8_from_api(endpoint, song_id, recursion_times=recursion_times + 1)
             return ""
         return resp
 
@@ -246,3 +246,13 @@ async def download_m3u8(m3u8_url: str) -> str:
     async with request_lock:
         resp = await client.get(m3u8_url)
         return resp.text
+
+
+@alru_cache
+@retry(retry=retry_if_exception_type(
+    (httpx.TimeoutException, httpcore.ConnectError, SSLError, FileNotFoundError, httpcore.RemoteProtocolError)),
+    stop=stop_after_attempt(5),
+    before_sleep=before_sleep_log(logger, logging.WARN))
+async def get_real_url(url: str):
+    req = await client.get(url, follow_redirects=True, headers={"User-Agent": user_agent_browser})
+    return str(req.url)
