@@ -9,7 +9,7 @@ from prompt_toolkit import PromptSession, print_formatted_text, ANSI
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from src.adb import Device
-from src.api import get_token, init_client_and_lock, upload_m3u8_to_api, get_song_info
+from src.api import get_token, init_client_and_lock, upload_m3u8_to_api, get_song_info, get_real_url
 from src.config import Config
 from src.rip import rip_song, rip_album, rip_artist, rip_playlist
 from src.types import GlobalAuthParams
@@ -91,6 +91,12 @@ class NewInteractiveShell:
 
     async def do_download(self, raw_url: str, codec: str, force_download: bool, include: bool = False):
         url = AppleMusicURL.parse_url(raw_url)
+        if not url:
+            real_url = await get_real_url(raw_url)
+            url = AppleMusicURL.parse_url(real_url)
+            if not url:
+                logger.error("Illegal URL!")
+                return
         available_device = await self._get_available_device(url.storefront)
         global_auth_param = GlobalAuthParams.from_auth_params_and_token(available_device.get_auth_params(),
                                                                         self.anonymous_access_token)
