@@ -43,7 +43,10 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
             return
         await song_metadata.get_cover(config.download.coverFormat, config.download.coverSize)
         if song_data.attributes.hasTimeSyncedLyrics:
-            lyrics = await get_song_lyrics(song.id, song.storefront, auth_params.accountAccessToken,
+            if song.storefront != auth_params.storefront:
+                logger.warning(f"No account is available for getting lyrics of storefront {song.storefront.upper()}. "
+                               f"Use storefront {auth_params.storefront.upper()} to get lyrics")
+            lyrics = await get_song_lyrics(song.id, auth_params.storefront, auth_params.accountAccessToken,
                                            auth_params.dsid, auth_params.accountToken, config.region.language)
             song_metadata.lyrics = lyrics
         if config.m3u8Api.enable and codec == Codec.ALAC and not specified_m3u8:
