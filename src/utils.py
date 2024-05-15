@@ -111,7 +111,7 @@ def check_song_exists(metadata, config: Download, codec: str, playlist: Playlist
 
 
 def get_valid_filename(filename: str):
-    return "".join(i for i in filename if i not in r"\/:*?<>|")
+    return "".join(i for i in filename if i not in ["<", ">", ":", "\"", "/", "\\", "|", "?", "*"])
 
 
 def get_codec_from_codec_id(codec_id: str) -> str:
