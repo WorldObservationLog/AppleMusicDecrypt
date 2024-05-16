@@ -41,6 +41,12 @@ class SongMetadata(BaseModel):
                     lrc = ttml_convent_to_lrc(value)
                     tags.append(f"{key}={lrc}")
                     continue
+                if key.lower() in ('upc', 'isrc'):
+                    tags.append(f"WM/{key.lower()}={value}")
+                    continue
+                if key == 'composer':
+                    tags.append(f"writer={value}")
+                    continue
                 tags.append(f"{key}={value}")
         return ":".join(tags)
 
@@ -55,7 +61,8 @@ class SongMetadata(BaseModel):
                    copyright=song_data.relationships.albums.data[0].attributes.copyright,
                    record_company=song_data.relationships.albums.data[0].attributes.recordLabel,
                    upc=song_data.relationships.albums.data[0].attributes.upc,
-                   isrc=song_data.attributes.isrc
+                   isrc=song_data.attributes.isrc,
+                   rtng=1 if song_data.attributes.contentRating and song_data.attributes.contentRating == 'explicit' else 0
                    )
 
     def set_lyrics(self, lyrics: str):
