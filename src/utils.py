@@ -13,6 +13,8 @@ from src.exceptions import NotTimeSyncedLyricsException
 from src.models import PlaylistInfo
 from src.types import *
 
+from copy import deepcopy
+
 
 def check_url(url):
     pattern = regex.compile(
@@ -146,17 +148,26 @@ def playlist_metadata_to_params(playlist: PlaylistInfo):
     return {"playlistName": playlist.data[0].attributes.name,
             "playlistCuratorName": playlist.data[0].attributes.curatorName}
 
+def get_path_safe_dict(param: dict):
+    new_param = deepcopy(param)
+    for key, val in new_param.items():
+        if  isinstance(val, str):
+            new_param[key] = get_valid_filename(str(val))
+    return new_param
 
 def get_song_name_and_dir_path(codec: str, config: Download, metadata, playlist: PlaylistInfo = None):
     if playlist:
+        safe_meta = get_path_safe_dict(metadata.model_dump())
+        safe_pl_meta = get_path_safe_dict(playlist_metadata_to_params(playlist))
         song_name = config.playlistSongNameFormat.format(codec=codec, playlistSongIndex=metadata.playlistIndex,
-                                                         **metadata.model_dump())
+                                                         **safe_meta)
         dir_path = Path(config.playlistDirPathFormat.format(codec=codec,
-                                                            **metadata.model_dump(),
-                                                            **playlist_metadata_to_params(playlist)))
+                                                            **safe_meta,
+                                                            **safe_pl_meta))
     else:
-        song_name = config.songNameFormat.format(codec=codec, **metadata.model_dump())
-        dir_path = Path(config.dirPathFormat.format(codec=codec, **metadata.model_dump()))
+        safe_meta = get_path_safe_dict(metadata.model_dump())
+        song_name = config.songNameFormat.format(codec=codec, **safe_meta)
+        dir_path = Path(config.dirPathFormat.format(codec=codec, **safe_meta))
     if sys.platform == "win32":
         song_name = get_valid_filename(song_name)
         dir_path = Path(*[get_valid_filename(part) if ":\\" not in part else part for part in dir_path.parts])
