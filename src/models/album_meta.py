@@ -162,6 +162,7 @@ class Datum(BaseModel):
     type: Optional[str] = None
     href: Optional[str] = None
     attributes: Attributes
+    relationships: Relationships
     meta: Meta
 
 
