@@ -73,10 +73,10 @@ afterDownloaded = ""
 # title, artist, album, album_artist, composer,
 # genre, created, track, tracknum, disk,
 # record_company, upc, isrc, copyright,
-# lyrics, cover
+# lyrics, cover, ratings(rtng)
 embedMetadata = ["title", "artist", "album", "album_artist", "composer",
     "genre", "created", "track", "tracknum", "disk", "lyrics", "cover", "copyright",
-    "record_company", "upc", "isrc"]
+    "record_company", "upc", "isrc","rtng"]
 
 [mitm]
 # The host proxy server listens on

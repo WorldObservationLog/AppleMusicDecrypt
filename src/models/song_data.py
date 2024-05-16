@@ -58,6 +58,7 @@ class Attributes(BaseModel):
     previews: List[Preview]
     artistName: Optional[str] = None
     extendedAssetUrls: ExtendedAssetUrls
+    contentRating: Optional[str] = None
 
 
 class Artwork1(BaseModel):
