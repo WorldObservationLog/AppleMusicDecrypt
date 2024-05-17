@@ -113,7 +113,7 @@ class Datum1(BaseModel):
     type: Optional[str] = None
     href: Optional[str] = None
     attributes: Attributes1
-    relationships: Relationships1
+    relationships: Optional[Relationships1] = None
 
 
 class Tracks(BaseModel):
