@@ -156,6 +156,8 @@ def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool
                 f.write(str(nhml_xml))
             subprocess.run(f"gpac -i {nhml_name.absolute()} nhmlr -o {song_name.absolute()}",
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(f'mp4box -add {song_name.absolute()} -brand "M4A " {song_name.absolute()}',
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(song_name.absolute(), "rb") as f:
         final_song = f.read()
     tmp_dir.cleanup()
