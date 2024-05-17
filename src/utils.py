@@ -84,6 +84,8 @@ def ttml_convent_to_lrc(ttml: str) -> str:
             lyric_time: str = lyric.get("begin")
             if not lyric_time:
                 raise NotTimeSyncedLyricsException
+            if lyric_time.find('.') == -1:
+                lyric_time += '.000'
             match lyric_time.count(":"):
                 case 0:
                     split_time = lyric_time.split(".")
