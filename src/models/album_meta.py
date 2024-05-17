@@ -113,7 +113,7 @@ class Datum1(BaseModel):
     type: Optional[str] = None
     href: Optional[str] = None
     attributes: Attributes1
-    relationships: Relationships1
+    relationships: Optional[Relationships1] = None
 
 
 class Tracks(BaseModel):
@@ -148,12 +148,22 @@ class Relationships(BaseModel):
     record_labels: RecordLabels = Field(..., alias='record-labels')
 
 
+class ContentVersion(BaseModel):
+    MZ_INDEXER: Optional[int] = None
+    RTCI: Optional[int] = None
+
+
+class Meta(BaseModel):
+    contentVersion: ContentVersion
+
+
 class Datum(BaseModel):
     id: Optional[str] = None
     type: Optional[str] = None
     href: Optional[str] = None
     attributes: Attributes
     relationships: Relationships
+    meta: Meta
 
 
 class AlbumMeta(BaseModel):
