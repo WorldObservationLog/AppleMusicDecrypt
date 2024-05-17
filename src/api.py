@@ -159,7 +159,7 @@ async def get_cover(url: str, cover_format: str, cover_size: str):
 async def get_song_info(song_id: str, token: str, storefront: str, lang: str):
     async with request_lock:
         req = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/songs/{song_id}",
-                               params={"extend": "extendedAssetUrls", "include": "albums", "l": lang},
+                               params={"extend": "extendedAssetUrls", "include": "albums,explicit", "l": lang},
                                headers={"Authorization": f"Bearer {token}", "User-Agent": user_agent_itunes,
                                         "Origin": "https://music.apple.com"})
         song_data_obj = SongData.model_validate(req.json())
