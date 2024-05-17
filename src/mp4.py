@@ -180,7 +180,7 @@ def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str
         time = datetime.strptime(metadata.created, "%Y-%m-%d").strftime("%d/%m/%Y")
     else:
         time = ""
-    subprocess.run(["mp4box", "-time", time, "-mtime", time, "-keep-utc", "-name", f"1={metadata.title}", "-itags",
+    subprocess.run(["mp4box", "-time", time, "-mtime", time, "-name", f"1={metadata.title}", "-itags",
                     ":".join(["tool=", f"cover={absolute_cover_path}",
                               metadata.to_itags_params(embed_metadata)]),
                     song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
