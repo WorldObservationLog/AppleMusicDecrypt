@@ -47,7 +47,7 @@ mitm
 
 ## Prepare Local Environment
 
-1. Install [GPAC](https://gpac.io/downloads/gpac-nightly-builds/)
+1. Install [GPAC](https://gpac.io/downloads/gpac-nightly-builds/), [FFmpeg](https://ffmpeg.org/download.html) and [Android Debug Bridge](https://developer.android.com/tools/adb)
 2. Download [Bento4 MP4Tools](https://www.bento4.com/downloads/) and add the executable files to the environment
    variables
 3. Run `gpac -version`, `mp4box -version`, `mp4extract`, `mp4edit` and make sure all the commands run fine
