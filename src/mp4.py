@@ -156,7 +156,7 @@ def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool
                 f.write(str(nhml_xml))
             subprocess.run(f"gpac -i {nhml_name.absolute()} nhmlr -o {song_name.absolute()}",
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    subprocess.run(f'mp4box -ipod {song_name.absolute()}',
+    subprocess.run(f'mp4box -brand "M4A " -ab "M4A " -ab "mp42" {song_name.absolute()}',
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(song_name.absolute(), "rb") as f:
         final_song = f.read()
@@ -188,3 +188,19 @@ def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str
         embed_song = f.read()
     tmp_dir.cleanup()
     return embed_song
+
+
+# There are suspected errors in M4A files encapsulated by MP4Box and GPAC,
+# causing some applications to be unable to correctly process Metadata (such as Android.media, Salt Music)
+# Using FFMPEG re-encapsulating solves this problem
+def fix_encapsulate(song: bytes) -> bytes:
+    tmp_dir = TemporaryDirectory()
+    name = uuid.uuid4().hex
+    song_name = Path(tmp_dir.name) / Path(f"{name}.m4a")
+    new_song_name = Path(tmp_dir.name) / Path(f"{name}_fixed.m4a")
+    with open(song_name.absolute(), "wb") as f:
+        f.write(song)
+    subprocess.run(["ffmpeg", "-y", "-i", song_name.absolute(), "-fflags", "+bitexact", "-c:a", "copy", "-c:v", "copy",
+                    new_song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with open(new_song_name.absolute(), "rb") as f:
+        return f.read()

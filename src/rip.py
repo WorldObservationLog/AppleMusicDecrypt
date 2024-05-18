@@ -11,7 +11,7 @@ from src.adb import Device
 from src.decrypt import decrypt
 from src.metadata import SongMetadata
 from src.models import PlaylistInfo
-from src.mp4 import extract_media, extract_song, encapsulate, write_metadata
+from src.mp4 import extract_media, extract_song, encapsulate, write_metadata, fix_encapsulate
 from src.save import save
 from src.types import GlobalAuthParams, Codec
 from src.url import Song, Album, URLType, Artist, Playlist
@@ -73,7 +73,8 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         decrypted_song = await decrypt(song_info, keys, song_data, device)
         song = encapsulate(song_info, decrypted_song, config.download.atmosConventToM4a)
         if not if_raw_atmos(codec, config.download.atmosConventToM4a):
-            song = write_metadata(song, song_metadata, config.metadata.embedMetadata, config.download.coverFormat)
+            metadata_song = write_metadata(song, song_metadata, config.metadata.embedMetadata, config.download.coverFormat)
+            song = fix_encapsulate(metadata_song)
         filename = save(song, codec, song_metadata, config.download, playlist)
         logger.info(f"Song {song_metadata.artist} - {song_metadata.title} saved!")
         if config.download.afterDownloaded:
