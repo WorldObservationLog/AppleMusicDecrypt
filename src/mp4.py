@@ -209,7 +209,9 @@ def fix_encapsulate(song: bytes) -> bytes:
     subprocess.run(["ffmpeg", "-y", "-i", song_name.absolute(), "-fflags", "+bitexact", "-c:a", "copy", "-c:v", "copy",
                     new_song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(new_song_name.absolute(), "rb") as f:
-        return f.read()
+        encapsulated_song =  f.read()
+    tmp_dir.cleanup()
+    return encapsulated_song
 
 
 # FFMPEG will overwrite maxBitrate in DecoderConfigDescriptor
@@ -231,4 +233,6 @@ def fix_esds_box(raw_song: bytes, song: bytes) -> bytes:
     subprocess.run(f"mp4edit --replace moov/trak/mdia/minf/stbl/stsd/mp4a/esds:{esds_name.absolute()} {song_name.absolute()} {final_song_name.absolute()}",
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(final_song_name.absolute(), "rb") as f:
-        return f.read()
+        final_song = f.read()
+    tmp_dir.cleanup()
+    return final_song
