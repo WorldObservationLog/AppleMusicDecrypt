@@ -87,8 +87,9 @@ def extract_song(raw_song: bytes, codec: str) -> SongInfo:
     match codec:
         case Codec.ALAC:
             alac_atom_name = (Path(tmp_dir.name) / Path(mp4_name).with_suffix('.atom')).absolute()
-            subprocess.run(f"mp4extract moov/trak/mdia/minf/stbl/stsd/enca[0]/alac {raw_mp4.absolute()} {alac_atom_name}",
-                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.run(
+                f"mp4extract moov/trak/mdia/minf/stbl/stsd/enca[0]/alac {raw_mp4.absolute()} {alac_atom_name}",
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             with open(alac_atom_name, "rb") as f:
                 decoder_params = f.read()
         case Codec.AAC | Codec.AAC_DOWNMIX | Codec.AAC_BINAURAL:
@@ -208,4 +209,26 @@ def fix_encapsulate(song: bytes) -> bytes:
     subprocess.run(["ffmpeg", "-y", "-i", song_name.absolute(), "-fflags", "+bitexact", "-c:a", "copy", "-c:v", "copy",
                     new_song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(new_song_name.absolute(), "rb") as f:
+        return f.read()
+
+
+# FFMPEG will overwrite maxBitrate in DecoderConfigDescriptor
+# Using raw song's esds box to fix it
+# see also https://trac.ffmpeg.org/ticket/4894
+def fix_esds_box(raw_song: bytes, song: bytes) -> bytes:
+    tmp_dir = TemporaryDirectory()
+    name = uuid.uuid4().hex
+    esds_name = Path(tmp_dir.name) / Path(f"{name}.atom")
+    raw_song_name = Path(tmp_dir.name) / Path(f"{name}_raw.m4a")
+    song_name = Path(tmp_dir.name) / Path(f"{name}.m4a")
+    final_song_name = Path(tmp_dir.name) / Path(f"{name}_final.m4a")
+    with open(raw_song_name.absolute(), "wb") as f:
+        f.write(raw_song)
+    with open(song_name.absolute(), "wb") as f:
+        f.write(song)
+    subprocess.run(
+        f"mp4extract moov/trak/mdia/minf/stbl/stsd/enca[0]/esds {raw_song_name.absolute()} {esds_name.absolute()}", stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    subprocess.run(f"mp4edit --replace moov/trak/mdia/minf/stbl/stsd/mp4a/esds:{esds_name.absolute()} {song_name.absolute()} {final_song_name.absolute()}",
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with open(final_song_name.absolute(), "rb") as f:
         return f.read()
