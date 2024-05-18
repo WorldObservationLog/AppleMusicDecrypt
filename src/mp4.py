@@ -84,12 +84,17 @@ def extract_song(raw_song: bytes, codec: str) -> SongInfo:
     with open(media_name, "rb") as f:
         media = BytesIO(f.read())
 
-    if codec == Codec.ALAC:
-        alac_atom_name = (Path(tmp_dir.name) / Path(mp4_name).with_suffix('.atom')).absolute()
-        subprocess.run(f"mp4extract moov/trak/mdia/minf/stbl/stsd/enca[0]/alac {raw_mp4.absolute()} {alac_atom_name}",
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        with open(alac_atom_name, "rb") as f:
-            decoder_params = f.read()
+    match codec:
+        case Codec.ALAC:
+            alac_atom_name = (Path(tmp_dir.name) / Path(mp4_name).with_suffix('.atom')).absolute()
+            subprocess.run(f"mp4extract moov/trak/mdia/minf/stbl/stsd/enca[0]/alac {raw_mp4.absolute()} {alac_atom_name}",
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            with open(alac_atom_name, "rb") as f:
+                decoder_params = f.read()
+        case Codec.AAC | Codec.AAC_DOWNMIX | Codec.AAC_BINAURAL:
+            info_name = (Path(tmp_dir.name) / Path(mp4_name).with_suffix('.info')).absolute()
+            with open(info_name, "rb") as f:
+                decoder_params = f.read()
 
     samples = []
     moofs = info_xml.find_all("MovieFragmentBox")
@@ -145,14 +150,14 @@ def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool
                                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         case Codec.AAC_BINAURAL | Codec.AAC_DOWNMIX | Codec.AAC:
             nhml_name = Path(tmp_dir.name) / Path(f"{name}.nhml")
+            info_name = Path(tmp_dir.name) / Path(f"{name}.info")
+            with open(info_name.absolute(), "wb") as f:
+                f.write(song_info.decoderParams)
             with open(nhml_name.absolute(), "w", encoding="utf-8") as f:
                 nhml_xml = BeautifulSoup(song_info.nhml, features="xml")
                 nhml_xml.NHNTStream["baseMediaFile"] = media.name
-                del nhml_xml.NHNTStream["streamType"]
-                del nhml_xml.NHNTStream["objectTypeIndication"]
-                del nhml_xml.NHNTStream["specificInfoFile"]
-                nhml_xml.NHNTStream["mediaType"] = "soun"
-                nhml_xml.NHNTStream["mediaSubType"] = "mp4a"
+                nhml_xml.NHNTStream["specificInfoFile"] = info_name.name
+                nhml_xml.NHNTStream["streamType"] = "5"
                 f.write(str(nhml_xml))
             subprocess.run(f"gpac -i {nhml_name.absolute()} nhmlr -o {song_name.absolute()}",
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
