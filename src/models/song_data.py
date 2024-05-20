@@ -57,7 +57,7 @@ class Attributes(BaseModel):
     name: Optional[str] = None
     previews: List[Preview]
     artistName: Optional[str] = None
-    extendedAssetUrls: ExtendedAssetUrls
+    extendedAssetUrls: Optional[ExtendedAssetUrls] = None
     contentRating: Optional[str] = None
 
 
