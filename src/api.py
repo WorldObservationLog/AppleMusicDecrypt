@@ -253,7 +253,7 @@ async def get_album_by_upc(upc: str, storefront: str, token: str):
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def exist_on_storefront_by_song_id(song_id: str, storefront: str, check_storefront: str, token: str, lang: str):
-    if storefront == check_storefront:
+    if storefront.upper() == check_storefront.upper():
         return True
     song = await get_song_info(song_id, token, storefront, lang)
     album_id = song.relationships.albums.data[0].id
