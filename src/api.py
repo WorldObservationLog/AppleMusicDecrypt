@@ -133,7 +133,7 @@ async def get_playlist_tracks(playlist_id: str, token: str, storefront: str, lan
         playlist_tracks = PlaylistTracks.parse_obj(resp.json())
         tracks = playlist_tracks.data
         if playlist_tracks.next:
-            next_tracks = await get_playlist_info_and_tracks(playlist_id, token, storefront, lang, offset + 100)
+            next_tracks = await get_playlist_tracks(playlist_id, token, storefront, lang, offset + 100)
             tracks.extend(next_tracks)
         return tracks
 
