@@ -100,7 +100,6 @@ class NewInteractiveShell:
         available_device = await self._get_available_device(url.storefront)
         global_auth_param = GlobalAuthParams.from_auth_params_and_token(available_device.get_auth_params(),
                                                                         self.anonymous_access_token)
-        tasks = set()
         match url.type:
             case URLType.Song:
                 task = self.loop.create_task(
@@ -117,8 +116,8 @@ class NewInteractiveShell:
             case _:
                 logger.error("Unsupported URLType")
                 return
-        tasks.add(task)
-        task.add_done_callback(tasks.remove)
+        self.tasks.append(task)
+        task.add_done_callback(self.tasks.remove)
 
     async def do_m3u8(self, m3u8_url: str, codec: str, force_download: bool):
         song_id = get_song_id_from_m3u8(m3u8_url)
