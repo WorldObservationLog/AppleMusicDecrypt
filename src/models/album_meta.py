@@ -30,7 +30,7 @@ class Attributes(BaseModel):
     isMasteredForItunes: Optional[bool] = None
     artwork: Artwork
     url: Optional[str] = None
-    playParams: PlayParams
+    playParams: Optional[PlayParams] = None
     recordLabel: Optional[str] = None
     isCompilation: Optional[bool] = None
     trackCount: Optional[int] = None
@@ -76,7 +76,7 @@ class Attributes1(BaseModel):
     artwork: Artwork1
     composerName: Optional[str] = None
     audioLocale: Optional[str] = None
-    playParams: PlayParams1
+    playParams: Optional[PlayParams1] = None
     url: Optional[str] = None
     discNumber: Optional[int] = None
     hasCredits: Optional[bool] = None
