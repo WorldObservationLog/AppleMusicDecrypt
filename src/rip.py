@@ -57,8 +57,11 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
             elif not m3u8_url and config.m3u8Api.force:
                 logger.error(f"Failed to get m3u8 from API for song: {song_metadata.artist} - {song_metadata.title}")
                 return
+        if not song_data.attributes.extendedAssetUrls:
+            logger.error(
+                f"Failed to download song: {song_metadata.artist} - {song_metadata.title}. Audio does not exist")
         if not specified_m3u8 and not song_data.attributes.extendedAssetUrls.enhancedHls:
-            logger.error(f"Failed to download song: {song_metadata.artist} - {song_metadata.title} cause lossless audio does not exist")
+            logger.error(f"Failed to download song: {song_metadata.artist} - {song_metadata.title}. Lossless audio does not exist")
             return
         if specified_m3u8:
             song_uri, keys, codec_id = await extract_media(specified_m3u8, codec, song_metadata,
