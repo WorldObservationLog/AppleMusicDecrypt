@@ -60,6 +60,7 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         if not song_data.attributes.extendedAssetUrls:
             logger.error(
                 f"Failed to download song: {song_metadata.artist} - {song_metadata.title}. Audio does not exist")
+            return
         if not specified_m3u8 and not song_data.attributes.extendedAssetUrls.enhancedHls:
             logger.error(f"Failed to download song: {song_metadata.artist} - {song_metadata.title}. Lossless audio does not exist")
             return
