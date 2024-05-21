@@ -6,7 +6,7 @@ import httpx
 import regex
 from async_lru import alru_cache
 from loguru import logger
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_sleep_log
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_sleep_log, wait_random_exponential
 
 from src.models import *
 from src.models.song_data import Datum
@@ -14,7 +14,7 @@ from src.models.song_data import Datum
 client: httpx.AsyncClient
 download_lock: asyncio.Semaphore
 request_lock: asyncio.Semaphore
-retry_times = 10
+retry_times = 32
 user_agent_browser = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
 user_agent_itunes = "iTunes/12.11.3 (Windows; Microsoft Windows 10 x64 Professional Edition (Build 19041); x64) AppleWebKit/7611.1022.4001.1 (dt:2)"
 user_agent_app = "Music/5.7 Android/10 model/Pixel6GR1YH build/1234 (dt:66)"
@@ -27,10 +27,11 @@ def init_client_and_lock(proxy: str, parallel_num: int):
     else:
         client = httpx.AsyncClient()
     download_lock = asyncio.Semaphore(parallel_num)
-    request_lock = asyncio.Semaphore(64)
+    request_lock = asyncio.Semaphore(256)
 
 
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_m3u8_from_api(endpoint: str, song_id: str, wait_and_retry: bool = False, recursion_times: int = 0) -> str:
     async with request_lock:
@@ -44,6 +45,7 @@ async def get_m3u8_from_api(endpoint: str, song_id: str, wait_and_retry: bool = 
 
 
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def upload_m3u8_to_api(endpoint: str, m3u8_url: str, song_info: Datum):
     async with request_lock:
@@ -60,6 +62,7 @@ async def upload_m3u8_to_api(endpoint: str, m3u8_url: str, song_info: Datum):
 
 
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_token():
     async with request_lock:
@@ -72,6 +75,7 @@ async def get_token():
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def download_song(url: str) -> bytes:
     async with download_lock:
@@ -80,6 +84,7 @@ async def download_song(url: str) -> bytes:
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_album_info(album_id: str, token: str, storefront: str, lang: str):
     async with request_lock:
@@ -95,6 +100,7 @@ async def get_album_info(album_id: str, token: str, storefront: str, lang: str):
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_playlist_info_and_tracks(playlist_id: str, token: str, storefront: str, lang: str):
     async with request_lock:
@@ -111,6 +117,7 @@ async def get_playlist_info_and_tracks(playlist_id: str, token: str, storefront:
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_playlist_tracks(playlist_id: str, token: str, storefront: str, lang: str, offset: int = 0):
     async with request_lock:
@@ -129,6 +136,7 @@ async def get_playlist_tracks(playlist_id: str, token: str, storefront: str, lan
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_cover(url: str, cover_format: str, cover_size: str):
     async with request_lock:
@@ -140,6 +148,7 @@ async def get_cover(url: str, cover_format: str, cover_size: str):
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_song_info(song_id: str, token: str, storefront: str, lang: str):
     async with request_lock:
@@ -156,6 +165,7 @@ async def get_song_info(song_id: str, token: str, storefront: str, lang: str):
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_song_lyrics(song_id: str, storefront: str, token: str, dsid: str, account_token: str, lang: str) -> str:
     async with request_lock:
@@ -170,6 +180,7 @@ async def get_song_lyrics(song_id: str, storefront: str, token: str, dsid: str, 
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_albums_from_artist(artist_id: str, storefront: str, token: str, lang: str, offset: int = 0):
     async with request_lock:
@@ -187,6 +198,7 @@ async def get_albums_from_artist(artist_id: str, storefront: str, token: str, la
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_songs_from_artist(artist_id: str, storefront: str, token: str, lang: str, offset: int = 0):
     async with request_lock:
@@ -204,6 +216,7 @@ async def get_songs_from_artist(artist_id: str, storefront: str, token: str, lan
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_artist_info(artist_id: str, storefront: str, token: str, lang: str):
     async with request_lock:
@@ -216,6 +229,7 @@ async def get_artist_info(artist_id: str, storefront: str, token: str, lang: str
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def download_m3u8(m3u8_url: str) -> str:
     async with request_lock:
@@ -225,6 +239,7 @@ async def download_m3u8(m3u8_url: str) -> str:
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_real_url(url: str):
     req = await client.get(url, follow_redirects=True, headers={"User-Agent": user_agent_browser})
@@ -233,6 +248,7 @@ async def get_real_url(url: str):
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def get_album_by_upc(upc: str, storefront: str, token: str):
     req = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/albums",
@@ -251,6 +267,7 @@ async def get_album_by_upc(upc: str, storefront: str, token: str):
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def exist_on_storefront_by_song_id(song_id: str, storefront: str, check_storefront: str, token: str, lang: str):
     if storefront.upper() == check_storefront.upper():
@@ -265,6 +282,7 @@ async def exist_on_storefront_by_song_id(song_id: str, storefront: str, check_st
 
 @alru_cache
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
+       wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def exist_on_storefront_by_album_id(album_id: str, storefront: str, check_storefront: str, token: str, lang: str):
     if storefront.upper() == check_storefront.upper():
