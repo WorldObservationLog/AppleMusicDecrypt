@@ -84,11 +84,8 @@ class Device:
 
     def restart_inject_frida(self):
         self.fridaSession.detach()
-        self._kill_apple_music()
+        self.fridaDevice.kill(self.pid)
         self._inject_frida(self.fridaPort)
-
-    def _kill_apple_music(self):
-        self._execute_command(f"kill -9 {self.pid}", su=True)
 
     def start_inject_frida(self, frida_port):
         if not self._if_frida_running():
