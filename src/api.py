@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from ssl import SSLError
+from typing import Optional
 
 import httpx
 import regex
@@ -167,7 +168,7 @@ async def get_song_info(song_id: str, token: str, storefront: str, lang: str):
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
        wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
-async def get_song_lyrics(song_id: str, storefront: str, token: str, dsid: str, account_token: str, lang: str) -> str:
+async def get_song_lyrics(song_id: str, storefront: str, token: str, dsid: str, account_token: str, lang: str) -> Optional[str]:
     async with request_lock:
         req = await client.get(f"https://amp-api.music.apple.com/v1/catalog/{storefront}/songs/{song_id}/lyrics",
                                params={"l": lang},
@@ -175,7 +176,10 @@ async def get_song_lyrics(song_id: str, storefront: str, token: str, dsid: str, 
                                         "X-Dsid": dsid},
                                cookies={f"mz_at_ssl-{dsid}": account_token})
         result = SongLyrics.model_validate(req.json())
-        return result.data[0].attributes.ttml
+        if result.data:
+            return result.data[0].attributes.ttml
+        else:
+            return None
 
 
 @alru_cache
