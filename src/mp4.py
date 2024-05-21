@@ -61,7 +61,7 @@ async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
     return stream.segment_map[0].absolute_uri, keys, selected_codec
 
 
-def extract_song(raw_song: bytes, codec: str) -> SongInfo:
+async def extract_song(raw_song: bytes, codec: str) -> SongInfo:
     tmp_dir = TemporaryDirectory()
     mp4_name = uuid.uuid4().hex
     raw_mp4 = Path(tmp_dir.name) / Path(f"{mp4_name}.mp4")
@@ -118,7 +118,7 @@ def extract_song(raw_song: bytes, codec: str) -> SongInfo:
     return SongInfo(codec=codec, raw=raw_song, samples=samples, nhml=raw_nhml, decoderParams=decoder_params)
 
 
-def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool) -> bytes:
+async def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool) -> bytes:
     tmp_dir = TemporaryDirectory()
     name = uuid.uuid4().hex
     media = Path(tmp_dir.name) / Path(name).with_suffix(".media")
@@ -170,7 +170,7 @@ def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool
     return final_song
 
 
-def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str], cover_format: str) -> bytes:
+async def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str], cover_format: str) -> bytes:
     tmp_dir = TemporaryDirectory()
     name = uuid.uuid4().hex
     song_name = Path(tmp_dir.name) / Path(f"{name}.m4a")
@@ -199,7 +199,7 @@ def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str
 # There are suspected errors in M4A files encapsulated by MP4Box and GPAC,
 # causing some applications to be unable to correctly process Metadata (such as Android.media, Salt Music)
 # Using FFMPEG re-encapsulating solves this problem
-def fix_encapsulate(song: bytes) -> bytes:
+async def fix_encapsulate(song: bytes) -> bytes:
     tmp_dir = TemporaryDirectory()
     name = uuid.uuid4().hex
     song_name = Path(tmp_dir.name) / Path(f"{name}.m4a")
@@ -217,7 +217,7 @@ def fix_encapsulate(song: bytes) -> bytes:
 # FFMPEG will overwrite maxBitrate in DecoderConfigDescriptor
 # Using raw song's esds box to fix it
 # see also https://trac.ffmpeg.org/ticket/4894
-def fix_esds_box(raw_song: bytes, song: bytes) -> bytes:
+async def fix_esds_box(raw_song: bytes, song: bytes) -> bytes:
     tmp_dir = TemporaryDirectory()
     name = uuid.uuid4().hex
     esds_name = Path(tmp_dir.name) / Path(f"{name}.atom")
