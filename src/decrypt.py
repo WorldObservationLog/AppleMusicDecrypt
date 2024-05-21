@@ -2,16 +2,18 @@ import asyncio
 import logging
 
 from loguru import logger
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_sleep_log
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_sleep_log, RetryCallState
 
 from src.adb import Device
-from src.exceptions import DecryptException
+from src.exceptions import DecryptException, RetryableDecryptException
 from src.models.song_data import Datum
 from src.mp4 import SongInfo, SampleInfo
 from src.types import defaultId, prefetchKey
 
+retry_count = {}
 
-@retry(retry=retry_if_exception_type(DecryptException), stop=stop_after_attempt(3),
+
+@retry(retry=retry_if_exception_type(RetryableDecryptException), stop=stop_after_attempt(3),
        before_sleep=before_sleep_log(logger, logging.WARN))
 async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Device) -> bytes:
     async with device.decryptLock:
@@ -34,10 +36,19 @@ async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Devi
             last_index = sample.descIndex
             try:
                 result = await decrypt_sample(writer, reader, sample)
-            except DecryptException as e:
-                writer.write(bytes([0, 0, 0, 0]))
-                writer.close()
-                raise e
+            except RetryableDecryptException as e:
+                if 0 <= retry_count.get(device.device.serial, 0) < 3 or 4 <= retry_count.get(device.device.serial, 0) < 6:
+                    logger.warning(f"Failed to decrypt song: {manifest.attributes.artistName} - {manifest.attributes.name}, retrying")
+                    writer.write(bytes([0, 0, 0, 0]))
+                    writer.close()
+                    raise e
+                elif retry_count == 3:
+                    logger.warning(f"Failed to decrypt song: {manifest.attributes.artistName} - {manifest.attributes.name}, re-injecting")
+                    device.restart_inject_frida()
+                    raise e
+                else:
+                    logger.error(f"Failed to decrypt song: {manifest.attributes.artistName} - {manifest.attributes.name}")
+                    raise DecryptException
             decrypted += result
         writer.write(bytes([0, 0, 0, 0]))
         writer.close()
@@ -49,5 +60,5 @@ async def decrypt_sample(writer: asyncio.StreamWriter, reader: asyncio.StreamRea
     writer.write(sample.data)
     result = await reader.read(len(sample.data))
     if not result:
-        raise DecryptException
+        raise RetryableDecryptException
     return result

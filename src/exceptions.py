@@ -24,3 +24,7 @@ class NotTimeSyncedLyricsException(Exception):
 
 class CodecNotFoundException(Exception):
     ...
+
+
+class RetryableDecryptException(Exception):
+    ...
