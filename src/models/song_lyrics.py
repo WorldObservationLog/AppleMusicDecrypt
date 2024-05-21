@@ -22,4 +22,4 @@ class Datum(BaseModel):
 
 
 class SongLyrics(BaseModel):
-    data: List[Datum]
+    data: Optional[List[Datum]] = None
