@@ -48,7 +48,10 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
                                f"Use storefront {auth_params.storefront.upper()} to get lyrics")
             lyrics = await get_song_lyrics(song.id, auth_params.storefront, auth_params.accountAccessToken,
                                            auth_params.dsid, auth_params.accountToken, config.region.language)
-            song_metadata.lyrics = lyrics
+            if lyrics:
+                song_metadata.lyrics = lyrics
+            else:
+                logger.warning(f"Unable to get lyrics of song: {song_metadata.artist} - {song_metadata.title}")
         if config.m3u8Api.enable and codec == Codec.ALAC and not specified_m3u8:
             m3u8_url = await get_m3u8_from_api(config.m3u8Api.endpoint, song.id, config.m3u8Api.enable)
             if m3u8_url:
