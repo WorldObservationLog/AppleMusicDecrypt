@@ -18,7 +18,12 @@ retry_count = {}
 async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Device) -> bytes:
     async with device.decryptLock:
         logger.info(f"Decrypting song: {manifest.attributes.artistName} - {manifest.attributes.name}")
-        reader, writer = await asyncio.open_connection(device.host, device.fridaPort)
+        try:
+            reader, writer = await asyncio.open_connection(device.host, device.fridaPort)
+        except ConnectionRefusedError:
+            logger.warning(f"Failed to connect to device {device.device.serial}, re-injecting")
+            device.restart_inject_frida()
+            raise RetryableDecryptException
         decrypted = bytes()
         last_index = 255
         for sample in info.samples:
