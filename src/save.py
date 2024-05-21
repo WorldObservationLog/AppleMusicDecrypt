@@ -7,7 +7,7 @@ from src.models import PlaylistInfo
 from src.utils import ttml_convent_to_lrc, get_song_name_and_dir_path, get_suffix
 
 
-def save(song: bytes, codec: str, metadata: SongMetadata, config: Download, playlist: PlaylistInfo = None):
+async def save(song: bytes, codec: str, metadata: SongMetadata, config: Download, playlist: PlaylistInfo = None):
     song_name, dir_path = get_song_name_and_dir_path(codec, config, metadata, playlist)
     if not dir_path.exists() or not dir_path.is_dir():
         os.makedirs(dir_path.absolute())
