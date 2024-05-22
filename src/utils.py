@@ -7,6 +7,7 @@ from pathlib import Path
 import m3u8
 import regex
 from bs4 import BeautifulSoup
+from loguru import logger
 
 from src.config import Download
 from src.exceptions import NotTimeSyncedLyricsException
@@ -51,21 +52,14 @@ def chunk(it, size):
 def timeit(func):
     async def process(func, *args, **params):
         if asyncio.iscoroutinefunction(func):
-            print('this function is a coroutine: {}'.format(func.__name__))
             return await func(*args, **params)
         else:
-            print('this is not a coroutine')
             return func(*args, **params)
 
     async def helper(*args, **params):
-        print('{}.time'.format(func.__name__))
         start = time.time()
         result = await process(func, *args, **params)
-
-        # Test normal function route...
-        # result = await process(lambda *a, **p: print(*a, **p), *args, **params)
-
-        print('>>>', time.time() - start)
+        logger.debug(f'{func.__name__}: {time.time() - start}')
         return result
 
     return helper
@@ -150,12 +144,14 @@ def playlist_metadata_to_params(playlist: PlaylistInfo):
     return {"playlistName": playlist.data[0].attributes.name,
             "playlistCuratorName": playlist.data[0].attributes.curatorName}
 
+
 def get_path_safe_dict(param: dict):
     new_param = deepcopy(param)
     for key, val in new_param.items():
-        if  isinstance(val, str):
+        if isinstance(val, str):
             new_param[key] = get_valid_filename(str(val))
     return new_param
+
 
 def get_song_name_and_dir_path(codec: str, config: Download, metadata, playlist: PlaylistInfo = None):
     if playlist:
