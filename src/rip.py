@@ -22,6 +22,7 @@ task_lock = asyncio.Semaphore(16)
 
 
 @logger.catch
+@timeit
 async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                    force_save: bool = False, specified_m3u8: str = "", playlist: PlaylistInfo = None):
     async with task_lock:
@@ -106,6 +107,7 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
 
 
 @logger.catch
+@timeit
 async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                     force_save: bool = False):
     album_info = await get_album_info(album.id, auth_params.anonymousAccessToken, album.storefront,
@@ -125,6 +127,7 @@ async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, con
 
 
 @logger.catch
+@timeit
 async def rip_playlist(playlist: Playlist, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                        force_save: bool = False):
     playlist_info = await get_playlist_info_and_tracks(playlist.id, auth_params.anonymousAccessToken,
@@ -143,6 +146,7 @@ async def rip_playlist(playlist: Playlist, auth_params: GlobalAuthParams, codec:
 
 
 @logger.catch
+@timeit
 async def rip_artist(artist: Artist, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                      force_save: bool = False, include_participate_in_works: bool = False):
     artist_info = await get_artist_info(artist.id, artist.storefront, auth_params.anonymousAccessToken,
