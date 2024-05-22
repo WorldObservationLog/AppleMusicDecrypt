@@ -18,6 +18,10 @@ agentPort = 10020
 # For Magisk user, the recommend value is "su -c". For other Root solutions, the recommend value is "su 0"
 # If not sure which method to use, execute “su 0 ls /” and “su -c ls /” respectively in adb shell and choose the output method
 suMethod = "su -c"
+# Inject multiple scripts into devices to simulate multi-device decryption, which can speed up decryption
+# Experimental feature
+hyperDecrypt = false
+hyperDecryptNum = 2
 
 [m3u8Api]
 # Use zhaarey's m3u8 api to get higher song m3u8.

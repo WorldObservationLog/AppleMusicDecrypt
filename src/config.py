@@ -13,6 +13,8 @@ class Device(BaseModel):
     port: int
     agentPort: int
     suMethod: str
+    hyperDecrypt: bool
+    hyperDecryptNum: int
 
 
 class M3U8Api(BaseModel):

@@ -2,26 +2,31 @@ import asyncio
 import logging
 
 from loguru import logger
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_sleep_log, RetryCallState
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_sleep_log
 
-from src.adb import Device
+from src.adb import Device, HyperDecryptDevice
 from src.exceptions import DecryptException, RetryableDecryptException
 from src.models.song_data import Datum
 from src.mp4 import SongInfo, SampleInfo
 from src.types import defaultId, prefetchKey
+from src.utils import timeit
 
 retry_count = {}
 
 
 @retry(retry=retry_if_exception_type(RetryableDecryptException), stop=stop_after_attempt(3),
        before_sleep=before_sleep_log(logger, logging.WARN))
-async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Device) -> bytes:
+@timeit
+async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Device | HyperDecryptDevice) -> bytes:
     async with device.decryptLock:
-        logger.info(f"Decrypting song: {manifest.attributes.artistName} - {manifest.attributes.name}")
+        if isinstance(device, HyperDecryptDevice):
+            logger.info(f"Using hyperDecryptDevice {device.serial} to decrypt song: {manifest.attributes.artistName} - {manifest.attributes.name}")
+        else:
+            logger.info(f"Using device {device.serial} to decrypt song: {manifest.attributes.artistName} - {manifest.attributes.name}")
         try:
             reader, writer = await asyncio.open_connection(device.host, device.fridaPort)
         except ConnectionRefusedError:
-            logger.warning(f"Failed to connect to device {device.device.serial}, re-injecting")
+            logger.warning(f"Failed to connect to device {device.serial}, re-injecting")
             device.restart_inject_frida()
             raise RetryableDecryptException
         decrypted = bytes()
@@ -42,7 +47,7 @@ async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Devi
             try:
                 result = await decrypt_sample(writer, reader, sample)
             except RetryableDecryptException as e:
-                if 0 <= retry_count.get(device.device.serial, 0) < 3 or 4 <= retry_count.get(device.device.serial, 0) < 6:
+                if 0 <= retry_count.get(device.serial, 0) < 3 or 4 <= retry_count.get(device.serial, 0) < 6:
                     logger.warning(f"Failed to decrypt song: {manifest.attributes.artistName} - {manifest.attributes.name}, retrying")
                     writer.write(bytes([0, 0, 0, 0]))
                     writer.close()
