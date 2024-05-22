@@ -1,4 +1,5 @@
 import asyncio
+import random
 import subprocess
 
 from loguru import logger
@@ -15,7 +16,7 @@ from src.mp4 import extract_media, extract_song, encapsulate, write_metadata, fi
 from src.save import save
 from src.types import GlobalAuthParams, Codec
 from src.url import Song, Album, URLType, Artist, Playlist
-from src.utils import check_song_exists, if_raw_atmos, playlist_write_song_index, get_codec_from_codec_id
+from src.utils import check_song_exists, if_raw_atmos, playlist_write_song_index, get_codec_from_codec_id, timeit
 
 task_lock = asyncio.Semaphore(16)
 
@@ -80,7 +81,16 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
         codec = get_codec_from_codec_id(codec_id)
         raw_song = await download_song(song_uri)
         song_info = await extract_song(raw_song, codec)
-        decrypted_song = await decrypt(song_info, keys, song_data, device)
+        if device.hyperDecryptDevices:
+            if all([hyper_device.decryptLock.locked() for hyper_device in device.hyperDecryptDevices]):
+                decrypted_song = await decrypt(song_info, keys, song_data, random.choice(device.hyperDecryptDevices))
+            else:
+                for hyperDecryptDevice in device.hyperDecryptDevices:
+                    if not hyperDecryptDevice.decryptLock.locked():
+                        decrypted_song = await decrypt(song_info, keys, song_data, hyperDecryptDevice)
+                        break
+        else:
+            decrypted_song = await decrypt(song_info, keys, song_data, device)
         song = await encapsulate(song_info, decrypted_song, config.download.atmosConventToM4a)
         if not if_raw_atmos(codec, config.download.atmosConventToM4a):
             metadata_song = await write_metadata(song, song_metadata, config.metadata.embedMetadata, config.download.coverFormat)

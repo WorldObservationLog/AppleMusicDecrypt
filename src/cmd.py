@@ -67,7 +67,10 @@ class NewInteractiveShell:
             if not self.storefront_device_mapping.get(auth_params.storefront.lower()):
                 self.storefront_device_mapping.update({auth_params.storefront.lower(): []})
             self.storefront_device_mapping[auth_params.storefront.lower()].append(device)
-            device.start_inject_frida(device_info.agentPort)
+            if device_info.hyperDecrypt:
+                device.hyper_decrypt(list(range(device_info.agentPort, device_info.agentPort + device_info.hyperDecryptNum)))
+            else:
+                device.start_inject_frida(device_info.agentPort)
 
     async def command_parser(self, cmd: str):
         if not cmd.strip():

@@ -14,8 +14,24 @@ from src.exceptions import ADBConnectException, FailedGetAuthParamException, \
 from src.types import AuthParams
 
 
+class HyperDecryptDevice:
+    host: str
+    fridaPort: int
+    decryptLock: asyncio.Lock
+    serial: str
+    _father_device = None
+
+    def __init__(self, host: str, port: int, father_device):
+        self.host = host
+        self.fridaPort = port
+        self.decryptLock = asyncio.Lock()
+        self.serial = f"{host}:{port}"
+        self._father_device = father_device
+
+
 class Device:
     host: str
+    serial: str
     client: AdbClient
     device: AdbDevice
     fridaPort: int
@@ -25,6 +41,7 @@ class Device:
     authParams: AuthParams = None
     suMethod: str
     decryptLock: asyncio.Lock
+    hyperDecryptDevices: list[HyperDecryptDevice] = []
 
     def __init__(self, host="127.0.0.1", port=5037, su_method: str = "su -c"):
         self.client = AdbClient(host, port)
@@ -41,6 +58,7 @@ class Device:
         if not status:
             raise ADBConnectException
         self.device = self.client.device(f"{host}:{port}")
+        self.serial = self.device.serial
 
     def _execute_command(self, cmd: str, su: bool = False, sh: bool = False) -> Optional[str]:
         whoami = self.device.shell("whoami")
@@ -143,3 +161,22 @@ class Device:
             self.authParams = AuthParams(dsid=dsid, accountToken=token,
                                          accountAccessToken=access_token, storefront=storefront)
         return self.authParams
+
+    def hyper_decrypt(self, ports: list[int]):
+        if not self._if_frida_running():
+            raise FridaNotRunningException
+        logger.debug("injecting agent script with hyper decrypt")
+        self.fridaPort = ports[0]
+        if not self.fridaDevice:
+            frida.get_device_manager().add_remote_device(self.device.serial)
+            self.fridaDevice = frida.get_device_manager().get_device(self.device.serial)
+        self.pid = self.fridaDevice.spawn("com.apple.android.music")
+        self.fridaSession = self.fridaDevice.attach(self.pid)
+        for port in ports:
+            self._start_forward(port, port)
+            with open("agent.js", "r") as f:
+                agent = f.read().replace("2147483647", str(port))
+            script: frida.core.Script = self.fridaSession.create_script(agent)
+            script.load()
+            self.hyperDecryptDevices.append(HyperDecryptDevice(host=self.host, port=port, father_device=self))
+        self.fridaDevice.resume(self.pid)
