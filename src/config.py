@@ -26,6 +26,7 @@ class M3U8Api(BaseModel):
 class Download(BaseModel):
     proxy: str
     parallelNum: int
+    getM3u8FromDevice: bool
     codecAlternative: bool
     codecPriority: list[str]
     atmosConventToM4a: bool
