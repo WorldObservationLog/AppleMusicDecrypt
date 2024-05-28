@@ -15,7 +15,6 @@ from src.rip import rip_song, rip_album, rip_artist, rip_playlist
 from src.types import GlobalAuthParams
 from src.url import AppleMusicURL, URLType, Song
 from src.utils import get_song_id_from_m3u8
-from src.mitm import start_proxy
 
 
 class NewInteractiveShell:
@@ -50,11 +49,6 @@ class NewInteractiveShell:
                                  default="alac")
         m3u8_parser.add_argument("-f", "--force", default=False, action="store_true")
         subparser.add_parser("exit")
-        mitm_parser = subparser.add_parser("mitm")
-        mitm_parser.add_argument("-c", "--codec",
-                                 choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
-                                 default="alac")
-        mitm_parser.add_argument("-f", "--force", default=False, action="store_true")
 
         logger.remove()
         logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True, level="INFO")
@@ -87,8 +81,6 @@ class NewInteractiveShell:
                 await self.do_download(args.url, args.codec, args.force, args.include)
             case "m3u8":
                 await self.do_m3u8(args.url, args.codec, args.force)
-            case "mitm":
-                await self.do_mitm(args.codec, args.force)
             case "exit":
                 self.loop.stop()
                 sys.exit()
