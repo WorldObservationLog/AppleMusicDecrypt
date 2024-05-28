@@ -78,7 +78,7 @@ class NewInteractiveShell:
         cmds = cmd.split(" ")
         try:
             args = self.parser.parse_args(cmds)
-        except argparse.ArgumentError:
+        except (argparse.ArgumentError, argparse.ArgumentTypeError, SystemExit):
             logger.warning(f"Unknown command: {cmd}")
             return
         match cmds[0]:
