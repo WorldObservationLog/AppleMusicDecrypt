@@ -194,15 +194,10 @@ async def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: li
         time = datetime.strptime(metadata.created, "%Y-%m-%d").strftime("%d/%m/%Y")
     else:
         time = ""
-    if if_shell():
-        subprocess.run(
-            f"mp4box -time {time} -mtime {time} -name 1={metadata.title} -itags tool=:cover={absolute_cover_path}:{metadata.to_itags_params(embed_metadata)} {song_name.absolute()}",
-        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
-    else:
-        subprocess.run(["mp4box", "-time", time, "-mtime", time, "-name", f"1={metadata.title}", "-itags",
-                        ":".join(["tool=", f"cover={absolute_cover_path}",
-                                  metadata.to_itags_params(embed_metadata)]),
-                        song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
+    subprocess.run(["mp4box", "-time", time, "-mtime", time, "-name", f"1={metadata.title}", "-itags",
+                    ":".join(["tool=", f"cover={absolute_cover_path}",
+                              metadata.to_itags_params(embed_metadata)]),
+                    song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(song_name.absolute(), "rb") as f:
         embed_song = f.read()
     tmp_dir.cleanup()
@@ -219,8 +214,9 @@ async def fix_encapsulate(song: bytes) -> bytes:
     new_song_name = Path(tmp_dir.name) / Path(f"{name}_fixed.m4a")
     with open(song_name.absolute(), "wb") as f:
         f.write(song)
-    subprocess.run(f"ffmpeg -y -i {song_name.absolute()} -fflags +bitexact -c:a copy -c:v copy {new_song_name.absolute()}",
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
+    subprocess.run(
+        f"ffmpeg -y -i {song_name.absolute()} -fflags +bitexact -c:a copy -c:v copy {new_song_name.absolute()}",
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
     with open(new_song_name.absolute(), "rb") as f:
         encapsulated_song = f.read()
     tmp_dir.cleanup()
