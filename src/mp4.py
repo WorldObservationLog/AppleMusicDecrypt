@@ -194,10 +194,15 @@ async def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: li
         time = datetime.strptime(metadata.created, "%Y-%m-%d").strftime("%d/%m/%Y")
     else:
         time = ""
-    subprocess.run(["mp4box", "-time", time, "-mtime", time, "-name", f"1={metadata.title}", "-itags",
-                    ":".join(["tool=", f"cover={absolute_cover_path}",
-                              metadata.to_itags_params(embed_metadata)]),
-                    song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
+    if if_shell():
+        subprocess.run(
+            f"mp4box -time {time} -mtime {time} -name 1={metadata.title} -itags tool=:cover={absolute_cover_path}:{metadata.to_itags_params(embed_metadata)} {song_name.absolute()}",
+        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
+    else:
+        subprocess.run(["mp4box", "-time", time, "-mtime", time, "-name", f"1={metadata.title}", "-itags",
+                        ":".join(["tool=", f"cover={absolute_cover_path}",
+                                  metadata.to_itags_params(embed_metadata)]),
+                        song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
     with open(song_name.absolute(), "rb") as f:
         embed_song = f.read()
     tmp_dir.cleanup()
