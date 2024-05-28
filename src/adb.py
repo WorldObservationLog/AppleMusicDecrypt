@@ -42,12 +42,25 @@ class Device:
     suMethod: str
     decryptLock: asyncio.Lock
     hyperDecryptDevices: list[HyperDecryptDevice] = []
+    m3u8Script: frida.core.Script
 
     def __init__(self, host="127.0.0.1", port=5037, su_method: str = "su -c"):
         self.client = AdbClient(host, port)
         self.suMethod = su_method
         self.host = host
         self.decryptLock = asyncio.Lock()
+
+    async def get_m3u8(self, adam_id: str):
+        try:
+            result: str = await self.m3u8Script.exports_async.getm3u8(adam_id)
+        except frida.core.RPCException:
+            # The script takes 8 seconds to start.
+            # If the script does not start when the function is called, wait 8 seconds and call again.
+            await asyncio.sleep(8)
+            result: str = await self.m3u8Script.exports_async.getm3u8(adam_id)
+        if result.isdigit():
+            return None
+        return result
 
     def connect(self, host: str, port: int):
         try:
@@ -96,6 +109,10 @@ class Device:
             self.fridaDevice = frida.get_device_manager().get_device(self.device.serial)
         self.pid = self.fridaDevice.spawn("com.apple.android.music")
         self.fridaSession = self.fridaDevice.attach(self.pid)
+        with open("m3u8.js", "r") as f:
+            m3u8_script = f.read()
+        self.m3u8Script = self.fridaSession.create_script(m3u8_script)
+        self.m3u8Script.load()
         script: frida.core.Script = self.fridaSession.create_script(agent)
         script.load()
         self.fridaDevice.resume(self.pid)
@@ -172,6 +189,10 @@ class Device:
             self.fridaDevice = frida.get_device_manager().get_device(self.device.serial)
         self.pid = self.fridaDevice.spawn("com.apple.android.music")
         self.fridaSession = self.fridaDevice.attach(self.pid)
+        with open("m3u8.js", "r") as f:
+            m3u8_script = f.read()
+        self.m3u8Script = self.fridaSession.create_script(m3u8_script)
+        self.m3u8Script.load()
         for port in ports:
             self._start_forward(port, port)
             with open("agent.js", "r") as f:
