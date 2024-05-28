@@ -24,12 +24,12 @@ async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Devi
         else:
             logger.info(f"Using device {device.serial} to decrypt song: {manifest.attributes.artistName} - {manifest.attributes.name}")
         try:
-            reader, writer = await asyncio.open_connection(device.host, device.fridaPort)
+            reader, writer = await asyncio.open_connection(device.host, device.fridaPort, limit=2**14)
         except ConnectionRefusedError:
             logger.warning(f"Failed to connect to device {device.serial}, re-injecting")
             device.restart_inject_frida()
             raise RetryableDecryptException
-        decrypted = bytes()
+        decrypted = []
         last_index = 255
         for sample in info.samples:
             if last_index != sample.descIndex:
@@ -59,10 +59,11 @@ async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Devi
                 else:
                     logger.error(f"Failed to decrypt song: {manifest.attributes.artistName} - {manifest.attributes.name}")
                     raise DecryptException
-            decrypted += result
+            now += 1
+            decrypted.append(result)
         writer.write(bytes([0, 0, 0, 0]))
         writer.close()
-        return decrypted
+        return bytes().join(decrypted)
 
 
 async def decrypt_sample(writer: asyncio.StreamWriter, reader: asyncio.StreamReader, sample: SampleInfo) -> bytes:
