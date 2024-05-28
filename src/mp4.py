@@ -214,8 +214,8 @@ async def fix_encapsulate(song: bytes) -> bytes:
     new_song_name = Path(tmp_dir.name) / Path(f"{name}_fixed.m4a")
     with open(song_name.absolute(), "wb") as f:
         f.write(song)
-    subprocess.run(["ffmpeg", "-y", "-i", song_name.absolute(), "-fflags", "+bitexact", "-c:a", "copy", "-c:v", "copy",
-                    new_song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
+    subprocess.run(f"ffmpeg -y -i {song_name.absolute()} -fflags +bitexact -c:a copy -c:v copy {new_song_name.absolute()}",
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
     with open(new_song_name.absolute(), "rb") as f:
         encapsulated_song = f.read()
     tmp_dir.cleanup()
