@@ -40,20 +40,21 @@ class NewInteractiveShell:
         download_parser.add_argument("-c", "--codec",
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
                                      default="alac")
-        download_parser.add_argument("-f", "--force", type=bool, default=False)
-        download_parser.add_argument("--include-participate-songs", type=bool, default=False, dest="include")
+        download_parser.add_argument("-f", "--force", default=False, action="store_true")
+        download_parser.add_argument("--include-participate-songs", default=False, dest="include", action="store_true")
+        # download_from_file_parser = subparser.add_parser("download-from-file", aliases=["dlf"])
         m3u8_parser = subparser.add_parser("m3u8")
         m3u8_parser.add_argument("url", type=str)
         m3u8_parser.add_argument("-c", "--codec",
                                  choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
                                  default="alac")
-        m3u8_parser.add_argument("-f", "--force", type=bool, default=False)
+        m3u8_parser.add_argument("-f", "--force", default=False, action="store_true")
         subparser.add_parser("exit")
         mitm_parser = subparser.add_parser("mitm")
         mitm_parser.add_argument("-c", "--codec",
                                  choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
                                  default="alac")
-        mitm_parser.add_argument("-f", "--force", type=bool, default=False)
+        mitm_parser.add_argument("-f", "--force", default=False, action="store_true")
 
         logger.remove()
         logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True, level="INFO")
