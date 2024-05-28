@@ -59,7 +59,6 @@ async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Devi
                 else:
                     logger.error(f"Failed to decrypt song: {manifest.attributes.artistName} - {manifest.attributes.name}")
                     raise DecryptException
-            now += 1
             decrypted.append(result)
         writer.write(bytes([0, 0, 0, 0]))
         writer.close()
