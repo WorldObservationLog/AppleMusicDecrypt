@@ -3,6 +3,7 @@ import asyncio
 import random
 import sys
 from asyncio import Task
+from typing import Literal
 
 from loguru import logger
 from prompt_toolkit import PromptSession, print_formatted_text, ANSI
@@ -12,6 +13,7 @@ from src.adb import Device
 from src.api import get_token, init_client_and_lock, upload_m3u8_to_api, get_song_info, get_real_url
 from src.config import Config
 from src.rip import rip_song, rip_album, rip_artist, rip_playlist
+from src.status import LogStatus, BaseStatus
 from src.types import GlobalAuthParams
 from src.url import AppleMusicURL, URLType, Song
 from src.utils import get_song_id_from_m3u8
@@ -105,17 +107,25 @@ class NewInteractiveShell:
                                                                         self.anonymous_access_token)
         match url.type:
             case URLType.Song:
+                status = LogStatus(status_type=URLType.Song)
                 task = self.loop.create_task(
-                    rip_song(url, global_auth_param, codec, self.config, available_device, force_download))
+                    rip_song(url, global_auth_param, codec, self.config, available_device, status,
+                             force_save=force_download))
             case URLType.Album:
-                task = self.loop.create_task(rip_album(url, global_auth_param, codec, self.config, available_device,
-                                                       force_download))
+                status = LogStatus(status_type=URLType.Album)
+                task = self.loop.create_task(
+                    rip_album(url, global_auth_param, codec, self.config, available_device, status,
+                              force_save=force_download))
             case URLType.Artist:
-                task = self.loop.create_task(rip_artist(url, global_auth_param, codec, self.config, available_device,
-                                                        force_download, include))
+                status = LogStatus(status_type=URLType.Artist)
+                task = self.loop.create_task(
+                    rip_artist(url, global_auth_param, codec, self.config, available_device, status,
+                               force_save=force_download, include_participate_in_works=include))
             case URLType.Playlist:
-                task = self.loop.create_task(rip_playlist(url, global_auth_param, codec, self.config, available_device,
-                                                          force_download))
+                status = LogStatus(status_type=URLType.Playlist)
+                task = self.loop.create_task(
+                    rip_playlist(url, global_auth_param, codec, self.config, available_device, status,
+                                 force_save=force_download))
             case _:
                 logger.error("Unsupported URLType")
                 return

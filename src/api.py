@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from io import BytesIO
 from ssl import SSLError
 from typing import Optional
 
@@ -11,6 +12,7 @@ from tenacity import retry, retry_if_exception_type, stop_after_attempt, before_
 
 from src.models import *
 from src.models.song_data import Datum
+from src.status import BaseStatus, StatusCode
 
 client: httpx.AsyncClient
 download_lock: asyncio.Semaphore
@@ -78,9 +80,15 @@ async def get_token():
 @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
        wait=wait_random_exponential(multiplier=1, max=60),
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
-async def download_song(url: str) -> bytes:
+async def download_song(url: str, status: BaseStatus) -> bytes:
     async with download_lock:
-        return (await client.get(url)).content
+        status.set_status(StatusCode.Downloading)
+        result = BytesIO()
+        async with client.stream("GET", url) as resp:
+            async for chunk in resp.aiter_bytes():
+                result.write(chunk)
+                status.set_progress("download", resp.num_bytes_downloaded, int(resp.headers["Content-Length"]))
+        return result.getvalue()
 
 
 @alru_cache

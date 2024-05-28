@@ -17,8 +17,9 @@ retry_count = {}
 @retry(retry=retry_if_exception_type(RetryableDecryptException), stop=stop_after_attempt(3),
        before_sleep=before_sleep_log(logger, logging.WARN))
 @timeit
-async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Device | HyperDecryptDevice) -> bytes:
+async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Device | HyperDecryptDevice, status: BaseStatus) -> bytes:
     async with device.decryptLock:
+        status.set_status(StatusCode.Decrypting)
         if isinstance(device, HyperDecryptDevice):
             logger.info(f"Using hyperDecryptDevice {device.serial} to decrypt song: {manifest.attributes.artistName} - {manifest.attributes.name}")
         else:
@@ -31,7 +32,9 @@ async def decrypt(info: SongInfo, keys: list[str], manifest: Datum, device: Devi
             raise RetryableDecryptException
         decrypted = []
         last_index = 255
+        now = 0
         for sample in info.samples:
+            status.set_progress("decrypt", now, len(info.samples))
             if last_index != sample.descIndex:
                 if len(decrypted) != 0:
                     writer.write(bytes([0, 0, 0, 0]))
