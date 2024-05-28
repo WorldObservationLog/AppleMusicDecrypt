@@ -6,11 +6,12 @@ from typing import Optional
 import frida
 import regex
 from loguru import logger
+from tenacity import retry, retry_if_exception_type, wait_random_exponential, stop_after_attempt
 from ppadb.client import Client as AdbClient
 from ppadb.device import Device as AdbDevice
 
 from src.exceptions import ADBConnectException, FailedGetAuthParamException, \
-    FridaNotRunningException
+    FridaNotRunningException, FailedGetM3U8FromDeviceException
 from src.types import AuthParams
 
 
@@ -43,6 +44,7 @@ class Device:
     decryptLock: asyncio.Lock
     hyperDecryptDevices: list[HyperDecryptDevice] = []
     m3u8Script: frida.core.Script
+    _m3u8ScriptLock = asyncio.Lock()
 
     def __init__(self, host="127.0.0.1", port=5037, su_method: str = "su -c"):
         self.client = AdbClient(host, port)
@@ -50,17 +52,20 @@ class Device:
         self.host = host
         self.decryptLock = asyncio.Lock()
 
+    @retry(retry=retry_if_exception_type(FailedGetM3U8FromDeviceException), wait=wait_random_exponential(min=4, max=20),
+           stop=stop_after_attempt(8))
     async def get_m3u8(self, adam_id: str):
-        try:
-            result: str = await self.m3u8Script.exports_async.getm3u8(adam_id)
-        except frida.core.RPCException:
-            # The script takes 8 seconds to start.
-            # If the script does not start when the function is called, wait 8 seconds and call again.
-            await asyncio.sleep(8)
-            result: str = await self.m3u8Script.exports_async.getm3u8(adam_id)
-        if result.isdigit():
-            return None
-        return result
+        async with self._m3u8ScriptLock:
+            try:
+                result = await self.m3u8Script.exports_async.getm3u8(adam_id)
+            except frida.core.RPCException or isinstance(result, int):
+                # The script takes 8 seconds to start.
+                # If the script does not start when the function is called, wait 8 seconds and call again.
+                await asyncio.sleep(8)
+                result = await self.m3u8Script.exports_async.getm3u8(adam_id)
+            if isinstance(result, int):
+                raise FailedGetM3U8FromDeviceException
+            return result
 
     def connect(self, host: str, port: int):
         try:
