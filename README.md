@@ -11,18 +11,20 @@ bugs and unfinished features. USE IT WITH CAUTION.**
 ```shell
 # Download song/album with default codec (alac)
 download https://music.apple.com/jp/album/nameless-name-single/1688539265
+# Or a shorter command
+dl https://music.apple.com/jp/album/nameless-name-single/1688539265
 # Download song/album with specified codec
-download https://music.apple.com/jp/song/caribbean-blue/339592231 -c aac
+dl -c aac https://music.apple.com/jp/song/caribbean-blue/339592231
+# Overwrite existing files
+dl -f https://music.apple.com/jp/song/caribbean-blue/339592231
 # Download specify artist's all albums
-download https://music.apple.com/jp/artist/%E3%83%88%E3%82%B2%E3%83%8A%E3%82%B7%E3%83%88%E3%82%B2%E3%82%A2%E3%83%AA/1688539273
+dl https://music.apple.com/jp/artist/%E3%83%88%E3%82%B2%E3%83%8A%E3%82%B7%E3%83%88%E3%82%B2%E3%82%A2%E3%83%AA/1688539273
 # Download specify artist's all songs
-download https://music.apple.com/jp/artist/%E3%83%88%E3%82%B2%E3%83%8A%E3%82%B7%E3%83%88%E3%82%B2%E3%82%A2%E3%83%AA/1688539273 --include-participate-songs
+dl --include-participate-songs https://music.apple.com/jp/artist/%E3%83%88%E3%82%B2%E3%83%8A%E3%82%B7%E3%83%88%E3%82%B2%E3%82%A2%E3%83%AA/1688539273
 # Download all songs of specified playlist
-download https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
+dl https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 # Download song from specified m3u8 with default codec (alac)
 m3u8 https://aod.itunes.apple.com/itunes-assets/HLSMusic116/v4/cb/f0/91/cbf09175-ce98-d133-1936-2e46b6992aa5/P631756252_lossless.m3u8
-# Start Mitm mode
-mitm
 ```
 
 # Support Codec
@@ -103,24 +105,3 @@ poetry install
 cp config.example.toml config.toml
 poetry run python main.py
 ```
-
-# Mitm Mode
-
-## Prepare Environment
-
-1. Install [Proxifier](https://www.proxifier.com/) and [Apple Music Windows](https://apps.microsoft.com/detail/9pfhdd62mxs1)
-2. Sign in to Apple Music Windows with your Apple account
-3. Run `poetry run mitmproxy` under the script directory and quit
-4. Install the CA certificate according
-   to [Mitmproxy's instructions](https://docs.mitmproxy.org/stable/concepts-certificates/#quick-setup)
-5. Create a new proxy server in Proxifier(`Profile -> Proxy Servers -> Add`). `Address` and `Port` are values
-   of `mitm.host` and `mitm.port` in `config.toml`, and `Protocol` is `SOCKS Version 5`
-6. Create a new proxification rule in Proxifier(`Profile -> Proxy Servers -> Add`). Fill in `Applications` field
-   with `amplibraryagent.exe; applemusic.exe` and select the proxy server just created in `Action`
-
-## Start Mitm
-
-1. Run the script, type command `mitm`
-2. Start Proxifier
-3. Start Apple Music Windows and play a song or an album.
-4. Now the script should catch the m3u8 link and start ripping
