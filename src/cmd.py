@@ -41,7 +41,12 @@ class NewInteractiveShell:
                                      default="alac")
         download_parser.add_argument("-f", "--force", default=False, action="store_true")
         download_parser.add_argument("--include-participate-songs", default=False, dest="include", action="store_true")
-        # download_from_file_parser = subparser.add_parser("download-from-file", aliases=["dlf"])
+        download_from_file_parser = subparser.add_parser("download-from-file", aliases=["dlf"])
+        download_from_file_parser.add_argument("file", type=str)
+        download_from_file_parser.add_argument("-f", "--force", default=False, action="store_true")
+        download_from_file_parser.add_argument("-c", "--codec",
+                                     choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
+                                     default="alac")
         m3u8_parser = subparser.add_parser("m3u8")
         m3u8_parser.add_argument("url", type=str)
         m3u8_parser.add_argument("-c", "--codec",
@@ -81,6 +86,8 @@ class NewInteractiveShell:
                 await self.do_download(args.url, args.codec, args.force, args.include)
             case "m3u8":
                 await self.do_m3u8(args.url, args.codec, args.force)
+            case "download-from-file" | "dlf":
+                await self.do_download_from_file(args.file, args.codec, args.force)
             case "exit":
                 self.loop.stop()
                 sys.exit()
@@ -126,36 +133,13 @@ class NewInteractiveShell:
                      specified_m3u8=m3u8_url)
         )
 
-    async def do_mitm(self, codec: str, force_download: bool):
-        available_device = await self._get_available_device(self.config.region.defaultStorefront)
-        global_auth_param = GlobalAuthParams.from_auth_params_and_token(available_device.get_auth_params(),
-                                                                        self.anonymous_access_token)
-        m3u8_urls = set()
-        tasks = set()
-
-        async def upload(song_id: str, m3u8_url: str):
-            song_info = await get_song_info(song_id, self.anonymous_access_token,
-                                            self.config.region.defaultStorefront, self.config.region.language)
-            await upload_m3u8_to_api(self.config.m3u8Api.endpoint, m3u8_url, song_info)
-
-        def callback(m3u8_url):
-            if m3u8_url in m3u8_urls:
-                return
-            song_id = get_song_id_from_m3u8(m3u8_url)
-            song = Song(id=song_id, storefront=self.config.region.defaultStorefront, url="", type=URLType.Song)
-            rip_task = self.loop.create_task(
-                rip_song(song, global_auth_param, codec, self.config, available_device, force_save=force_download,
-                         specified_m3u8=m3u8_url)
-            )
-            tasks.update(rip_task)
-            rip_task.add_done_callback(tasks.remove)
-            if self.config.m3u8Api.enable:
-                upload_task = self.loop.create_task(upload(song_id, m3u8_url))
-                tasks.update(upload_task)
-                upload_task.add_done_callback(tasks.remove)
-            m3u8_urls.update(m3u8_url)
-
-        self.loop.create_task(start_proxy(self.config.mitm.host, self.config.mitm.port, callback))
+    async def do_download_from_file(self, file: str, codec: str, force_download: bool):
+        with open(file, "r", encoding="utf-8") as f:
+            urls = f.readlines()
+        for url in urls:
+            task = self.loop.create_task(self.do_download(raw_url=url, codec=codec, force_download=force_download))
+            self.tasks.append(task)
+            task.add_done_callback(self.tasks.remove)
 
     async def _get_available_device(self, storefront: str):
         devices = self.storefront_device_mapping.get(storefront)
