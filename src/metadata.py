@@ -6,6 +6,8 @@ from src.api import get_cover
 from src.models.song_data import Datum
 from src.utils import ttml_convent_to_lrc
 
+NOT_INCLUDED_FIELD = ["cover", "playlistIndex", "bit_depth", "sample_rate", "sample_rate_kHz"]
+
 
 class SongMetadata(BaseModel):
     title: Optional[str] = None
@@ -26,6 +28,9 @@ class SongMetadata(BaseModel):
     upc: Optional[str] = None
     isrc: Optional[str] = None
     playlistIndex: Optional[int] = None
+    bit_depth: Optional[int] = None
+    sample_rate: Optional[int] = None
+    sample_rate_kHz: Optional[str] = None
 
     def to_itags_params(self, embed_metadata: list[str]):
         tags = []
@@ -33,9 +38,7 @@ class SongMetadata(BaseModel):
             if not value:
                 continue
             if key in embed_metadata and value:
-                if "playlist" in key:
-                    continue
-                if key == "cover":
+                if key in NOT_INCLUDED_FIELD:
                     continue
                 if key == "lyrics":
                     lrc = ttml_convent_to_lrc(value)
@@ -73,3 +76,8 @@ class SongMetadata(BaseModel):
 
     def set_playlist_index(self, index: int):
         self.playlistIndex = index
+
+    def set_bit_depth_and_sample_rate(self, bit_depth: int, sample_rate: int):
+        self.bit_depth = bit_depth
+        self.sample_rate = sample_rate
+        self.sample_rate_kHz = str(sample_rate / 1000)

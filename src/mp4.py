@@ -33,7 +33,7 @@ async def get_available_codecs(m3u8_url: str) -> Tuple[list[str], list[str]]:
 
 
 async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
-                        codec_priority: list[str], alternative_codec: bool = False) -> Tuple[str, list[str], str]:
+                        codec_priority: list[str], alternative_codec: bool = False) -> Tuple[str, list[str], str, Optional[int], Optional[int]]:
     parsed_m3u8 = m3u8.loads(await download_m3u8(m3u8_url), uri=m3u8_url)
     specifyPlaylist = find_best_codec(parsed_m3u8, codec)
     if not specifyPlaylist and alternative_codec:
@@ -65,7 +65,12 @@ async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
     for key in skds:
         if key.endswith(key_suffix) or key.endswith(CodecKeySuffix.KeySuffixDefault):
             keys.append(key)
-    return stream.segment_map[0].absolute_uri, keys, selected_codec
+    if codec == Codec.ALAC:
+        sample_rate, bit_depth = specifyPlaylist.media[0].extras.values()
+        sample_rate, bit_depth = int(sample_rate), int(bit_depth)
+    else:
+        sample_rate, bit_depth = None, None
+    return stream.segment_map[0].absolute_uri, keys, selected_codec, bit_depth, sample_rate
 
 
 async def extract_song(raw_song: bytes, codec: str) -> SongInfo:
