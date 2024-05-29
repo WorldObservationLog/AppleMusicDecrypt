@@ -62,7 +62,10 @@ audioInfoFormat = ""
 # record_company, upc, isrc, copyright, codec, audio_info
 # song_id, album_id
 songNameFormat = "{disk}-{tracknum:02d} {title}"
-# Ditto
+# Available values:
+# title, artist, album, album_artist, composer,
+# genre, created, track, tracknum, disk,
+# record_company, upc, isrc, copyright, codec, album_id
 dirPathFormat = "downloads/{album_artist}/{album}"
 # Available values:
 # title, artist, album, album_artist, composer,
