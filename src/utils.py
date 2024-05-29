@@ -1,6 +1,7 @@
 import asyncio
 import sys
 import time
+from datetime import datetime, timedelta
 from itertools import islice
 from pathlib import Path
 
@@ -176,3 +177,8 @@ def playlist_write_song_index(playlist: PlaylistInfo):
     for track_index, track in enumerate(playlist.data[0].relationships.tracks.data):
         playlist.songIdIndexMapping[track.id] = track_index + 1
     return playlist
+
+
+def convent_mac_timestamp_to_datetime(timestamp: int):
+    d = datetime.strptime("01-01-1904", "%m-%d-%Y")
+    return d + timedelta(seconds=timestamp)

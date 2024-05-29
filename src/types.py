@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 
 from pydantic import BaseModel
 
@@ -18,6 +18,7 @@ class SongInfo(BaseModel):
     samples: list[SampleInfo]
     nhml: str
     decoderParams: Optional[bytes] = None
+    params: dict[str, Any]
 
 
 class Codec:

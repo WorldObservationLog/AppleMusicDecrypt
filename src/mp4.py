@@ -1,7 +1,6 @@
 import subprocess
 import sys
 import uuid
-from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -16,7 +15,7 @@ from src.api import download_m3u8
 from src.exceptions import CodecNotFoundException
 from src.metadata import SongMetadata
 from src.types import *
-from src.utils import find_best_codec, get_codec_from_codec_id, get_suffix
+from src.utils import find_best_codec, get_codec_from_codec_id, get_suffix, convent_mac_timestamp_to_datetime
 
 
 def if_shell():
@@ -109,6 +108,7 @@ async def extract_song(raw_song: bytes, codec: str) -> SongInfo:
     moofs = info_xml.find_all("MovieFragmentBox")
     nhnt_sample_number = 0
     nhnt_samples = {}
+    params = {}
     for sample in nhml.find_all("NHNTSample"):
         nhnt_samples.update({int(sample.get("number")): sample})
     for i, moof in enumerate(moofs):
@@ -122,8 +122,11 @@ async def extract_song(raw_song: bytes, codec: str) -> SongInfo:
                 sample_data = media.read(int(nhnt_sample.get("dataLength")))
                 duration = int(nhnt_sample.get("duration"))
                 samples.append(SampleInfo(descIndex=index, data=sample_data, duration=int(duration)))
+    mvhd = info_xml.find("MovieHeaderBox")
+    params.update({"CreationTime": convent_mac_timestamp_to_datetime(int(mvhd.get("CreationTime"))),
+                   "ModificationTime": convent_mac_timestamp_to_datetime(int(mvhd.get("ModificationTime")))})
     tmp_dir.cleanup()
-    return SongInfo(codec=codec, raw=raw_song, samples=samples, nhml=raw_nhml, decoderParams=decoder_params)
+    return SongInfo(codec=codec, raw=raw_song, samples=samples, nhml=raw_nhml, decoderParams=decoder_params, params=params)
 
 
 async def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool) -> bytes:
@@ -178,7 +181,8 @@ async def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent
     return final_song
 
 
-async def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str], cover_format: str) -> bytes:
+async def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str],
+                         cover_format: str, params: dict[str, Any]) -> bytes:
     tmp_dir = TemporaryDirectory()
     name = uuid.uuid4().hex
     song_name = Path(tmp_dir.name) / Path(f"{name}.m4a")
@@ -190,12 +194,10 @@ async def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: li
         absolute_cover_path = cover_path.absolute()
         with open(cover_path.absolute(), "wb") as f:
             f.write(metadata.cover)
-    if metadata.created:
-        time = datetime.strptime(metadata.created, "%Y-%m-%d").strftime("%d/%m/%Y")
-    else:
-        time = ""
-    subprocess.run(["mp4box", "-time", time, "-mtime", time, "-name", f"1={metadata.title}", "-itags",
-                    ":".join(["tool=", f"cover={absolute_cover_path}",
+    subprocess.run(["mp4box",
+                    "-time", params.get("CreationTime").strftime("%d/%m/%Y-%H:%M:%S"),
+                    "-mtime", params.get("ModificationTime").strftime("%d/%m/%Y-%H:%M:%S"), "-keep-utc",
+                    "-name", f"1={metadata.title}", "-itags", ":".join(["tool=", f"cover={absolute_cover_path}",
                               metadata.to_itags_params(embed_metadata)]),
                     song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(song_name.absolute(), "rb") as f:
@@ -215,7 +217,7 @@ async def fix_encapsulate(song: bytes) -> bytes:
     with open(song_name.absolute(), "wb") as f:
         f.write(song)
     subprocess.run(
-        f"ffmpeg -y -i {song_name.absolute()} -fflags +bitexact -c:a copy -c:v copy {new_song_name.absolute()}",
+        f"ffmpeg -y -i {song_name.absolute()} -fflags +bitexact -map_metadata 0 -c:a copy -c:v copy {new_song_name.absolute()}",
         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
     with open(new_song_name.absolute(), "rb") as f:
         encapsulated_song = f.read()
