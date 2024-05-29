@@ -103,7 +103,7 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
             song = await fix_encapsulate(metadata_song)
             if codec == Codec.AAC or codec == Codec.AAC_DOWNMIX or codec == Codec.AAC_BINAURAL:
                 song = await fix_esds_box(song_info.raw, song)
-        filename = await save(song, codec, song_metadata, config.download, playlist)
+        filename = await save(song, codec.upper(), song_metadata, config.download, playlist)
         logger.info(f"Song {song_metadata.artist} - {song_metadata.title} saved!")
         if config.download.afterDownloaded:
             command = config.download.afterDownloaded.format(filename=filename)
