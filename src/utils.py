@@ -113,6 +113,10 @@ def get_valid_filename(filename: str):
     return "".join(i for i in filename if i not in ["<", ">", ":", "\"", "/", "\\", "|", "?", "*"])
 
 
+def get_valid_dir_name(dirname: str):
+    return regex.sub(r"\.+$", "", get_valid_filename(dirname))
+
+
 def get_codec_from_codec_id(codec_id: str) -> str:
     codecs = [Codec.AC3, Codec.EC3, Codec.AAC, Codec.ALAC, Codec.AAC_BINAURAL, Codec.AAC_DOWNMIX]
     for codec in codecs:
@@ -167,17 +171,17 @@ def get_song_name_and_dir_path(codec: str, config: Download, metadata, playlist:
         safe_meta = get_path_safe_dict(metadata.model_dump())
         safe_pl_meta = get_path_safe_dict(playlist_metadata_to_params(playlist))
         song_name = config.playlistSongNameFormat.format(codec=codec, playlistSongIndex=metadata.playlistIndex,
-                                                         audio_info=get_audio_info_str(metadata, codec, config), **safe_meta)
-        dir_path = Path(config.playlistDirPathFormat.format(codec=codec,
-                                                            **safe_meta,
-                                                            **safe_pl_meta))
+                                                         audio_info=get_audio_info_str(metadata, codec, config),
+                                                         **safe_meta)
+        dir_path = Path(config.playlistDirPathFormat.format(codec=codec, **safe_meta, **safe_pl_meta))
     else:
         safe_meta = get_path_safe_dict(metadata.model_dump())
-        song_name = config.songNameFormat.format(codec=codec, audio_info=get_audio_info_str(metadata, codec, config), **safe_meta)
+        song_name = config.songNameFormat.format(codec=codec, audio_info=get_audio_info_str(metadata, codec, config),
+                                                 **safe_meta)
         dir_path = Path(config.dirPathFormat.format(codec=codec, **safe_meta))
     if sys.platform == "win32":
         song_name = get_valid_filename(song_name)
-        dir_path = Path(*[get_valid_filename(part) if ":\\" not in part else part for part in dir_path.parts])
+        dir_path = Path(*[get_valid_dir_name(part) if ":\\" not in part else part for part in dir_path.parts])
     return song_name, dir_path
 
 
