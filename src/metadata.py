@@ -6,12 +6,15 @@ from src.api import get_cover
 from src.models.song_data import Datum
 from src.utils import ttml_convent_to_lrc
 
-NOT_INCLUDED_FIELD = ["cover", "playlistIndex", "bit_depth", "sample_rate", "sample_rate_kHz"]
+NOT_INCLUDED_FIELD = ["cover", "playlistIndex", "bit_depth", "sample_rate",
+                      "sample_rate_kHz", "song_id", "album_id"]
 
 
 class SongMetadata(BaseModel):
+    song_id: Optional[str] = None
     title: Optional[str] = None
     artist: Optional[str] = None
+    album_id: Optional[str] = None
     album_artist: Optional[str] = None
     album: Optional[str] = None
     composer: Optional[str] = None
@@ -65,7 +68,8 @@ class SongMetadata(BaseModel):
                    record_company=song_data.relationships.albums.data[0].attributes.recordLabel,
                    upc=song_data.relationships.albums.data[0].attributes.upc,
                    isrc=song_data.attributes.isrc,
-                   rtng=1 if song_data.attributes.contentRating and song_data.attributes.contentRating == 'explicit' else 0
+                   rtng=1 if song_data.attributes.contentRating and song_data.attributes.contentRating == 'explicit' else 0,
+                   song_id=song_data.id, album_id=song_data.relationships.albums.data[0].id
                    )
 
     def set_lyrics(self, lyrics: str):
