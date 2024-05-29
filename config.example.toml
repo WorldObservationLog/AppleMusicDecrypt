@@ -44,10 +44,22 @@ codecPriority = ["alac", "ec3", "ac3", "aac"]
 # Encapsulate Atmos(ec-3/ac-3) as M4A and write the song metadata
 atmosConventToM4a = true
 # Follow the Python Format format (https://docs.python.org/3/library/string.html#formatstrings)
+# Write the audio information to the songNameFormat and playlistSongNameFormat
+# Only support alac codec
+# Available values: bit_depth, sample_rate, sample_rate_kHz, codec
+# This feature may slow down the speed of checking for existing songs
+# For example:
+# audioInfoFormat = " [{codec}][{bit_depth}bit][{sample_rate_kHz}kHz]"
+# songNameFormat = "{disk}-{tracknum:02d} {title}{audio_info}"
+# When transcribing audio with alac codec, the transcribed file name is:
+# 1-01 名もなき何もかも [ALAC][16bit][44.1kHz]
+# When transcribing audio with other codecs, the transcribed file name is:
+# 1-01 名もなき何もかも
+audioInfoFormat = ""
 # Available values:
 # title, artist, album, album_artist, composer,
 # genre, created, track, tracknum, disk,
-# record_company, upc, isrc, copyright, codec
+# record_company, upc, isrc, copyright, codec, audio_info
 songNameFormat = "{disk}-{tracknum:02d} {title}"
 # Ditto
 dirPathFormat = "downloads/{album_artist}/{album}"
@@ -60,7 +72,7 @@ playlistDirPathFormat = "downloads/playlists/{playlistName}"
 # Available values:
 # title, artist, album, album_artist, composer,
 # genre, created, track, tracknum, disk,
-# record_company, upc, isrc, copyright,
+# record_company, upc, isrc, copyright, audio_info
 # playlistName, playlistCuratorName, playlistSongIndex, codec
 playlistSongNameFormat = "{playlistSongIndex:02d}. {artist} - {title}"
 # Save lyrics as .lrc file

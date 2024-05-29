@@ -34,7 +34,7 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
             song_metadata.set_playlist_index(playlist.songIdIndexMapping.get(song.id))
         logger.info(f"Ripping song: {song_metadata.artist} - {song_metadata.title}")
         if not await exist_on_storefront_by_song_id(song.id, song.storefront, auth_params.storefront,
-                                                     auth_params.anonymousAccessToken, config.region.language):
+                                                    auth_params.anonymousAccessToken, config.region.language):
             logger.error(
                 f"Unable to download song {song_metadata.artist} - {song_metadata.title}. "
                 f"This song does not exist in storefront {auth_params.storefront.upper()} "
@@ -67,7 +67,8 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
                 f"Failed to download song: {song_metadata.artist} - {song_metadata.title}. Audio does not exist")
             return
         if not specified_m3u8 and not song_data.attributes.extendedAssetUrls.enhancedHls:
-            logger.error(f"Failed to download song: {song_metadata.artist} - {song_metadata.title}. Lossless audio does not exist")
+            logger.error(
+                f"Failed to download song: {song_metadata.artist} - {song_metadata.title}. Lossless audio does not exist")
             return
         if not specified_m3u8 and config.download.getM3u8FromDevice:
             device_m3u8 = await device.get_m3u8(song.id)
@@ -75,14 +76,17 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
                 specified_m3u8 = device_m3u8
                 logger.info(f"Use m3u8 from device for song: {song_metadata.artist} - {song_metadata.title}")
         if specified_m3u8:
-            song_uri, keys, codec_id = await extract_media(specified_m3u8, codec, song_metadata,
-                                                           config.download.codecPriority,
-                                                           config.download.codecAlternative)
+            song_uri, keys, codec_id, bit_depth, sample_rate = await extract_media(
+                specified_m3u8, codec, song_metadata, config.download.codecPriority, config.download.codecAlternative)
         else:
-            song_uri, keys, codec_id = await extract_media(song_data.attributes.extendedAssetUrls.enhancedHls, codec,
-                                                           song_metadata,
-                                                           config.download.codecPriority,
-                                                           config.download.codecAlternative)
+            song_uri, keys, codec_id, bit_depth, sample_rate = await extract_media(
+                song_data.attributes.extendedAssetUrls.enhancedHls, codec, song_metadata,
+                config.download.codecPriority, config.download.codecAlternative)
+        if all([bool(bit_depth), bool(sample_rate)]):
+            song_metadata.set_bit_depth_and_sample_rate(bit_depth, sample_rate)
+            if not force_save and check_song_exists(song_metadata, config.download, codec, playlist):
+                logger.info(f"Song: {song_metadata.artist} - {song_metadata.title} already exists")
+                return
         logger.info(f"Downloading song: {song_metadata.artist} - {song_metadata.title}")
         codec = get_codec_from_codec_id(codec_id)
         raw_song = await download_song(song_uri)
@@ -119,10 +123,12 @@ async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, con
     album_info = await get_album_info(album.id, auth_params.anonymousAccessToken, album.storefront,
                                       config.region.language)
     logger.info(f"Ripping Album: {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name}")
-    if not await exist_on_storefront_by_album_id(album.id, album.storefront, auth_params.storefront, auth_params.anonymousAccessToken, config.region.language):
-        logger.error(f"Unable to download album {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name}. "
-                     f"This album does not exist in storefront {auth_params.storefront.upper()} "
-                     f"and no device is available to decrypt it")
+    if not await exist_on_storefront_by_album_id(album.id, album.storefront, auth_params.storefront,
+                                                 auth_params.anonymousAccessToken, config.region.language):
+        logger.error(
+            f"Unable to download album {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name}. "
+            f"This album does not exist in storefront {auth_params.storefront.upper()} "
+            f"and no device is available to decrypt it")
         return
     async with asyncio.TaskGroup() as tg:
         for track in album_info.data[0].relationships.tracks.data:

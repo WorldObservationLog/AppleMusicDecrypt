@@ -30,6 +30,7 @@ class Download(BaseModel):
     codecAlternative: bool
     codecPriority: list[str]
     atmosConventToM4a: bool
+    audioInfoFormat: str
     songNameFormat: str
     dirPathFormat: str
     playlistDirPathFormat: str
