@@ -60,6 +60,7 @@ audioInfoFormat = ""
 # title, artist, album, album_artist, composer,
 # genre, created, track, tracknum, disk,
 # record_company, upc, isrc, copyright, codec, audio_info
+# song_id, album_id
 songNameFormat = "{disk}-{tracknum:02d} {title}"
 # Ditto
 dirPathFormat = "downloads/{album_artist}/{album}"
@@ -68,12 +69,14 @@ dirPathFormat = "downloads/{album_artist}/{album}"
 # genre, created, track, tracknum, disk,
 # record_company, upc, isrc, copyright,
 # playlistName, playlistCuratorName, codec
+# song_id, album_id
 playlistDirPathFormat = "downloads/playlists/{playlistName}"
 # Available values:
 # title, artist, album, album_artist, composer,
 # genre, created, track, tracknum, disk,
 # record_company, upc, isrc, copyright, audio_info
 # playlistName, playlistCuratorName, playlistSongIndex, codec
+# song_id, album_id
 playlistSongNameFormat = "{playlistSongIndex:02d}. {artist} - {title}"
 # Save lyrics as .lrc file
 saveLyrics = true
