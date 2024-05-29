@@ -1,6 +1,7 @@
 import subprocess
 import sys
 import uuid
+import pickle
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -123,7 +124,15 @@ async def extract_song(raw_song: bytes, codec: str) -> SongInfo:
         for trun in truns:
             for sample_number in range(int(trun.get("SampleCount"))):
                 nhnt_sample_number += 1
-                nhnt_sample = nhnt_samples[nhnt_sample_number]
+                try:
+                    nhnt_sample = nhnt_samples[nhnt_sample_number]
+                except KeyError as e:
+                    with open("FOR_DEBUG_RAW_SONG.mp4", "wb") as f:
+                        f.write(raw_song)
+                    with open("FOR_DEBUG_NHNT_DUMP.bin", "wb") as f:
+                        pickle.dump(nhnt_samples, f)
+                    logger.error("An error occurred! Please send FOR_DEBUG_RAW_SONG.mp4 and FOR_DEBUG_NHNT_DUMP.bin to the developer!")
+                    raise e
                 sample_data = media.read(int(nhnt_sample.get("dataLength")))
                 duration = int(nhnt_sample.get("duration"))
                 samples.append(SampleInfo(descIndex=index, data=sample_data, duration=int(duration)))
