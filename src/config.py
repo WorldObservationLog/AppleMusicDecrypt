@@ -46,18 +46,12 @@ class Metadata(BaseModel):
     embedMetadata: list[str]
 
 
-class Mitm(BaseModel):
-    host: str
-    port: int
-
-
 class Config(BaseModel):
     region: Region
     devices: list[Device]
     m3u8Api: M3U8Api
     download: Download
     metadata: Metadata
-    mitm: Mitm
 
     @classmethod
     def load_from_config(cls, config_file: str = "config.toml"):

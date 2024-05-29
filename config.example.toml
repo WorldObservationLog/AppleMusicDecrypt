@@ -97,9 +97,3 @@ afterDownloaded = ""
 embedMetadata = ["title", "artist", "album", "album_artist", "composer",
     "genre", "created", "track", "tracknum", "disk", "lyrics", "cover", "copyright",
     "record_company", "upc", "isrc","rtng"]
-
-[mitm]
-# The host proxy server listens on
-host = "127.0.0.1"
-# The port proxy server listens on
-port = "11080"
