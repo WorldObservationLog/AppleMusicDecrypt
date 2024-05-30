@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from io import BytesIO
 from ssl import SSLError
 from typing import Optional
 
@@ -80,7 +81,14 @@ async def get_token():
        stop=stop_after_attempt(retry_times), before_sleep=before_sleep_log(logger, logging.WARN))
 async def download_song(url: str) -> bytes:
     async with download_lock:
-        return (await client.get(url)).content
+        result = BytesIO()
+        async with client.stream('GET', url) as response:
+            total = int(response.headers["Content-Length"])
+            async for chunk in response.aiter_bytes():
+                result.write(chunk)
+        if len(result.getvalue()) != total:
+            raise httpx.HTTPError
+        return result.getvalue()
 
 
 @alru_cache
