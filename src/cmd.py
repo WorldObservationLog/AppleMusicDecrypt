@@ -5,12 +5,15 @@ import sys
 from asyncio import Task
 
 from loguru import logger
+from prettytable import PrettyTable
 from prompt_toolkit import PromptSession, print_formatted_text, ANSI
 from prompt_toolkit.patch_stdout import patch_stdout
 
 from src.adb import Device
-from src.api import get_token, init_client_and_lock, upload_m3u8_to_api, get_song_info, get_real_url
+from src.api import get_token, init_client_and_lock, get_real_url, get_album_info
 from src.config import Config
+from src.exceptions import CodecNotFoundException
+from src.quality import get_available_song_audio_quality
 from src.rip import rip_song, rip_album, rip_artist, rip_playlist
 from src.types import GlobalAuthParams
 from src.url import AppleMusicURL, URLType, Song
@@ -53,6 +56,9 @@ class NewInteractiveShell:
                                  choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
                                  default="alac")
         m3u8_parser.add_argument("-f", "--force", default=False, action="store_true")
+        m3u8_parser.add_argument("-q", "--quality", default="", dest="quality")
+        quality_parser = subparser.add_parser("quality")
+        quality_parser.add_argument("url", type=str)
         subparser.add_parser("exit")
 
         logger.remove()
@@ -88,6 +94,8 @@ class NewInteractiveShell:
                 await self.do_m3u8(args.url, args.codec, args.force)
             case "download-from-file" | "dlf":
                 await self.do_download_from_file(args.file, args.codec, args.force)
+            case "quality":
+                await self.do_quality(args.url)
             case "exit":
                 self.loop.stop()
                 sys.exit()
@@ -140,6 +148,55 @@ class NewInteractiveShell:
             task = self.loop.create_task(self.do_download(raw_url=url, codec=codec, force_download=force_download))
             self.tasks.append(task)
             task.add_done_callback(self.tasks.remove)
+
+    async def do_quality(self, raw_url: str):
+        url = AppleMusicURL.parse_url(raw_url)
+        if not url:
+            real_url = await get_real_url(raw_url)
+            url = AppleMusicURL.parse_url(real_url)
+            if not url:
+                logger.error("Illegal URL!")
+                return
+        logger.info(f"Getting data for {url.type} id {url.id}")
+        available_device = await self._get_available_device(url.storefront)
+        global_auth_param = GlobalAuthParams.from_auth_params_and_token(available_device.get_auth_params(),
+                                                                        self.anonymous_access_token)
+        match url.type:
+            case URLType.Song:
+                try:
+                    song_metadata, audio_qualities = await get_available_song_audio_quality(url, self.config,
+                                                                                            global_auth_param,
+                                                                                            available_device)
+                except CodecNotFoundException:
+                    return
+                table = PrettyTable(
+                    field_names=["Codec ID", "Codec", "Bitrate", "Average Bitrate", "Channels", "Sample Rate",
+                                 "Bit Depth"])
+                audio_qualities.sort(key=lambda x: x.bitrate, reverse=True)
+                table.add_rows([list(audio_quality.model_dump().values()) for audio_quality in audio_qualities])
+                print_formatted_text(
+                    f"Available audio qualities for song: {song_metadata.artist} - {song_metadata.title}:")
+                print_formatted_text(table)
+            case URLType.Album:
+                album_info = await get_album_info(url.id, global_auth_param.anonymousAccessToken, url.storefront,
+                                                  self.config.region.language)
+                for track in album_info.data[0].relationships.tracks.data:
+                    song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
+                    try:
+                        song_metadata, audio_qualities = await get_available_song_audio_quality(song, self.config,
+                                                                                                global_auth_param,
+                                                                                                available_device)
+                    except CodecNotFoundException:
+                        return
+                    table = PrettyTable(
+                        field_names=["Codec ID", "Codec", "Bitrate", "Average Bitrate", "Channels", "Sample Rate",
+                                     "Bit Depth"])
+                    table.add_rows([list(audio_quality.model_dump().values()) for audio_quality in audio_qualities])
+                    print_formatted_text(
+                        f"Available audio qualities for song: {song_metadata.artist} - {song_metadata.title}:")
+                    print_formatted_text(table)
+            case _:
+                logger.error("Unsupported link!")
 
     async def _get_available_device(self, storefront: str):
         devices = self.storefront_device_mapping.get(storefront)
