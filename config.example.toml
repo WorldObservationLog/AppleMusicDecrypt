@@ -85,6 +85,10 @@ saveLyrics = true
 saveCover = true
 coverFormat = "jpg"
 coverSize = "5000x5000"
+# 192000 96000 48000 44100
+alacMax = 192000
+# 2768 2448
+atmosMax = 2768
 # The command to be executed after the song is ripped successfully, passing in the filename parameter.
 # Example: "\"C:\\Program Files\\DAUM\\PotPlayer\\PotPlayerMini64.exe\" \"{filename}\""
 # Pay attention to escaping issues
