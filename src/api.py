@@ -223,7 +223,7 @@ async def get_songs_from_artist(artist_id: str, storefront: str, token: str, lan
         if artist_song.next:
             next_songs = await get_songs_from_artist(artist_id, storefront, token, lang, offset + 20)
             songs.extend(next_songs)
-        return list[set(songs)]
+        return list(set(songs))
 
 
 @alru_cache
