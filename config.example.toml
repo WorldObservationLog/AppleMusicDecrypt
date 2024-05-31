@@ -103,4 +103,4 @@ afterDownloaded = ""
 # lyrics, cover, ratings(rtng)
 embedMetadata = ["title", "artist", "album", "album_artist", "composer",
     "genre", "created", "track", "tracknum", "disk", "lyrics", "cover", "copyright",
-    "record_company", "upc", "isrc","rtng"]
+    "record_company", "upc", "isrc", "rtng"]
