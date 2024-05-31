@@ -36,12 +36,24 @@ def byte_length(i):
     return (i.bit_length() + 7) // 8
 
 
-def find_best_codec(parsed_m3u8: m3u8.M3U8, codec: str) -> Optional[m3u8.Playlist]:
-    available_medias = [playlist for playlist in parsed_m3u8.playlists
-                        if regex.match(CodecRegex.get_pattern_by_codec(codec), playlist.stream_info.audio)]
+def find_best_codec(parsed_m3u8: m3u8.M3U8, codec: str, alacMax, atmosMax) -> Optional[m3u8.Playlist]:
+    available_medias = []
+    for playlist in parsed_m3u8.playlists:
+        if regex.match(CodecRegex.get_pattern_by_codec(codec), playlist.stream_info.audio):
+            split_str = playlist.stream_info.audio.split('-')
+            if "alac" in playlist.stream_info.audio:
+                if int(split_str[3]) <= alacMax:
+                    available_medias.append(playlist)
+            elif "atmos" in playlist.stream_info.audio:
+                if int(split_str[2]) <= atmosMax:
+                    available_medias.append(playlist)
+            else:
+                available_medias.append(playlist)
+    
     if not available_medias:
         return None
     available_medias.sort(key=lambda x: x.stream_info.average_bandwidth, reverse=True)
+
     return available_medias[0]
 
 

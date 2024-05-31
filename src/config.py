@@ -39,6 +39,8 @@ class Download(BaseModel):
     saveCover: bool
     coverFormat: str
     coverSize: str
+    alacMax: int
+    atmosMax: int
     afterDownloaded: str
 
 
