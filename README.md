@@ -27,6 +27,8 @@ dl https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 dlf urls.txt
 # Download song from specified m3u8 with default codec (alac)
 m3u8 https://aod.itunes.apple.com/itunes-assets/HLSMusic116/v4/cb/f0/91/cbf09175-ce98-d133-1936-2e46b6992aa5/P631756252_lossless.m3u8
+# View the audio quality information for a given song or album
+quality https://music.apple.com/jp/album/nameless-name-single/1688539265
 ```
 
 # Support Codec
