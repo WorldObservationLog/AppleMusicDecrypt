@@ -34,13 +34,13 @@ async def get_available_codecs(m3u8_url: str) -> Tuple[list[str], list[str]]:
 
 
 async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
-                        codec_priority: list[str], alternative_codec: bool = False) -> Tuple[str, list[str], str, Optional[int], Optional[int]]:
+                        codec_priority: list[str], alternative_codec: bool = False, alacMax: Optional[int] = None, atmosMax: Optional[int] = None) -> Tuple[str, list[str], str, Optional[int], Optional[int]]:
     parsed_m3u8 = m3u8.loads(await download_m3u8(m3u8_url), uri=m3u8_url)
-    specifyPlaylist = find_best_codec(parsed_m3u8, codec)
+    specifyPlaylist = find_best_codec(parsed_m3u8, codec, alacMax, atmosMax)
     if not specifyPlaylist and alternative_codec:
         logger.warning(f"Codec {codec} of song: {song_metadata.artist} - {song_metadata.title} did not found")
         for a_codec in codec_priority:
-            specifyPlaylist = find_best_codec(parsed_m3u8, a_codec)
+            specifyPlaylist = find_best_codec(parsed_m3u8, a_codec, alacMax, atmosMax)
             if specifyPlaylist:
                 codec = a_codec
                 break

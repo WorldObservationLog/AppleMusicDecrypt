@@ -77,11 +77,11 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
                 logger.info(f"Use m3u8 from device for song: {song_metadata.artist} - {song_metadata.title}")
         if specified_m3u8:
             song_uri, keys, codec_id, bit_depth, sample_rate = await extract_media(
-                specified_m3u8, codec, song_metadata, config.download.codecPriority, config.download.codecAlternative)
+                specified_m3u8, codec, song_metadata, config.download.codecPriority, config.download.codecAlternative, config.download.alacMax, config.download.alacMax)
         else:
             song_uri, keys, codec_id, bit_depth, sample_rate = await extract_media(
                 song_data.attributes.extendedAssetUrls.enhancedHls, codec, song_metadata,
-                config.download.codecPriority, config.download.codecAlternative)
+                config.download.codecPriority, config.download.codecAlternative, config.download.alacMax, config.download.atmosMax)
         if all([bool(bit_depth), bool(sample_rate)]):
             song_metadata.set_bit_depth_and_sample_rate(bit_depth, sample_rate)
             if not force_save and check_song_exists(song_metadata, config.download, codec, playlist):
