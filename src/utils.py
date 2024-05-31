@@ -184,7 +184,7 @@ def get_song_name_and_dir_path(codec: str, config: Download, metadata, playlist:
         safe_pl_meta = get_path_safe_dict(playlist_metadata_to_params(playlist))
         song_name = config.playlistSongNameFormat.format(codec=codec, playlistSongIndex=metadata.playlistIndex,
                                                          audio_info=get_audio_info_str(metadata, codec, config),
-                                                         **safe_meta)
+                                                         **safe_meta, **safe_pl_meta)
         dir_path = Path(config.playlistDirPathFormat.format(codec=codec, **safe_meta, **safe_pl_meta))
     else:
         safe_meta = get_path_safe_dict(metadata.model_dump())
