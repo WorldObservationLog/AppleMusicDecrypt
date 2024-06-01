@@ -194,7 +194,7 @@ class Device:
             self.fridaDevice = frida.get_device_manager().get_device(self.device.serial)
         self.pid = self.fridaDevice.spawn("com.apple.android.music")
         self.fridaSession = self.fridaDevice.attach(self.pid)
-        with open("m3u8.js", "r") as f:
+        with open("m3u8_sv.js", "r") as f:
             m3u8_script = f.read()
         self.m3u8Script = self.fridaSession.create_script(m3u8_script)
         self.m3u8Script.load()
