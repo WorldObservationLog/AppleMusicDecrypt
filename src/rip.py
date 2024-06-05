@@ -103,12 +103,13 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
             decrypted_song = await decrypt(song_info, keys, song_data, device)
         song = await encapsulate(song_info, decrypted_song, config.download.atmosConventToM4a)
         if not if_raw_atmos(codec, config.download.atmosConventToM4a):
-            metadata_song = await write_metadata(song, song_metadata, config.metadata.embedMetadata,
-                                                 config.download.coverFormat, song_info.params)
-            song = await fix_encapsulate(metadata_song)
+            song = await write_metadata(song, song_metadata, config.metadata.embedMetadata,
+                                        config.download.coverFormat, song_info.params)
+            if codec != Codec.EC3 or codec != Codec.EC3:
+                song = await fix_encapsulate(song)
             if codec == Codec.AAC or codec == Codec.AAC_DOWNMIX or codec == Codec.AAC_BINAURAL:
                 song = await fix_esds_box(song_info.raw, song)
-        filename = await save(song, codec.upper(), song_metadata, config.download, playlist)
+        filename = await save(song, codec, song_metadata, config.download, playlist)
         logger.info(f"Song {song_metadata.artist} - {song_metadata.title} saved!")
         if config.download.afterDownloaded:
             command = config.download.afterDownloaded.format(filename=filename)
