@@ -16,7 +16,8 @@ from src.api import download_m3u8
 from src.exceptions import CodecNotFoundException
 from src.metadata import SongMetadata
 from src.types import *
-from src.utils import find_best_codec, get_codec_from_codec_id, get_suffix, convent_mac_timestamp_to_datetime
+from src.utils import find_best_codec, get_codec_from_codec_id, get_suffix, convent_mac_timestamp_to_datetime, \
+    if_raw_atmos
 
 
 def if_shell():
@@ -32,9 +33,9 @@ async def get_available_codecs(m3u8_url: str) -> Tuple[list[str], list[str]]:
     codecs = [get_codec_from_codec_id(codec_id) for codec_id in codec_ids]
     return codecs, codec_ids
 
-
 async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
-                        codec_priority: list[str], alternative_codec: bool = False, alacMax: Optional[int] = None, atmosMax: Optional[int] = None) -> Tuple[str, list[str], str, Optional[int], Optional[int]]:
+                        codec_priority: list[str], alternative_codec: bool = False, alacMax: Optional[int] = None,
+                        atmosMax: Optional[int] = None) -> Tuple[str, list[str], str, Optional[int], Optional[int]]:
     parsed_m3u8 = m3u8.loads(await download_m3u8(m3u8_url), uri=m3u8_url)
     specifyPlaylist = find_best_codec(parsed_m3u8, codec, alacMax, atmosMax)
     if not specifyPlaylist and alternative_codec:
@@ -187,8 +188,9 @@ async def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent
                 f.write(str(nhml_xml))
             subprocess.run(f"gpac -i {nhml_name.absolute()} nhmlr -o {song_name.absolute()}",
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
-    subprocess.run(f'mp4box -brand "M4A " -ab "M4A " -ab "mp42" {song_name.absolute()}',
-                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
+    if not if_raw_atmos(song_info.codec, atmos_convent):
+        subprocess.run(f'mp4box -brand "M4A " -ab "M4A " -ab "mp42" {song_name.absolute()}',
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
     with open(song_name.absolute(), "rb") as f:
         final_song = f.read()
     tmp_dir.cleanup()

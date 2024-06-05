@@ -142,16 +142,16 @@ def get_song_id_from_m3u8(m3u8_url: str) -> str:
     return regex.search(r"_A(\d*)_", parsed_m3u8.playlists[0].uri)[1]
 
 
-def if_raw_atmos(codec: str, save_raw_atmos: bool):
-    if (codec == Codec.EC3 or codec == Codec.AC3) and save_raw_atmos:
+def if_raw_atmos(codec: str, convent_atmos: bool):
+    if (codec == Codec.EC3 or codec == Codec.AC3) and not convent_atmos:
         return True
     return False
 
 
-def get_suffix(codec: str, save_raw_atmos: bool):
-    if not save_raw_atmos and codec == Codec.EC3:
+def get_suffix(codec: str, convent_atmos: bool):
+    if not convent_atmos and codec == Codec.EC3:
         return ".ec3"
-    elif not save_raw_atmos and codec == Codec.AC3:
+    elif not convent_atmos and codec == Codec.AC3:
         return ".ac3"
     else:
         return ".m4a"
