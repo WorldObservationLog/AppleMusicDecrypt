@@ -68,9 +68,18 @@ class SongMetadata(BaseModel):
                    record_company=song_data.relationships.albums.data[0].attributes.recordLabel,
                    upc=song_data.relationships.albums.data[0].attributes.upc,
                    isrc=song_data.attributes.isrc,
-                   rtng=1 if song_data.attributes.contentRating and song_data.attributes.contentRating == 'explicit' else 0,
+                   rtng=cls._rating(song_data.attributes.contentRating),
                    song_id=song_data.id, album_id=song_data.relationships.albums.data[0].id
                    )
+
+    @staticmethod
+    def _rating(content_rating: Optional[str]) -> int:
+        if not content_rating:
+            return 0
+        if content_rating == "explicit":
+            return 1
+        if content_rating == "clean":
+            return 2
 
     def set_lyrics(self, lyrics: str):
         self.lyrics = lyrics
