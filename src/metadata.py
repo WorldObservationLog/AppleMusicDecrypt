@@ -7,7 +7,7 @@ from src.models.song_data import Datum
 from src.utils import ttml_convent_to_lrc
 
 NOT_INCLUDED_FIELD = ["cover", "playlistIndex", "bit_depth", "sample_rate",
-                      "sample_rate_kHz", "song_id", "album_id"]
+                      "sample_rate_kHz", "song_id", "album_id", "album_created"]
 
 
 class SongMetadata(BaseModel):
@@ -17,6 +17,7 @@ class SongMetadata(BaseModel):
     album_id: Optional[str] = None
     album_artist: Optional[str] = None
     album: Optional[str] = None
+    album_created: Optional[str] = None
     composer: Optional[str] = None
     genre: Optional[str] = None
     created: Optional[str] = None
@@ -68,6 +69,7 @@ class SongMetadata(BaseModel):
                    record_company=song_data.relationships.albums.data[0].attributes.recordLabel,
                    upc=song_data.relationships.albums.data[0].attributes.upc,
                    isrc=song_data.attributes.isrc,
+                   album_created=song_data.relationships.albums.data[0].attributes.releaseDate,
                    rtng=cls._rating(song_data.attributes.contentRating),
                    song_id=song_data.id, album_id=song_data.relationships.albums.data[0].id
                    )
