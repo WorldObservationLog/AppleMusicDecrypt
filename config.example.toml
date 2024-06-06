@@ -51,20 +51,20 @@ atmosConventToM4a = true
 # For example:
 # audioInfoFormat = " [{codec}][{bit_depth}bit][{sample_rate_kHz}kHz]"
 # songNameFormat = "{disk}-{tracknum:02d} {title}{audio_info}"
-# When transcribing audio with alac codec, the transcribed file name is:
+# When ripping audio with alac codec, the ripped file name is:
 # 1-01 名もなき何もかも [ALAC][16bit][44.1kHz]
-# When transcribing audio with other codecs, the transcribed file name is:
+# When ripping audio with other codecs, the ripped file name is:
 # 1-01 名もなき何もかも
 audioInfoFormat = ""
 # Available values:
 # title, artist, album, album_artist, composer,
 # genre, created, track, tracknum, disk,
 # record_company, upc, isrc, copyright, codec, audio_info
-# song_id, album_id
+# song_id, album_id, album_created
 songNameFormat = "{disk}-{tracknum:02d} {title}"
 # Available values:
 # title, artist, album, album_artist, composer,
-# genre, created, track, tracknum, disk,
+# genre, created, track, tracknum, disk, album_created
 # record_company, upc, isrc, copyright, codec, album_id
 dirPathFormat = "downloads/{album_artist}/{album}"
 # Available values:
@@ -78,7 +78,7 @@ playlistDirPathFormat = "downloads/playlists/{playlistName}"
 # genre, created, track, tracknum, disk,
 # record_company, upc, isrc, copyright, audio_info
 # playlistName, playlistCuratorName, playlistSongIndex, codec
-# song_id, album_id
+# song_id, album_id, album_created
 playlistSongNameFormat = "{playlistSongIndex:02d}. {artist} - {title}"
 # Save lyrics as .lrc file
 saveLyrics = true
