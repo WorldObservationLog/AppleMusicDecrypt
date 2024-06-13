@@ -265,3 +265,14 @@ async def fix_esds_box(raw_song: bytes, song: bytes) -> bytes:
         final_song = f.read()
     tmp_dir.cleanup()
     return final_song
+
+
+async def check_song_integrity(song: bytes) -> bool:
+    tmp_dir = TemporaryDirectory()
+    name = uuid.uuid4().hex
+    song_name = Path(tmp_dir.name) / Path(f"{name}.m4a")
+    with open(song_name.absolute(), "wb") as f:
+        f.write(song)
+    output = subprocess.run(f"ffmpeg -y -v error -i {song_name.absolute()} -c:a pcm_s16le -f null /dev/null", capture_output=True)
+    tmp_dir.cleanup()
+    return not bool(output.stderr)
