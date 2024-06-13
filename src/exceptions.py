@@ -31,3 +31,6 @@ class RetryableDecryptException(Exception):
 
 class FailedGetM3U8FromDeviceException(Exception):
     ...
+
+class SongNotPassIntegrityCheckException(Exception):
+    ...

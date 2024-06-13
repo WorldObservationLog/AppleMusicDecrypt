@@ -3,6 +3,7 @@ import random
 import subprocess
 
 from loguru import logger
+from tenacity import retry, retry_if_exception_type, stop_after_attempt
 
 from src.api import (get_song_info, get_song_lyrics, get_album_info, download_song,
                      get_m3u8_from_api, get_artist_info, get_songs_from_artist, get_albums_from_artist,
@@ -10,9 +11,11 @@ from src.api import (get_song_info, get_song_lyrics, get_album_info, download_so
 from src.config import Config
 from src.adb import Device
 from src.decrypt import decrypt
+from src.exceptions import SongNotPassIntegrityCheckException
 from src.metadata import SongMetadata
 from src.models import PlaylistInfo
-from src.mp4 import extract_media, extract_song, encapsulate, write_metadata, fix_encapsulate, fix_esds_box
+from src.mp4 import extract_media, extract_song, encapsulate, write_metadata, fix_encapsulate, fix_esds_box, \
+    check_song_integrity
 from src.save import save
 from src.types import GlobalAuthParams, Codec
 from src.url import Song, Album, URLType, Artist, Playlist
@@ -23,6 +26,7 @@ task_lock = asyncio.Semaphore(16)
 
 @logger.catch
 @timeit
+@retry(retry=retry_if_exception_type(SongNotPassIntegrityCheckException), stop=stop_after_attempt(1))
 async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
                    force_save: bool = False, specified_m3u8: str = "", playlist: PlaylistInfo = None):
     async with task_lock:
@@ -109,6 +113,9 @@ async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config
                 song = await fix_encapsulate(song)
             if codec == Codec.AAC or codec == Codec.AAC_DOWNMIX or codec == Codec.AAC_BINAURAL:
                 song = await fix_esds_box(song_info.raw, song)
+        if not await check_song_integrity(song):
+            logger.warning(f"Song {song_metadata.artist} - {song_metadata.title} did not pass the integrity check!")
+            raise SongNotPassIntegrityCheckException
         filename = await save(song, codec, song_metadata, config.download, playlist)
         logger.info(f"Song {song_metadata.artist} - {song_metadata.title} saved!")
         if config.download.afterDownloaded:
