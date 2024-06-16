@@ -17,7 +17,7 @@ from src.quality import get_available_song_audio_quality
 from src.rip import rip_song, rip_album, rip_artist, rip_playlist
 from src.types import GlobalAuthParams
 from src.url import AppleMusicURL, URLType, Song
-from src.utils import get_song_id_from_m3u8
+from src.utils import get_song_id_from_m3u8, check_dep
 
 
 class NewInteractiveShell:
@@ -30,6 +30,12 @@ class NewInteractiveShell:
     parser: argparse.ArgumentParser
 
     def __init__(self, loop: asyncio.AbstractEventLoop):
+        dep_installed, missing_dep = check_dep()
+        if not dep_installed:
+            logger.error(f"Dependence {missing_dep} was not installed!")
+            loop.stop()
+            sys.exit()
+
         self.loop = loop
         self.config = Config.load_from_config()
         init_client_and_lock(self.config.download.proxy, self.config.download.parallelNum)

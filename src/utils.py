@@ -1,4 +1,5 @@
 import asyncio
+import subprocess
 import sys
 import time
 from datetime import datetime, timedelta
@@ -49,7 +50,7 @@ def find_best_codec(parsed_m3u8: m3u8.M3U8, codec: str, alacMax, atmosMax) -> Op
                     available_medias.append(playlist)
             else:
                 available_medias.append(playlist)
-    
+
     if not available_medias:
         return None
     available_medias.sort(key=lambda x: x.stream_info.average_bandwidth, reverse=True)
@@ -206,3 +207,12 @@ def playlist_write_song_index(playlist: PlaylistInfo):
 def convent_mac_timestamp_to_datetime(timestamp: int):
     d = datetime.strptime("01-01-1904", "%m-%d-%Y")
     return d + timedelta(seconds=timestamp)
+
+
+def check_dep():
+    for dep in ["ffmpeg", "gpac", "mp4box", "mp4edit", "mp4extract", "adb"]:
+        try:
+            subprocess.run(dep, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except FileNotFoundError:
+            return False, dep
+    return True, None
