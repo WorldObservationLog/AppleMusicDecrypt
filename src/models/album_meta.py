@@ -28,7 +28,7 @@ class Attributes(BaseModel):
     releaseDate: Optional[str] = None
     upc: Optional[str] = None
     isMasteredForItunes: Optional[bool] = None
-    artwork: Artwork
+    artwork: Optional[Artwork]
     url: Optional[str] = None
     playParams: Optional[PlayParams] = None
     recordLabel: Optional[str] = None
@@ -40,6 +40,7 @@ class Attributes(BaseModel):
     name: Optional[str] = None
     artistName: Optional[str] = None
     isComplete: Optional[bool] = None
+    contentRating: Optional[str] = None
 
 
 class Artwork1(BaseModel):
@@ -73,7 +74,7 @@ class Attributes1(BaseModel):
     isVocalAttenuationAllowed: Optional[bool] = None
     isMasteredForItunes: Optional[bool] = None
     isrc: Optional[str] = None
-    artwork: Artwork1
+    artwork: Optional[Artwork1] = None
     composerName: Optional[str] = None
     audioLocale: Optional[str] = None
     playParams: Optional[PlayParams1] = None
@@ -96,29 +97,29 @@ class Datum2(BaseModel):
     id: Optional[str] = None
     type: Optional[str] = None
     href: Optional[str] = None
-    attributes: Attributes2
+    attributes: Optional[Attributes2] = None
 
 
 class Artists(BaseModel):
     href: Optional[str] = None
-    data: List[Datum2]
+    data: Optional[List[Datum2]] = None
 
 
 class Relationships1(BaseModel):
-    artists: Artists
+    artists: Optional[Artists] = None
 
 
 class Datum1(BaseModel):
     id: Optional[str] = None
     type: Optional[str] = None
     href: Optional[str] = None
-    attributes: Attributes1
+    attributes: Optional[Attributes1]
     relationships: Optional[Relationships1] = None
 
 
 class Tracks(BaseModel):
     href: Optional[str] = None
-    data: List[Datum1]
+    data: List[Datum1] = None
 
 
 class Attributes3(BaseModel):
@@ -134,18 +135,18 @@ class Datum3(BaseModel):
 
 class Artists1(BaseModel):
     href: Optional[str] = None
-    data: List[Datum3]
+    data: List[Datum3] = None
 
 
 class RecordLabels(BaseModel):
     href: Optional[str] = None
-    data: List
+    data: Optional[list] = None
 
 
 class Relationships(BaseModel):
-    tracks: Tracks
-    artists: Artists1
-    record_labels: RecordLabels = Field(..., alias='record-labels')
+    tracks: Optional[Tracks] = None
+    artists: Optional[Artists1] = None
+    record_labels: Optional[RecordLabels] = Field(..., alias='record-labels')
 
 
 class ContentVersion(BaseModel):
@@ -154,16 +155,16 @@ class ContentVersion(BaseModel):
 
 
 class Meta(BaseModel):
-    contentVersion: ContentVersion
+    contentVersion: Optional[ContentVersion] = None
 
 
 class Datum(BaseModel):
     id: Optional[str] = None
     type: Optional[str] = None
     href: Optional[str] = None
-    attributes: Attributes
-    relationships: Relationships
-    meta: Meta
+    attributes: Optional[Attributes] = None
+    relationships: Optional[Relationships] = None
+    meta: Optional[Meta] = None
 
 
 class AlbumMeta(BaseModel):
