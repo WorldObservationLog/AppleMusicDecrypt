@@ -3,6 +3,8 @@
 Apple Music decryption tool, based
 on [zhaarey/apple-music-alac-atmos-downloader](https://github.com/zhaarey/apple-music-alac-atmos-downloader)
 
+**Due to continued harassment, including but not limited to PM and emails, I have decided to pause the development of AppleMusicDecrypt from now on.**
+
 **WARNING: This project is currently in an extremely early stage, and there are still a large number of undiscovered
 bugs and unfinished features. USE IT WITH CAUTION.**
 
