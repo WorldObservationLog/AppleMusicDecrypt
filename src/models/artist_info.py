@@ -18,7 +18,7 @@ class Artwork(BaseModel):
 
 
 class Attributes(BaseModel):
-    genreNames: List[Optional[str]]  = None
+    genreNames: List[Optional[str]] = None
     name: Optional[str] = None
     artwork: Artwork
     classicalUrl: Optional[str] = None

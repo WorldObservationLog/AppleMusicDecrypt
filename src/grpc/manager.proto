@@ -1,0 +1,115 @@
+syntax = "proto3";
+
+package manager.v1;
+
+option go_package = "wrapper-manager/proto;proto";
+import "google/protobuf/empty.proto";
+
+service WrapperManagerService {
+  rpc Status (google.protobuf.Empty) returns (StatusReply);
+  rpc Login (stream LoginRequest) returns (stream LoginReply);
+  rpc Decrypt (stream DecryptRequest) returns (stream DecryptReply);
+  rpc M3U8 (M3U8Request) returns (M3U8Reply);
+  rpc Lyrics (LyricsRequest) returns (LyricsReply);
+}
+
+// 通用响应头结构
+message ReplyHeader {
+  int32 code = 1;
+  string msg = 2;
+}
+
+// ---------- Status ----------
+
+message StatusReply {
+  ReplyHeader header = 1;
+  StatusData data = 2;
+}
+
+message StatusData {
+  bool status = 1;
+  repeated string regions = 2;
+  int32 client_count = 3;
+}
+
+// ---------- Login ----------
+
+message LoginRequest {
+  LoginData data = 1;
+}
+
+message LoginData {
+  string username = 1;
+  string password = 2;
+  int32 two_step_code = 3;
+}
+
+message LoginReply {
+  ReplyHeader header = 1;
+}
+
+// ---------- Decrypt ----------
+
+message DecryptRequest {
+  DecryptData data = 1;
+}
+
+message DecryptReply {
+  ReplyHeader header = 1;
+  DecryptData data = 2;
+}
+
+message DecryptData {
+  string adam_id = 1;
+  string key = 2;
+  int32 sample_index = 3;
+  bytes sample = 4;
+}
+
+// ---------- M3U8 ----------
+
+message M3U8Request {
+  M3U8DataRequest data = 1;
+}
+
+message M3U8DataRequest {
+  string adam_id = 1;
+}
+
+message M3U8Reply {
+  ReplyHeader header = 1;
+  M3U8DataResponse data = 2;
+}
+
+message M3U8DataResponse {
+  string adam_id = 1;
+  string m3u8 = 2;
+}
+
+// ---------- Lyrics ----------
+
+message LyricsRequest {
+  LyricsDataRequest data = 1;
+}
+
+message LyricsDataRequest {
+  string adam_id = 1;
+  string region = 2;
+  string language = 3;
+}
+
+message LyricsReply {
+  ReplyHeader header = 1;
+  LyricsDataResponse data = 2;
+}
+
+message LyricsDataResponse {
+  string adam_id = 1;
+  string lyrics = 2;
+}
+
+// ---------- Error ----------
+
+message ErrorReply {
+  ReplyHeader header = 1;
+}

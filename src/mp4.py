@@ -1,7 +1,7 @@
+import pickle
 import subprocess
 import sys
 import uuid
-import pickle
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -10,9 +10,10 @@ from typing import Tuple
 import m3u8
 import regex
 from bs4 import BeautifulSoup
+from creart import it
 from loguru import logger
 
-from src.api import download_m3u8
+from src.api import WebAPI
 from src.exceptions import CodecNotFoundException
 from src.metadata import SongMetadata
 from src.types import *
@@ -28,20 +29,20 @@ def if_shell():
 
 
 async def get_available_codecs(m3u8_url: str) -> Tuple[list[str], list[str]]:
-    parsed_m3u8 = m3u8.loads(await download_m3u8(m3u8_url), uri=m3u8_url)
+    parsed_m3u8 = m3u8.loads(await it(WebAPI).download_m3u8(m3u8_url), uri=m3u8_url)
     codec_ids = [playlist.stream_info.audio for playlist in parsed_m3u8.playlists]
     codecs = [get_codec_from_codec_id(codec_id) for codec_id in codec_ids]
     return codecs, codec_ids
 
+
 async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
-                        codec_priority: list[str], alternative_codec: bool = False, alacMax: Optional[int] = None,
-                        atmosMax: Optional[int] = None) -> Tuple[str, list[str], str, Optional[int], Optional[int]]:
-    parsed_m3u8 = m3u8.loads(await download_m3u8(m3u8_url), uri=m3u8_url)
-    specifyPlaylist = find_best_codec(parsed_m3u8, codec, alacMax, atmosMax)
+                        codec_priority: list[str], alternative_codec: bool = False) -> M3U8Info:
+    parsed_m3u8 = m3u8.loads(await it(WebAPI).download_m3u8(m3u8_url), uri=m3u8_url)
+    specifyPlaylist = find_best_codec(parsed_m3u8, codec)
     if not specifyPlaylist and alternative_codec:
         logger.warning(f"Codec {codec} of song: {song_metadata.artist} - {song_metadata.title} did not found")
         for a_codec in codec_priority:
-            specifyPlaylist = find_best_codec(parsed_m3u8, a_codec, alacMax, atmosMax)
+            specifyPlaylist = find_best_codec(parsed_m3u8, a_codec)
             if specifyPlaylist:
                 codec = a_codec
                 break
@@ -49,7 +50,7 @@ async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
         raise CodecNotFoundException
     selected_codec = specifyPlaylist.media[0].group_id
     logger.info(f"Selected codec: {selected_codec} for song: {song_metadata.artist} - {song_metadata.title}")
-    stream = m3u8.loads(await download_m3u8(specifyPlaylist.absolute_uri), uri=specifyPlaylist.absolute_uri)
+    stream = m3u8.loads(await it(WebAPI).download_m3u8(specifyPlaylist.absolute_uri), uri=specifyPlaylist.absolute_uri)
     skds = [key.uri for key in stream.keys if regex.match('(skd?://[^"]*)', key.uri)]
     keys = [prefetchKey]
     key_suffix = CodecKeySuffix.KeySuffixDefault
@@ -72,7 +73,8 @@ async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
         sample_rate, bit_depth = int(sample_rate), int(bit_depth)
     else:
         sample_rate, bit_depth = None, None
-    return stream.segment_map[0].absolute_uri, keys, selected_codec, bit_depth, sample_rate
+    return M3U8Info(uri=stream.segment_map[0].absolute_uri, keys=keys, codec_id=selected_codec, bit_depth=bit_depth,
+                    sample_rate=sample_rate)
 
 
 async def extract_song(raw_song: bytes, codec: str) -> SongInfo:
@@ -132,7 +134,8 @@ async def extract_song(raw_song: bytes, codec: str) -> SongInfo:
                         f.write(raw_song)
                     with open("FOR_DEBUG_NHNT_DUMP.bin", "wb") as f:
                         pickle.dump(nhnt_samples, f)
-                    logger.error("An error occurred! Please send FOR_DEBUG_RAW_SONG.mp4 and FOR_DEBUG_NHNT_DUMP.bin to the developer!")
+                    logger.error(
+                        "An error occurred! Please send FOR_DEBUG_RAW_SONG.mp4 and FOR_DEBUG_NHNT_DUMP.bin to the developer!")
                     raise e
                 sample_data = media.read(int(nhnt_sample.get("dataLength")))
                 duration = int(nhnt_sample.get("duration"))
@@ -141,7 +144,8 @@ async def extract_song(raw_song: bytes, codec: str) -> SongInfo:
     params.update({"CreationTime": convent_mac_timestamp_to_datetime(int(mvhd.get("CreationTime"))),
                    "ModificationTime": convent_mac_timestamp_to_datetime(int(mvhd.get("ModificationTime")))})
     tmp_dir.cleanup()
-    return SongInfo(codec=codec, raw=raw_song, samples=samples, nhml=raw_nhml, decoderParams=decoder_params, params=params)
+    return SongInfo(codec=codec, raw=raw_song, samples=samples, nhml=raw_nhml, decoderParams=decoder_params,
+                    params=params)
 
 
 async def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool) -> bytes:
@@ -214,7 +218,7 @@ async def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: li
                     "-time", params.get("CreationTime").strftime("%d/%m/%Y-%H:%M:%S"),
                     "-mtime", params.get("ModificationTime").strftime("%d/%m/%Y-%H:%M:%S"), "-keep-utc",
                     "-name", f"1={metadata.title}", "-itags", ":".join(["tool=", f"cover={absolute_cover_path}",
-                              metadata.to_itags_params(embed_metadata)]),
+                                                                        metadata.to_itags_params(embed_metadata)]),
                     song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     with open(song_name.absolute(), "rb") as f:
         embed_song = f.read()
@@ -273,6 +277,7 @@ async def check_song_integrity(song: bytes) -> bool:
     song_name = Path(tmp_dir.name) / Path(f"{name}.m4a")
     with open(song_name.absolute(), "wb") as f:
         f.write(song)
-    output = subprocess.run(f"ffmpeg -y -v error -i {song_name.absolute()} -c:a pcm_s16le -f null /dev/null", capture_output=True)
+    output = subprocess.run(f"ffmpeg -y -v error -i {song_name.absolute()} -c:a pcm_s16le -f null /dev/null",
+                            capture_output=True)
     tmp_dir.cleanup()
     return not bool(output.stderr)

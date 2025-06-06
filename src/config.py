@@ -1,26 +1,14 @@
 import tomllib
+from typing import Type
 
+from creart import exists_module
+from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
 
 class Region(BaseModel):
     language: str
     defaultStorefront: str
-
-
-class Device(BaseModel):
-    host: str
-    port: int
-    agentPort: int
-    suMethod: str
-    hyperDecrypt: bool
-    hyperDecryptNum: int
-
-
-class M3U8Api(BaseModel):
-    enable: bool
-    force: bool
-    endpoint: str
 
 
 class Download(BaseModel):
@@ -39,8 +27,6 @@ class Download(BaseModel):
     saveCover: bool
     coverFormat: str
     coverSize: str
-    alacMax: int
-    atmosMax: int
     afterDownloaded: str
 
 
@@ -50,8 +36,7 @@ class Metadata(BaseModel):
 
 class Config(BaseModel):
     region: Region
-    devices: list[Device]
-    m3u8Api: M3U8Api
+    instance: str
     download: Download
     metadata: Metadata
 
@@ -59,4 +44,18 @@ class Config(BaseModel):
     def load_from_config(cls, config_file: str = "config.toml"):
         with open(config_file, "r", encoding="utf-8") as f:
             config = tomllib.loads(f.read())
-        return cls.parse_obj(config)
+        return cls.model_validate(config)
+
+
+class ConfigCreator(AbstractCreator):
+    targets = (
+        CreateTargetInfo("src.config", "Config"),
+    )
+
+    @staticmethod
+    def available() -> bool:
+        return exists_module("src.config")
+
+    @staticmethod
+    def create(create_type: Type[Config]) -> Config:
+        return create_type.load_from_config()

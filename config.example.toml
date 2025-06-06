@@ -1,34 +1,13 @@
+instances = "127.0.0.1:8080"
+
 [region]
 # Used when the song region cannot be obtained, currently only used for m3u8 command and mitm command
 # Recommend value: Your Apple Music's subscription region
-defaultStorefront = "jp"
+defaultStorefront = "hk"
 # The language of song metadata. Influence song title, author and other information.
 # Simplified Chinese: zh-Hans-CN, Tradidional Chinese(Hong Kong): zh-Hant-HK, Tradidional Chinese(Taiwan): zh-Hant-TW
 # English(British): en-GB, English(American): en-US, Japanese: ja, Korean: ko
-language = "zh-Hans-CN"
-
-[[devices]]
-# ADB service host of Android device
-host = "127.0.0.1"
-# ADB service port of Android device
-port = 58526
-# For decryption service. This value should not be repeated when using multiple devices
-agentPort = 10020
-# The method the script executes commands with Root permissions
-# For Magisk user, the recommend value is "su -c". For other Root solutions, the recommend value is "su 0"
-# If not sure which method to use, execute “su 0 ls /” and “su -c ls /” respectively in adb shell and choose the output method
-suMethod = "su -c"
-# Inject multiple scripts into devices to simulate multi-device decryption, which can speed up decryption
-# Experimental feature
-hyperDecrypt = false
-hyperDecryptNum = 2
-
-[m3u8Api]
-# Use zhaarey's m3u8 api to get higher song m3u8.
-enable = false
-# Only use m3u8 api to download song
-force = false
-endpoint = ""
+language = "zh-Hant-HK"
 
 [download]
 # Send request to Apple Music through proxy. Only support http and https protocol

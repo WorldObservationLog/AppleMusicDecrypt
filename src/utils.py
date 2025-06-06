@@ -2,6 +2,7 @@ import asyncio
 import subprocess
 import sys
 import time
+from copy import deepcopy
 from datetime import datetime, timedelta
 from itertools import islice
 from pathlib import Path
@@ -9,14 +10,15 @@ from pathlib import Path
 import m3u8
 import regex
 from bs4 import BeautifulSoup
+from creart import it
 from loguru import logger
 
-from src.config import Download
+from src.api import WebAPI
+from src.config import Config
 from src.exceptions import NotTimeSyncedLyricsException
+from src.grpc.manager import WrapperManager
 from src.models import PlaylistInfo
 from src.types import *
-
-from copy import deepcopy
 
 
 def check_url(url):
@@ -37,24 +39,12 @@ def byte_length(i):
     return (i.bit_length() + 7) // 8
 
 
-def find_best_codec(parsed_m3u8: m3u8.M3U8, codec: str, alacMax, atmosMax) -> Optional[m3u8.Playlist]:
-    available_medias = []
-    for playlist in parsed_m3u8.playlists:
-        if regex.match(CodecRegex.get_pattern_by_codec(codec), playlist.stream_info.audio):
-            split_str = playlist.stream_info.audio.split('-')
-            if "alac" in playlist.stream_info.audio:
-                if int(split_str[3]) <= alacMax:
-                    available_medias.append(playlist)
-            elif "atmos" in playlist.stream_info.audio:
-                if int(split_str[2]) <= atmosMax:
-                    available_medias.append(playlist)
-            else:
-                available_medias.append(playlist)
-
+def find_best_codec(parsed_m3u8: m3u8.M3U8, codec: str) -> Optional[m3u8.Playlist]:
+    available_medias = [playlist for playlist in parsed_m3u8.playlists
+                        if regex.match(CodecRegex.get_pattern_by_codec(codec), playlist.stream_info.audio)]
     if not available_medias:
         return None
     available_medias.sort(key=lambda x: x.stream_info.average_bandwidth, reverse=True)
-
     return available_medias[0]
 
 
@@ -117,9 +107,9 @@ def ttml_convent_to_lrc(ttml: str) -> str:
     return "\n".join(lrc_lines)
 
 
-def check_song_exists(metadata, config: Download, codec: str, playlist: PlaylistInfo = None):
-    song_name, dir_path = get_song_name_and_dir_path(codec, config, metadata, playlist)
-    return (Path(dir_path) / Path(song_name + get_suffix(codec, config.atmosConventToM4a))).exists()
+def check_song_exists(metadata, codec: str, playlist: PlaylistInfo = None):
+    song_name, dir_path = get_song_name_and_dir_path(codec, metadata, playlist)
+    return (Path(dir_path) / Path(song_name + get_suffix(codec, it(Config).download.atmosConventToM4a))).exists()
 
 
 def get_valid_filename(filename: str):
@@ -163,10 +153,11 @@ def playlist_metadata_to_params(playlist: PlaylistInfo):
             "playlistCuratorName": playlist.data[0].attributes.curatorName}
 
 
-def get_audio_info_str(metadata, codec: str, config: Download):
+def get_audio_info_str(metadata, codec: str):
     if all([bool(metadata.bit_depth), bool(metadata.sample_rate), bool(metadata.sample_rate_kHz)]):
-        return config.audioInfoFormat.format(bit_depth=metadata.bit_depth, sample_rate=metadata.sample_rate,
-                                             sample_rate_kHz=metadata.sample_rate_kHz, codec=codec)
+        return it(Config).download.audioInfoFormat.format(bit_depth=metadata.bit_depth,
+                                                          sample_rate=metadata.sample_rate,
+                                                          sample_rate_kHz=metadata.sample_rate_kHz, codec=codec)
     else:
         return ""
 
@@ -179,19 +170,21 @@ def get_path_safe_dict(param: dict):
     return new_param
 
 
-def get_song_name_and_dir_path(codec: str, config: Download, metadata, playlist: PlaylistInfo = None):
+def get_song_name_and_dir_path(codec: str, metadata, playlist: PlaylistInfo = None):
     if playlist:
         safe_meta = get_path_safe_dict(metadata.model_dump())
         safe_pl_meta = get_path_safe_dict(playlist_metadata_to_params(playlist))
-        song_name = config.playlistSongNameFormat.format(codec=codec, playlistSongIndex=metadata.playlistIndex,
-                                                         audio_info=get_audio_info_str(metadata, codec, config),
-                                                         **safe_meta, **safe_pl_meta)
-        dir_path = Path(config.playlistDirPathFormat.format(codec=codec, **safe_meta, **safe_pl_meta))
+        song_name = it(Config).download.playlistSongNameFormat.format(codec=codec,
+                                                                      playlistSongIndex=metadata.playlistIndex,
+                                                                      audio_info=get_audio_info_str(metadata, codec),
+                                                                      **safe_meta, **safe_pl_meta)
+        dir_path = Path(it(Config).download.playlistDirPathFormat.format(codec=codec, **safe_meta, **safe_pl_meta))
     else:
         safe_meta = get_path_safe_dict(metadata.model_dump())
-        song_name = config.songNameFormat.format(codec=codec, audio_info=get_audio_info_str(metadata, codec, config),
-                                                 **safe_meta)
-        dir_path = Path(config.dirPathFormat.format(codec=codec, **safe_meta))
+        song_name = it(Config).download.songNameFormat.format(codec=codec,
+                                                              audio_info=get_audio_info_str(metadata, codec),
+                                                              **safe_meta)
+        dir_path = Path(it(Config).download.dirPathFormat.format(codec=codec, **safe_meta))
     if sys.platform == "win32":
         song_name = get_valid_filename(song_name)
         dir_path = Path(*[get_valid_dir_name(part) if ":\\" not in part else part for part in dir_path.parts])
@@ -210,9 +203,23 @@ def convent_mac_timestamp_to_datetime(timestamp: int):
 
 
 def check_dep():
-    for dep in ["ffmpeg", "gpac", "mp4box", "mp4edit", "mp4extract", "adb"]:
+    for dep in ["ffmpeg", "gpac", "mp4box", "mp4edit", "mp4extract"]:
         try:
             subprocess.run(dep, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError:
             return False, dep
     return True, None
+
+
+async def check_song_existence(adam_id: str, region: str):
+    check = False
+    for m_region in (await it(WrapperManager).status()).regions:
+        check = await it(WebAPI).exist_on_storefront_by_song_id(adam_id, region, m_region)
+    return check
+
+
+async def check_album_existence(album_id: str, region: str):
+    check = False
+    for m_region in (await it(WrapperManager).status()).regions:
+        check = await it(WebAPI).exist_on_storefront_by_album_id(album_id, region, m_region)
+    return check

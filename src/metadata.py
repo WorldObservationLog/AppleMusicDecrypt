@@ -1,8 +1,9 @@
 from typing import Optional
 
+from creart import it
 from pydantic import BaseModel
 
-from src.api import get_cover
+from src.api import WebAPI
 from src.models.song_data import Datum
 from src.utils import ttml_convent_to_lrc
 
@@ -82,12 +83,13 @@ class SongMetadata(BaseModel):
             return 1
         if content_rating == "clean":
             return 2
+        return None
 
     def set_lyrics(self, lyrics: str):
         self.lyrics = lyrics
 
     async def get_cover(self, cover_format: str, cover_size: str):
-        self.cover = await get_cover(self.cover_url, cover_format, cover_size)
+        self.cover = await it(WebAPI).get_cover(self.cover_url, cover_format, cover_size)
 
     def set_playlist_index(self, index: int):
         self.playlistIndex = index

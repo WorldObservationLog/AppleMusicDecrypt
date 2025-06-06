@@ -1,186 +1,200 @@
 import asyncio
-import random
 import subprocess
+from asyncio import AbstractEventLoop
+from typing import Dict
 
-from loguru import logger
-from tenacity import retry, retry_if_exception_type, stop_after_attempt
+from creart import it
 
-from src.api import (get_song_info, get_song_lyrics, get_album_info, download_song,
-                     get_m3u8_from_api, get_artist_info, get_songs_from_artist, get_albums_from_artist,
-                     get_playlist_info_and_tracks, exist_on_storefront_by_album_id, exist_on_storefront_by_song_id)
+from src.api import WebAPI
 from src.config import Config
-from src.adb import Device
-from src.decrypt import decrypt
-from src.exceptions import SongNotPassIntegrityCheckException
+from src.flags import Flags
+from src.grpc.manager import WrapperManager
+from src.logger import RipLogger
 from src.metadata import SongMetadata
 from src.models import PlaylistInfo
 from src.mp4 import extract_media, extract_song, encapsulate, write_metadata, fix_encapsulate, fix_esds_box, \
     check_song_integrity
 from src.save import save
-from src.types import GlobalAuthParams, Codec
-from src.url import Song, Album, URLType, Artist, Playlist
-from src.utils import check_song_exists, if_raw_atmos, playlist_write_song_index, get_codec_from_codec_id, timeit
+from src.task import Task, Status
+from src.types import Codec, ParentDoneHandler
+from src.url import Song, Album, URLType, Playlist
+from src.utils import get_codec_from_codec_id, check_song_existence, check_song_exists, if_raw_atmos, \
+    check_album_existence, playlist_write_song_index
 
-task_lock = asyncio.Semaphore(16)
+# START -> getMetadata -> getLyrics -> getM3U8 -> downloadSong -> decrypt -> encapsulate -> save -> END
 
-
-@logger.catch
-@timeit
-@retry(retry=retry_if_exception_type(SongNotPassIntegrityCheckException), stop=stop_after_attempt(1))
-async def rip_song(song: Song, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
-                   force_save: bool = False, specified_m3u8: str = "", playlist: PlaylistInfo = None):
-    async with task_lock:
-        logger.debug(f"Task of song id {song.id} was created")
-        token = auth_params.anonymousAccessToken
-        song_data = await get_song_info(song.id, token, song.storefront, config.region.language)
-        song_metadata = SongMetadata.parse_from_song_data(song_data)
-        if playlist:
-            song_metadata.set_playlist_index(playlist.songIdIndexMapping.get(song.id))
-        logger.info(f"Ripping song: {song_metadata.artist} - {song_metadata.title}")
-        if not await exist_on_storefront_by_song_id(song.id, song.storefront, auth_params.storefront,
-                                                    auth_params.anonymousAccessToken, config.region.language):
-            logger.error(
-                f"Unable to download song {song_metadata.artist} - {song_metadata.title}. "
-                f"This song does not exist in storefront {auth_params.storefront.upper()} "
-                f"and no device is available to decrypt it")
-            return
-        if not force_save and check_song_exists(song_metadata, config.download, codec, playlist):
-            logger.info(f"Song: {song_metadata.artist} - {song_metadata.title} already exists")
-            return
-        await song_metadata.get_cover(config.download.coverFormat, config.download.coverSize)
-        if song_data.attributes.hasTimeSyncedLyrics:
-            if song.storefront.upper() != auth_params.storefront.upper():
-                logger.warning(f"No account is available for getting lyrics of storefront {song.storefront.upper()}. "
-                               f"Use storefront {auth_params.storefront.upper()} to get lyrics")
-            lyrics = await get_song_lyrics(song.id, auth_params.storefront, auth_params.accountAccessToken,
-                                           auth_params.dsid, auth_params.accountToken, config.region.language)
-            if lyrics:
-                song_metadata.lyrics = lyrics
-            else:
-                logger.warning(f"Unable to get lyrics of song: {song_metadata.artist} - {song_metadata.title}")
-        if config.m3u8Api.enable and codec == Codec.ALAC and not specified_m3u8:
-            m3u8_url = await get_m3u8_from_api(config.m3u8Api.endpoint, song.id, config.m3u8Api.enable)
-            if m3u8_url:
-                specified_m3u8 = m3u8_url
-                logger.info(f"Use m3u8 from API for song: {song_metadata.artist} - {song_metadata.title}")
-            elif not m3u8_url and config.m3u8Api.force:
-                logger.error(f"Failed to get m3u8 from API for song: {song_metadata.artist} - {song_metadata.title}")
-                return
-        if not song_data.attributes.extendedAssetUrls:
-            logger.error(
-                f"Failed to download song: {song_metadata.artist} - {song_metadata.title}. Audio does not exist")
-            return
-        if not specified_m3u8 and not song_data.attributes.extendedAssetUrls.enhancedHls:
-            logger.error(
-                f"Failed to download song: {song_metadata.artist} - {song_metadata.title}. Lossless audio does not exist")
-            return
-        if not specified_m3u8 and config.download.getM3u8FromDevice:
-            device_m3u8 = await device.get_m3u8(song.id)
-            if device_m3u8:
-                specified_m3u8 = device_m3u8
-                logger.info(f"Use m3u8 from device for song: {song_metadata.artist} - {song_metadata.title}")
-        if specified_m3u8:
-            song_uri, keys, codec_id, bit_depth, sample_rate = await extract_media(
-                specified_m3u8, codec, song_metadata, config.download.codecPriority, config.download.codecAlternative, config.download.alacMax, config.download.alacMax)
-        else:
-            song_uri, keys, codec_id, bit_depth, sample_rate = await extract_media(
-                song_data.attributes.extendedAssetUrls.enhancedHls, codec, song_metadata,
-                config.download.codecPriority, config.download.codecAlternative, config.download.alacMax, config.download.atmosMax)
-        if all([bool(bit_depth), bool(sample_rate)]):
-            song_metadata.set_bit_depth_and_sample_rate(bit_depth, sample_rate)
-            if not force_save and check_song_exists(song_metadata, config.download, codec, playlist):
-                logger.info(f"Song: {song_metadata.artist} - {song_metadata.title} already exists")
-                return
-        logger.info(f"Downloading song: {song_metadata.artist} - {song_metadata.title}")
-        codec = get_codec_from_codec_id(codec_id)
-        raw_song = await download_song(song_uri)
-        song_info = await extract_song(raw_song, codec)
-        if device.hyperDecryptDevices:
-            if all([hyper_device.decryptLock.locked() for hyper_device in device.hyperDecryptDevices]):
-                decrypted_song = await decrypt(song_info, keys, song_data, random.choice(device.hyperDecryptDevices))
-            else:
-                for hyperDecryptDevice in device.hyperDecryptDevices:
-                    if not hyperDecryptDevice.decryptLock.locked():
-                        decrypted_song = await decrypt(song_info, keys, song_data, hyperDecryptDevice)
-                        break
-        else:
-            decrypted_song = await decrypt(song_info, keys, song_data, device)
-        song = await encapsulate(song_info, decrypted_song, config.download.atmosConventToM4a)
-        if not if_raw_atmos(codec, config.download.atmosConventToM4a):
-            song = await write_metadata(song, song_metadata, config.metadata.embedMetadata,
-                                        config.download.coverFormat, song_info.params)
-            if codec != Codec.EC3 or codec != Codec.EC3:
-                song = await fix_encapsulate(song)
-            if codec == Codec.AAC or codec == Codec.AAC_DOWNMIX or codec == Codec.AAC_BINAURAL:
-                song = await fix_esds_box(song_info.raw, song)
-        if not await check_song_integrity(song):
-            logger.warning(f"Song {song_metadata.artist} - {song_metadata.title} did not pass the integrity check!")
-            raise SongNotPassIntegrityCheckException
-        filename = await save(song, codec, song_metadata, config.download, playlist)
-        logger.info(f"Song {song_metadata.artist} - {song_metadata.title} saved!")
-        if config.download.afterDownloaded:
-            command = config.download.afterDownloaded.format(filename=filename)
-            logger.info(f"Executing command: {command}")
-            subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+adam_id_task_mapping: Dict[str, Task] = {}
 
 
-@logger.catch
-@timeit
-async def rip_album(album: Album, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
-                    force_save: bool = False):
-    album_info = await get_album_info(album.id, auth_params.anonymousAccessToken, album.storefront,
-                                      config.region.language)
-    logger.info(f"Ripping Album: {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name}")
-    if not await exist_on_storefront_by_album_id(album.id, album.storefront, auth_params.storefront,
-                                                 auth_params.anonymousAccessToken, config.region.language):
-        logger.error(
-            f"Unable to download album {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name}. "
-            f"This album does not exist in storefront {auth_params.storefront.upper()} "
-            f"and no device is available to decrypt it")
+async def on_decrypt_success(adam_id: str, key: str, sample: bytes, sample_index: int):
+    it(AbstractEventLoop).create_task(recv_decrypted_sample(adam_id, sample_index, sample))
+
+
+async def on_decrypt_failed(adam_id: str, key: str, sample: bytes, sample_index: int):
+    await it(WrapperManager).decrypt(adam_id, key, sample, sample_index)
+
+
+async def recv_decrypted_sample(adam_id: str, sample_index: int, sample: bytes):
+    task = adam_id_task_mapping[adam_id]
+    task.decryptedSamples[sample_index] = sample
+    task.decryptedCount += 1
+    if task.decryptedCount == len(task.decryptedSamples):
+        await decrypt_done(adam_id)
+
+
+async def decrypt_done(adam_id: str):
+    task = adam_id_task_mapping[adam_id]
+    codec = get_codec_from_codec_id(task.m3u8Info.codec_id)
+
+    song = await encapsulate(task.info, bytes().join(task.decryptedSamples), it(Config).download.atmosConventToM4a)
+    if not if_raw_atmos(codec, it(Config).download.atmosConventToM4a):
+        song = await write_metadata(song, task.metadata, it(Config).metadata.embedMetadata,
+                                    it(Config).download.coverFormat, task.info.params)
+        if codec != Codec.EC3 or codec != Codec.EC3:
+            song = await fix_encapsulate(song)
+        if codec == Codec.AAC or codec == Codec.AAC_DOWNMIX or codec == Codec.AAC_BINAURAL:
+            song = await fix_esds_box(task.info.raw, song)
+
+    song = await write_metadata(song, task.metadata, it(Config).metadata.embedMetadata,
+                                it(Config).download.coverFormat, task.info.params)
+
+    if not await check_song_integrity(song):
+        task.logger.failed_integrity()
+
+    filename = await save(song, codec, task.metadata, task.playlist)
+    task.logger.saved()
+
+    if task.parentDone:
+        await task.parentDone.try_done()
+
+    if it(Config).download.afterDownloaded:
+        command = it(Config).download.afterDownloaded.format(filename=filename)
+        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    task.update_status(Status.DONE)
+    del adam_id_task_mapping[adam_id]
+
+
+async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
+                   parent_done: ParentDoneHandler = None, playlist: PlaylistInfo = None):
+    task = Task(adam_id=url.id, parent_done=parent_done, playlist=playlist)
+    adam_id_task_mapping[url.id] = task
+    task.init_logger()
+    task.logger.create()
+
+    # Set Metadata
+    raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, it(Config).region.language)
+    task.metadata = SongMetadata.parse_from_song_data(raw_metadata)
+    await task.metadata.get_cover(it(Config).download.coverFormat, it(Config).download.coverSize)
+    if raw_metadata.attributes.hasTimeSyncedLyrics:
+        task.metadata.lyrics = await it(WrapperManager).lyrics(task.adamId, it(Config).region.language,
+                                                               it(Config).region.defaultStorefront)
+    if playlist:
+        task.metadata.set_playlist_index(playlist.songIdIndexMapping.get(url.id))
+    task.update_logger()
+
+    if not await check_song_existence(url.id, url.storefront):
+        task.logger.not_exist()
+
+    # Check existence
+    if not flags.force_save and check_song_exists(task.metadata, codec, playlist):
+        task.logger.already_exist()
+        task.update_status(Status.DONE)
+        del adam_id_task_mapping[task.adamId]
         return
+
+    # Get M3U8
+    if codec == Codec.ALAC:
+        m3u8_url = await it(WrapperManager).m3u8(task.adamId)
+    else:
+        m3u8_url = raw_metadata.attributes.extendedAssetUrls.enhancedHls
+    task.m3u8Info = await extract_media(m3u8_url, codec, task.metadata, it(Config).download.codecPriority,
+                                        it(Config).download.codecAlternative)
+    if all([bool(task.m3u8Info.bit_depth), bool(task.m3u8Info.sample_rate)]):
+        task.metadata.set_bit_depth_and_sample_rate(task.m3u8Info.bit_depth, task.m3u8Info.sample_rate)
+        # Check existence again
+        if not flags.force_save and check_song_exists(task.metadata, codec, playlist):
+            task.logger.already_exist()
+            task.update_status(Status.DONE)
+            del adam_id_task_mapping[task.adamId]
+            return
+
+    # Download
+    task.logger.downloading()
+    task.update_status(Status.DOWNLOADING)
+    raw_song = await it(WebAPI).download_song(task.m3u8Info.uri)
+
+    # Decrypt
+    task.logger.decrypting()
+    task.update_status(Status.DECRYPTING)
+    codec = get_codec_from_codec_id(task.m3u8Info.codec_id)
+    task.info = await extract_song(raw_song, codec)
+    task.init_decrypted_samples()
+    for sampleIndex, sample in enumerate(task.info.samples):
+        await it(WrapperManager).decrypt(task.adamId, task.m3u8Info.keys[sample.descIndex], sample.data, sampleIndex)
+
+
+async def rip_album(url: Album, codec: str, flags: Flags = Flags(), parent_done: ParentDoneHandler = None):
+    album_info = await it(WebAPI).get_album_info(url.id, url.storefront, it(Config).region.language)
+    logger = RipLogger(url.type, url.id)
+    logger.set_fullname(album_info.data[0].attributes.artistName, album_info.data[0].attributes.name)
+
+    logger.create()
+    if not await check_album_existence(url.id, url.storefront):
+        logger.not_exist()
+        return
+
+    async def on_children_done():
+        logger.done()
+        if parent_done:
+            await parent_done.try_done()
+
+    done_handler = ParentDoneHandler(len(album_info.data[0].relationships.tracks.data), on_children_done)
+
     async with asyncio.TaskGroup() as tg:
         for track in album_info.data[0].relationships.tracks.data:
-            song = Song(id=track.id, storefront=album.storefront, url="", type=URLType.Song)
-            tg.create_task(rip_song(song, auth_params, codec, config, device, force_save=force_save))
-    logger.info(
-        f"Album: {album_info.data[0].attributes.artistName} - {album_info.data[0].attributes.name} finished ripping")
+            song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
+            tg.create_task(rip_song(song, codec, flags, done_handler))
 
 
-@logger.catch
-@timeit
-async def rip_playlist(playlist: Playlist, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
-                       force_save: bool = False):
-    playlist_info = await get_playlist_info_and_tracks(playlist.id, auth_params.anonymousAccessToken,
-                                                       playlist.storefront,
-                                                       config.region.language)
+async def rip_artist(url: Album, codec: str, flags: Flags = Flags()):
+    artist_info = await it(WebAPI).get_artist_info(url.id, url.storefront, it(Config).region.language)
+    logger = RipLogger(url.type, url.id)
+    logger.set_fullname(artist_info.data[0].attributes.name)
+
+    logger.create()
+
+    async def on_children_done():
+        logger.done()
+
+    async with asyncio.TaskGroup() as tg:
+        if flags.include_participate_in_works:
+            songs = await it(WebAPI).get_songs_from_artist(url.id, url.storefront, it(Config).region.language)
+            done_handler = ParentDoneHandler(len(songs), on_children_done)
+            for song_url in songs:
+                tg.create_task(rip_song(Song.parse_url(song_url), codec, flags, done_handler))
+        else:
+            albums = await it(WebAPI).get_albums_from_artist(url.id, url.storefront, it(Config).region.language)
+            done_handler = ParentDoneHandler(len(albums), on_children_done)
+            for album_url in albums:
+                tg.create_task(rip_album(Album.parse_url(album_url), codec, flags, done_handler))
+
+
+async def rip_playlist(url: Playlist, codec: str, flags: Flags = Flags()):
+    playlist_info = await it(WebAPI).get_playlist_info_and_tracks(url.id, url.storefront, it(Config).region.language)
     playlist_info = playlist_write_song_index(playlist_info)
-    logger.info(
-        f"Ripping Playlist: {playlist_info.data[0].attributes.curatorName} - {playlist_info.data[0].attributes.name}")
+    logger = RipLogger(url.type, url.id)
+    logger.set_fullname(playlist_info.data[0].attributes.curatorName, playlist_info.data[0].attributes.name)
+
+    logger.create()
+
+    async def on_children_done():
+        logger.done()
+
+    done_handler = ParentDoneHandler(len(playlist_info.data[0].relationships.tracks.data), on_children_done)
+
     async with asyncio.TaskGroup() as tg:
         for track in playlist_info.data[0].relationships.tracks.data:
-            song = Song(id=track.id, storefront=playlist.storefront, url="", type=URLType.Song)
+            song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
             tg.create_task(
-                rip_song(song, auth_params, codec, config, device, force_save=force_save, playlist=playlist_info))
-    logger.info(
-        f"Playlist: {playlist_info.data[0].attributes.curatorName} - {playlist_info.data[0].attributes.name} finished ripping")
-
-
-@logger.catch
-@timeit
-async def rip_artist(artist: Artist, auth_params: GlobalAuthParams, codec: str, config: Config, device: Device,
-                     force_save: bool = False, include_participate_in_works: bool = False):
-    artist_info = await get_artist_info(artist.id, artist.storefront, auth_params.anonymousAccessToken,
-                                        config.region.language)
-    logger.info(f"Ripping Artist: {artist_info.data[0].attributes.name}")
-    async with asyncio.TaskGroup() as tg:
-        if include_participate_in_works:
-            songs = await get_songs_from_artist(artist.id, artist.storefront, auth_params.anonymousAccessToken,
-                                                config.region.language)
-            for song_url in songs:
-                tg.create_task(rip_song(Song.parse_url(song_url), auth_params, codec, config, device, force_save))
-        else:
-            albums = await get_albums_from_artist(artist.id, artist.storefront, auth_params.anonymousAccessToken,
-                                                  config.region.language)
-            for album_url in albums:
-                tg.create_task(rip_album(Album.parse_url(album_url), auth_params, codec, config, device, force_save))
-    logger.info(f"Artist: {artist_info.data[0].attributes.name} finished ripping")
+                rip_song(song, codec, flags, done_handler, playlist=playlist_info))

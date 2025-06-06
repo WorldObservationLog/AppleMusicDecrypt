@@ -1,9 +1,23 @@
-from typing import Optional, Any
+from typing import Optional, Any, Callable, Awaitable
 
 from pydantic import BaseModel
 
 defaultId = "0"
 prefetchKey = "skd://itunes.apple.com/P000000000/s1/e1"
+
+
+class ParentDoneHandler:
+    count: int
+    callback: Callable[[], Awaitable[None]]
+
+    def __init__(self, count: int, callback: Callable[[], Awaitable[None]]):
+        self.count = count
+        self.callback = callback
+
+    async def try_done(self):
+        self.count -= 1
+        if self.count == 0:
+            await self.callback()
 
 
 class SampleInfo(BaseModel):
@@ -19,6 +33,14 @@ class SongInfo(BaseModel):
     nhml: str
     decoderParams: Optional[bytes] = None
     params: dict[str, Any]
+
+
+class M3U8Info(BaseModel):
+    uri: str
+    keys: list[str]
+    codec_id: str
+    bit_depth: Optional[int]
+    sample_rate: Optional[int]
 
 
 class Codec:
@@ -53,19 +75,3 @@ class CodecRegex:
                                  Codec.AAC_DOWNMIX: cls.RegexCodecDownmix, Codec.AAC_BINAURAL: cls.RegexCodecBinaural,
                                  Codec.AAC: cls.RegexCodecAAC, Codec.AC3: cls.RegexCodecAC3}
         return codec_pattern_mapping.get(codec)
-
-
-class AuthParams(BaseModel):
-    dsid: str
-    accountToken: str
-    accountAccessToken: str
-    storefront: str
-
-
-class GlobalAuthParams(AuthParams):
-    anonymousAccessToken: str
-
-    @classmethod
-    def from_auth_params_and_token(cls, auth_params: AuthParams, token: str):
-        return cls(dsid=auth_params.dsid, accountToken=auth_params.accountToken, anonymousAccessToken=token,
-                   accountAccessToken=auth_params.accountAccessToken, storefront=auth_params.storefront)

@@ -47,6 +47,7 @@ class AppleMusicURL(BaseModel):
             case URLType.Playlist:
                 url_id = paths[-1]
                 return Playlist(url=url, storefront=storefront, id=url_id, type=URLType.Playlist)
+        return None
 
 
 class Song(AppleMusicURL):
