@@ -9,7 +9,6 @@ from google.protobuf import descriptor_pool as _descriptor_pool
 from google.protobuf import runtime_version as _runtime_version
 from google.protobuf import symbol_database as _symbol_database
 from google.protobuf.internal import builder as _builder
-
 _runtime_version.ValidateProtobufRuntimeVersion(
     _runtime_version.Domain.PUBLIC,
     6,
@@ -22,51 +21,54 @@ _runtime_version.ValidateProtobufRuntimeVersion(
 
 _sym_db = _symbol_database.Default()
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(
-    b'\n\rmanager.proto\x12\nmanager.v1\x1a\x1bgoogle/protobuf/empty.proto\"(\n\x0bReplyHeader\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0b\n\x03msg\x18\x02 \x01(\t\"\\\n\x0bStatusReply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader\x12$\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x16.manager.v1.StatusData\"C\n\nStatusData\x12\x0e\n\x06status\x18\x01 \x01(\x08\x12\x0f\n\x07regions\x18\x02 \x03(\t\x12\x14\n\x0c\x63lient_count\x18\x03 \x01(\x05\"3\n\x0cLoginRequest\x12#\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x15.manager.v1.LoginData\"F\n\tLoginData\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x10\n\x08password\x18\x02 \x01(\t\x12\x15\n\rtwo_step_code\x18\x03 \x01(\x05\"5\n\nLoginReply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader\"7\n\x0e\x44\x65\x63ryptRequest\x12%\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x17.manager.v1.DecryptData\"^\n\x0c\x44\x65\x63ryptReply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader\x12%\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x17.manager.v1.DecryptData\"Q\n\x0b\x44\x65\x63ryptData\x12\x0f\n\x07\x61\x64\x61m_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\t\x12\x14\n\x0csample_index\x18\x03 \x01(\x05\x12\x0e\n\x06sample\x18\x04 \x01(\x0c\"8\n\x0bM3U8Request\x12)\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x1b.manager.v1.M3U8DataRequest\"\"\n\x0fM3U8DataRequest\x12\x0f\n\x07\x61\x64\x61m_id\x18\x01 \x01(\t\"`\n\tM3U8Reply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader\x12*\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x1c.manager.v1.M3U8DataResponse\"1\n\x10M3U8DataResponse\x12\x0f\n\x07\x61\x64\x61m_id\x18\x01 \x01(\t\x12\x0c\n\x04m3u8\x18\x02 \x01(\t\"<\n\rLyricsRequest\x12+\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x1d.manager.v1.LyricsDataRequest\"F\n\x11LyricsDataRequest\x12\x0f\n\x07\x61\x64\x61m_id\x18\x01 \x01(\t\x12\x0e\n\x06region\x18\x02 \x01(\t\x12\x10\n\x08language\x18\x03 \x01(\t\"d\n\x0bLyricsReply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader\x12,\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x1e.manager.v1.LyricsDataResponse\"5\n\x12LyricsDataResponse\x12\x0f\n\x07\x61\x64\x61m_id\x18\x01 \x01(\t\x12\x0e\n\x06lyrics\x18\x02 \x01(\t\"5\n\nErrorReply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader2\xcc\x02\n\x15WrapperManagerService\x12\x39\n\x06Status\x12\x16.google.protobuf.Empty\x1a\x17.manager.v1.StatusReply\x12=\n\x05Login\x12\x18.manager.v1.LoginRequest\x1a\x16.manager.v1.LoginReply(\x01\x30\x01\x12\x43\n\x07\x44\x65\x63rypt\x12\x1a.manager.v1.DecryptRequest\x1a\x18.manager.v1.DecryptReply(\x01\x30\x01\x12\x36\n\x04M3U8\x12\x17.manager.v1.M3U8Request\x1a\x15.manager.v1.M3U8Reply\x12<\n\x06Lyrics\x12\x19.manager.v1.LyricsRequest\x1a\x17.manager.v1.LyricsReplyB\x1dZ\x1bwrapper-manager/proto;protob\x06proto3')
+
+from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
+
+
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n\rmanager.proto\x12\nmanager.v1\x1a\x1bgoogle/protobuf/empty.proto\"(\n\x0bReplyHeader\x12\x0c\n\x04\x63ode\x18\x01 \x01(\x05\x12\x0b\n\x03msg\x18\x02 \x01(\t\"\\\n\x0bStatusReply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader\x12$\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x16.manager.v1.StatusData\"C\n\nStatusData\x12\x0e\n\x06status\x18\x01 \x01(\x08\x12\x0f\n\x07regions\x18\x02 \x03(\t\x12\x14\n\x0c\x63lient_count\x18\x03 \x01(\x05\"3\n\x0cLoginRequest\x12#\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x15.manager.v1.LoginData\"F\n\tLoginData\x12\x10\n\x08username\x18\x01 \x01(\t\x12\x10\n\x08password\x18\x02 \x01(\t\x12\x15\n\rtwo_step_code\x18\x03 \x01(\x05\"5\n\nLoginReply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader\"7\n\x0e\x44\x65\x63ryptRequest\x12%\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x17.manager.v1.DecryptData\"^\n\x0c\x44\x65\x63ryptReply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader\x12%\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x17.manager.v1.DecryptData\"Q\n\x0b\x44\x65\x63ryptData\x12\x0f\n\x07\x61\x64\x61m_id\x18\x01 \x01(\t\x12\x0b\n\x03key\x18\x02 \x01(\t\x12\x14\n\x0csample_index\x18\x03 \x01(\x05\x12\x0e\n\x06sample\x18\x04 \x01(\x0c\"8\n\x0bM3U8Request\x12)\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x1b.manager.v1.M3U8DataRequest\"\"\n\x0fM3U8DataRequest\x12\x0f\n\x07\x61\x64\x61m_id\x18\x01 \x01(\t\"`\n\tM3U8Reply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader\x12*\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x1c.manager.v1.M3U8DataResponse\"1\n\x10M3U8DataResponse\x12\x0f\n\x07\x61\x64\x61m_id\x18\x01 \x01(\t\x12\x0c\n\x04m3u8\x18\x02 \x01(\t\"<\n\rLyricsRequest\x12+\n\x04\x64\x61ta\x18\x01 \x01(\x0b\x32\x1d.manager.v1.LyricsDataRequest\"F\n\x11LyricsDataRequest\x12\x0f\n\x07\x61\x64\x61m_id\x18\x01 \x01(\t\x12\x0e\n\x06region\x18\x02 \x01(\t\x12\x10\n\x08language\x18\x03 \x01(\t\"d\n\x0bLyricsReply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader\x12,\n\x04\x64\x61ta\x18\x02 \x01(\x0b\x32\x1e.manager.v1.LyricsDataResponse\"5\n\x12LyricsDataResponse\x12\x0f\n\x07\x61\x64\x61m_id\x18\x01 \x01(\t\x12\x0e\n\x06lyrics\x18\x02 \x01(\t\"5\n\nErrorReply\x12\'\n\x06header\x18\x01 \x01(\x0b\x32\x17.manager.v1.ReplyHeader2\xcc\x02\n\x15WrapperManagerService\x12\x39\n\x06Status\x12\x16.google.protobuf.Empty\x1a\x17.manager.v1.StatusReply\x12=\n\x05Login\x12\x18.manager.v1.LoginRequest\x1a\x16.manager.v1.LoginReply(\x01\x30\x01\x12\x43\n\x07\x44\x65\x63rypt\x12\x1a.manager.v1.DecryptRequest\x1a\x18.manager.v1.DecryptReply(\x01\x30\x01\x12\x36\n\x04M3U8\x12\x17.manager.v1.M3U8Request\x1a\x15.manager.v1.M3U8Reply\x12<\n\x06Lyrics\x12\x19.manager.v1.LyricsRequest\x1a\x17.manager.v1.LyricsReplyB\x1dZ\x1bwrapper-manager/proto;protob\x06proto3')
 
 _globals = globals()
 _builder.BuildMessageAndEnumDescriptors(DESCRIPTOR, _globals)
 _builder.BuildTopDescriptorsAndMessages(DESCRIPTOR, 'manager_pb2', _globals)
 if not _descriptor._USE_C_DESCRIPTORS:
-    _globals['DESCRIPTOR']._loaded_options = None
-    _globals['DESCRIPTOR']._serialized_options = b'Z\033wrapper-manager/proto;proto'
-    _globals['_REPLYHEADER']._serialized_start = 58
-    _globals['_REPLYHEADER']._serialized_end = 98
-    _globals['_STATUSREPLY']._serialized_start = 100
-    _globals['_STATUSREPLY']._serialized_end = 192
-    _globals['_STATUSDATA']._serialized_start = 194
-    _globals['_STATUSDATA']._serialized_end = 261
-    _globals['_LOGINREQUEST']._serialized_start = 263
-    _globals['_LOGINREQUEST']._serialized_end = 314
-    _globals['_LOGINDATA']._serialized_start = 316
-    _globals['_LOGINDATA']._serialized_end = 386
-    _globals['_LOGINREPLY']._serialized_start = 388
-    _globals['_LOGINREPLY']._serialized_end = 441
-    _globals['_DECRYPTREQUEST']._serialized_start = 443
-    _globals['_DECRYPTREQUEST']._serialized_end = 498
-    _globals['_DECRYPTREPLY']._serialized_start = 500
-    _globals['_DECRYPTREPLY']._serialized_end = 594
-    _globals['_DECRYPTDATA']._serialized_start = 596
-    _globals['_DECRYPTDATA']._serialized_end = 677
-    _globals['_M3U8REQUEST']._serialized_start = 679
-    _globals['_M3U8REQUEST']._serialized_end = 735
-    _globals['_M3U8DATAREQUEST']._serialized_start = 737
-    _globals['_M3U8DATAREQUEST']._serialized_end = 771
-    _globals['_M3U8REPLY']._serialized_start = 773
-    _globals['_M3U8REPLY']._serialized_end = 869
-    _globals['_M3U8DATARESPONSE']._serialized_start = 871
-    _globals['_M3U8DATARESPONSE']._serialized_end = 920
-    _globals['_LYRICSREQUEST']._serialized_start = 922
-    _globals['_LYRICSREQUEST']._serialized_end = 982
-    _globals['_LYRICSDATAREQUEST']._serialized_start = 984
-    _globals['_LYRICSDATAREQUEST']._serialized_end = 1054
-    _globals['_LYRICSREPLY']._serialized_start = 1056
-    _globals['_LYRICSREPLY']._serialized_end = 1156
-    _globals['_LYRICSDATARESPONSE']._serialized_start = 1158
-    _globals['_LYRICSDATARESPONSE']._serialized_end = 1211
-    _globals['_ERRORREPLY']._serialized_start = 1213
-    _globals['_ERRORREPLY']._serialized_end = 1266
-    _globals['_WRAPPERMANAGERSERVICE']._serialized_start = 1269
-    _globals['_WRAPPERMANAGERSERVICE']._serialized_end = 1601
+  _globals['DESCRIPTOR']._loaded_options = None
+  _globals['DESCRIPTOR']._serialized_options = b'Z\033wrapper-manager/proto;proto'
+  _globals['_REPLYHEADER']._serialized_start=58
+  _globals['_REPLYHEADER']._serialized_end=98
+  _globals['_STATUSREPLY']._serialized_start=100
+  _globals['_STATUSREPLY']._serialized_end=192
+  _globals['_STATUSDATA']._serialized_start=194
+  _globals['_STATUSDATA']._serialized_end=261
+  _globals['_LOGINREQUEST']._serialized_start=263
+  _globals['_LOGINREQUEST']._serialized_end=314
+  _globals['_LOGINDATA']._serialized_start=316
+  _globals['_LOGINDATA']._serialized_end=386
+  _globals['_LOGINREPLY']._serialized_start=388
+  _globals['_LOGINREPLY']._serialized_end=441
+  _globals['_DECRYPTREQUEST']._serialized_start=443
+  _globals['_DECRYPTREQUEST']._serialized_end=498
+  _globals['_DECRYPTREPLY']._serialized_start=500
+  _globals['_DECRYPTREPLY']._serialized_end=594
+  _globals['_DECRYPTDATA']._serialized_start=596
+  _globals['_DECRYPTDATA']._serialized_end=677
+  _globals['_M3U8REQUEST']._serialized_start=679
+  _globals['_M3U8REQUEST']._serialized_end=735
+  _globals['_M3U8DATAREQUEST']._serialized_start=737
+  _globals['_M3U8DATAREQUEST']._serialized_end=771
+  _globals['_M3U8REPLY']._serialized_start=773
+  _globals['_M3U8REPLY']._serialized_end=869
+  _globals['_M3U8DATARESPONSE']._serialized_start=871
+  _globals['_M3U8DATARESPONSE']._serialized_end=920
+  _globals['_LYRICSREQUEST']._serialized_start=922
+  _globals['_LYRICSREQUEST']._serialized_end=982
+  _globals['_LYRICSDATAREQUEST']._serialized_start=984
+  _globals['_LYRICSDATAREQUEST']._serialized_end=1054
+  _globals['_LYRICSREPLY']._serialized_start=1056
+  _globals['_LYRICSREPLY']._serialized_end=1156
+  _globals['_LYRICSDATARESPONSE']._serialized_start=1158
+  _globals['_LYRICSDATARESPONSE']._serialized_end=1211
+  _globals['_ERRORREPLY']._serialized_start=1213
+  _globals['_ERRORREPLY']._serialized_end=1266
+  _globals['_WRAPPERMANAGERSERVICE']._serialized_start=1269
+  _globals['_WRAPPERMANAGERSERVICE']._serialized_end=1601
 # @@protoc_insertion_point(module_scope)
