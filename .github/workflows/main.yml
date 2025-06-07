@@ -2,6 +2,7 @@ on:
   push:
     branches:
       - master
+      - v2
 
 jobs:
   build_winodws:
