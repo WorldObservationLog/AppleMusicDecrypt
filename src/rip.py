@@ -110,6 +110,7 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
         m3u8_url = raw_metadata.attributes.extendedAssetUrls.enhancedHls
     task.m3u8Info = await extract_media(m3u8_url, codec, task.metadata, it(Config).download.codecPriority,
                                         it(Config).download.codecAlternative)
+    task.m3u8Info = await extract_media(m3u8_url, codec, task.metadata)
     if all([bool(task.m3u8Info.bit_depth), bool(task.m3u8Info.sample_rate)]):
         task.metadata.set_bit_depth_and_sample_rate(task.m3u8Info.bit_depth, task.m3u8Info.sample_rate)
         # Check existence again

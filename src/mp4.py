@@ -14,6 +14,7 @@ from creart import it
 from loguru import logger
 
 from src.api import WebAPI
+from src.config import Config
 from src.exceptions import CodecNotFoundException
 from src.metadata import SongMetadata
 from src.types import *
@@ -35,13 +36,12 @@ async def get_available_codecs(m3u8_url: str) -> Tuple[list[str], list[str]]:
     return codecs, codec_ids
 
 
-async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
-                        codec_priority: list[str], alternative_codec: bool = False) -> M3U8Info:
+async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata) -> M3U8Info:
     parsed_m3u8 = m3u8.loads(await it(WebAPI).download_m3u8(m3u8_url), uri=m3u8_url)
     specifyPlaylist = find_best_codec(parsed_m3u8, codec)
-    if not specifyPlaylist and alternative_codec:
+    if not specifyPlaylist and it(Config).download.codecAlternative:
         logger.warning(f"Codec {codec} of song: {song_metadata.artist} - {song_metadata.title} did not found")
-        for a_codec in codec_priority:
+        for a_codec in it(Config).download.codecPriority:
             specifyPlaylist = find_best_codec(parsed_m3u8, a_codec)
             if specifyPlaylist:
                 codec = a_codec
@@ -49,7 +49,6 @@ async def extract_media(m3u8_url: str, codec: str, song_metadata: SongMetadata,
     if not specifyPlaylist:
         raise CodecNotFoundException
     selected_codec = specifyPlaylist.media[0].group_id
-    logger.info(f"Selected codec: {selected_codec} for song: {song_metadata.artist} - {song_metadata.title}")
     stream = m3u8.loads(await it(WebAPI).download_m3u8(specifyPlaylist.absolute_uri), uri=specifyPlaylist.absolute_uri)
     skds = [key.uri for key in stream.keys if regex.match('(skd?://[^"]*)', key.uri)]
     keys = [prefetchKey]
