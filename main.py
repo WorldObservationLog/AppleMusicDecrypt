@@ -12,6 +12,10 @@ loop = asyncio.new_event_loop()
 add_creator(ConfigCreator)
 add_creator(APICreator)
 add_creator(WMCreator)
+from src.measurer import MeasurerCreator
+add_creator(MeasurerCreator)
+
+from src.cmd import InteractiveShell
 
 if __name__ == '__main__':
     cmd = InteractiveShell(loop)

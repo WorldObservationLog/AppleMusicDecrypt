@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from io import BytesIO
 from ssl import SSLError
 from typing import Type
@@ -9,6 +10,8 @@ from creart import AbstractCreator, CreateTargetInfo, exists_module, it
 from tenacity import retry, retry_if_exception_type, wait_random_exponential, stop_after_attempt
 
 from src.config import Config
+from src.logger import GlobalLogger
+from src.measurer import SpeedMeasurer
 from src.models import *
 
 
@@ -52,6 +55,7 @@ class WebAPI:
             async with self.client.stream('GET', url) as response:
                 total = int(response.headers["Content-Length"])
                 async for chunk in response.aiter_bytes():
+                    it(SpeedMeasurer).record_download(len(chunk))
                     result.write(chunk)
             if len(result.getvalue()) != total:
                 raise httpx.HTTPError

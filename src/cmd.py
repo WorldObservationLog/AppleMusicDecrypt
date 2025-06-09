@@ -3,7 +3,6 @@ import asyncio
 import sys
 
 from creart import it
-from loguru import logger
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
 
@@ -12,6 +11,7 @@ from src.config import Config
 from src.flags import Flags
 from src.grpc.manager import WrapperManager
 from src.logger import GlobalLogger
+from src.measurer import SpeedMeasurer
 from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
 from src.url import AppleMusicURL, URLType
 from src.utils import check_dep
@@ -83,8 +83,11 @@ class InteractiveShell:
                 it(GlobalLogger).logger.error("Unsupported URLType")
                 return
 
+    def bottom_toolbar(self):
+        return f"Download Speed: {it(SpeedMeasurer).download_speed()}, Decrypt Speed: {it(SpeedMeasurer).decrypt_speed()}"
+
     async def handle_command(self):
-        session = PromptSession("> ")
+        session = PromptSession("> ", bottom_toolbar=self.bottom_toolbar, refresh_interval=1)
 
         while True:
             try:

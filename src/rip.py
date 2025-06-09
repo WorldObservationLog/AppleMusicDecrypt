@@ -10,6 +10,7 @@ from src.config import Config
 from src.flags import Flags
 from src.grpc.manager import WrapperManager
 from src.logger import RipLogger
+from src.measurer import SpeedMeasurer
 from src.metadata import SongMetadata
 from src.models import PlaylistInfo
 from src.mp4 import extract_media, extract_song, encapsulate, write_metadata, fix_encapsulate, fix_esds_box, \
@@ -34,6 +35,7 @@ async def task_done(task: Task, status: Status):
 
 
 async def on_decrypt_success(adam_id: str, key: str, sample: bytes, sample_index: int):
+    it(SpeedMeasurer).record_decrypt(len(sample))
     it(AbstractEventLoop).create_task(recv_decrypted_sample(adam_id, sample_index, sample))
 
 
@@ -106,10 +108,6 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
                                                                it(Config).region.defaultStorefront)
     if playlist:
         task.metadata.set_playlist_index(playlist.songIdIndexMapping.get(url.id))
-    task.update_logger()
-
-    if not await check_song_existence(url.id, url.storefront):
-        task.logger.not_exist()
 
     # Check existence
     if not flags.force_save and check_song_exists(task.metadata, codec, playlist):
