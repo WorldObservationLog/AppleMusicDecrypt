@@ -7,7 +7,7 @@ from typing import Type
 import httpx
 import regex
 from creart import AbstractCreator, CreateTargetInfo, exists_module, it
-from tenacity import retry, retry_if_exception_type, wait_random_exponential, stop_after_attempt
+from tenacity import retry, retry_if_exception_type, wait_random_exponential, stop_after_attempt, before_sleep_log
 
 from src.config import Config
 from src.logger import GlobalLogger

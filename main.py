@@ -1,16 +1,19 @@
 import asyncio
+import logging
 
 from creart import add_creator
 
-from src.api import APICreator
-from src.cmd import InteractiveShell
-from src.config import ConfigCreator
-from src.grpc.manager import WMCreator
-
 loop = asyncio.new_event_loop()
+loop.set_debug(True)
+logging.getLogger("asyncio").setLevel(logging.WARNING)
 
+from src.logger import LoggerCreator
+add_creator(LoggerCreator)
+from src.config import ConfigCreator
 add_creator(ConfigCreator)
+from src.api import APICreator
 add_creator(APICreator)
+from src.grpc.manager import WMCreator
 add_creator(WMCreator)
 from src.measurer import MeasurerCreator
 add_creator(MeasurerCreator)
