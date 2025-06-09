@@ -154,21 +154,15 @@ class WebAPI:
                                              lang: str = None):
         if storefront.upper() == check_storefront.upper():
             return True
-        song = await self.get_song_info(song_id, storefront, lang)
-        album_id = song.relationships.albums.data[0].id
-        album = await self.get_album_info(album_id, storefront, lang)
-        upc = album.data[0].attributes.upc
-        upc_result = await self.get_album_by_upc(upc, check_storefront)
-        return bool(upc_result)
+        song = await self.get_song_info(song_id, check_storefront, lang)
+        return bool(song)
 
     async def exist_on_storefront_by_album_id(self, album_id: str, storefront: str, check_storefront: str,
                                               lang: str = None):
         if storefront.upper() == check_storefront.upper():
             return True
-        album = await self.get_album_info(album_id, storefront, lang)
-        upc = album.data[0].attributes.upc
-        upc_result = await self.get_album_by_upc(upc, check_storefront)
-        return bool(upc_result)
+        album = await self.get_album_info(album_id, check_storefront, lang)
+        return bool(album)
 
 
 class APICreator(AbstractCreator):
