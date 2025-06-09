@@ -1,25 +1,48 @@
 import copy
-import sys
+from typing import Type
 
+from creart import AbstractCreator, CreateTargetInfo, exists_module
 from loguru import logger
 from prompt_toolkit import print_formatted_text, ANSI
 
-from src.metadata import SongMetadata
-from src.url import URLType
+
+class GlobalLogger:
+    def __init__(self):
+        logger.remove()
+        self.logger = copy.deepcopy(logger)
+        self.logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True,
+                        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
+                               + " | <level>{level}</level>"
+                               + " - <level>{message}</level>",
+                        level="INFO")
+
+
+class LoggerCreator(AbstractCreator):
+    targets = (
+        CreateTargetInfo("src.logger", "GlobalLogger"),
+    )
+
+    @staticmethod
+    def available() -> bool:
+        return exists_module("src.logger")
+
+    @staticmethod
+    def create(create_type: Type[GlobalLogger]) -> GlobalLogger:
+        return create_type()
 
 
 class RipLogger:
     item_type: str
     item_id: str
     full_name: str
-    metadata: SongMetadata
+    metadata: "SongMetadata"
 
     def __init__(self, _type: str, item_id: str):
         self.item_type = _type
         self.item_id = item_id
         logger.remove()
         self.logger = copy.deepcopy(logger)
-        self.logger.add(sys.stdout,
+        self.logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True,
                         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
                                + f" | <b>{self.item_type.upper()}</b>"
                                + f" | <b>{self.item_id}</b>"
@@ -28,10 +51,7 @@ class RipLogger:
                         level="INFO")
 
     def create(self):
-        if self.item_type != URLType.Song:
-            self.logger.info(f"Start ripping...")
-        else:
-            self.logger.debug(f"Start ripping...")
+        self.logger.info(f"Start ripping...")
 
     def set_fullname(self, artist: str, name: str = None):
         if not name:
@@ -77,3 +97,6 @@ class RipLogger:
 
     def done(self):
         self.logger.success(f"Finished ripping")
+
+    def selected_codec(self, selected_codec):
+        self.logger.info(f"Selected codec: {selected_codec}")

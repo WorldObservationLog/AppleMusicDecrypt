@@ -26,6 +26,13 @@ from src.utils import get_codec_from_codec_id, check_song_existence, check_song_
 adam_id_task_mapping: Dict[str, Task] = {}
 
 
+async def task_done(task: Task, status: Status):
+    task.update_status(status)
+    if task.parentDone:
+        await task.parentDone.try_done()
+    del adam_id_task_mapping[task.adamId]
+
+
 async def on_decrypt_success(adam_id: str, key: str, sample: bytes, sample_index: int):
     it(AbstractEventLoop).create_task(recv_decrypted_sample(adam_id, sample_index, sample))
 
@@ -80,11 +87,19 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
     task = Task(adam_id=url.id, parent_done=parent_done, playlist=playlist)
     adam_id_task_mapping[url.id] = task
     task.init_logger()
-    task.logger.create()
 
     # Set Metadata
     raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, it(Config).region.language)
     task.metadata = SongMetadata.parse_from_song_data(raw_metadata)
+
+    task.update_logger()
+    task.logger.create()
+
+    if not await check_song_existence(url.id, url.storefront):
+        task.logger.not_exist()
+        await task_done(task, Status.FAILED)
+        return
+
     await task.metadata.get_cover(it(Config).download.coverFormat, it(Config).download.coverSize)
     if raw_metadata.attributes.hasTimeSyncedLyrics:
         task.metadata.lyrics = await it(WrapperManager).lyrics(task.adamId, it(Config).region.language,
@@ -99,25 +114,31 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
     # Check existence
     if not flags.force_save and check_song_exists(task.metadata, codec, playlist):
         task.logger.already_exist()
-        task.update_status(Status.DONE)
-        del adam_id_task_mapping[task.adamId]
+        await task_done(task, Status.DONE)
         return
 
     # Get M3U8
-    if codec == Codec.ALAC:
+    if not raw_metadata.attributes.extendedAssetUrls:
+        task.logger.audio_not_exist()
+        await task_done(task, Status.FAILED)
+        return
+    if codec == Codec.ALAC and raw_metadata.attributes.extendedAssetUrls.enhancedHls:
         m3u8_url = await it(WrapperManager).m3u8(task.adamId)
     else:
         m3u8_url = raw_metadata.attributes.extendedAssetUrls.enhancedHls
-    task.m3u8Info = await extract_media(m3u8_url, codec, task.metadata, it(Config).download.codecPriority,
-                                        it(Config).download.codecAlternative)
+    if not m3u8_url and not raw_metadata.attributes.extendedAssetUrls.enhancedHls:
+        task.logger.lossless_audio_not_exist()
+        await task_done(task, Status.FAILED)
+        return
+
     task.m3u8Info = await extract_media(m3u8_url, codec, task.metadata)
+    task.logger.selected_codec(task.m3u8Info.codec_id)
     if all([bool(task.m3u8Info.bit_depth), bool(task.m3u8Info.sample_rate)]):
         task.metadata.set_bit_depth_and_sample_rate(task.m3u8Info.bit_depth, task.m3u8Info.sample_rate)
         # Check existence again
         if not flags.force_save and check_song_exists(task.metadata, codec, playlist):
             task.logger.already_exist()
-            task.update_status(Status.DONE)
-            del adam_id_task_mapping[task.adamId]
+            await task_done(task, Status.DONE)
             return
 
     # Download

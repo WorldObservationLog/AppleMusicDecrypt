@@ -11,6 +11,7 @@ from src.api import WebAPI
 from src.config import Config
 from src.flags import Flags
 from src.grpc.manager import WrapperManager
+from src.logger import GlobalLogger
 from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
 from src.url import AppleMusicURL, URLType
 from src.utils import check_dep
@@ -23,7 +24,7 @@ class InteractiveShell:
     def __init__(self, loop: asyncio.AbstractEventLoop):
         dep_installed, missing_dep = check_dep()
         if not dep_installed:
-            logger.error(f"Dependence {missing_dep} was not installed!")
+            it(GlobalLogger).logger.error(f"Dependence {missing_dep} was not installed!")
             loop.stop()
             sys.exit()
 
@@ -50,7 +51,7 @@ class InteractiveShell:
         try:
             args = self.parser.parse_args(cmds)
         except (argparse.ArgumentError, argparse.ArgumentTypeError, SystemExit):
-            logger.warning(f"Unknown command: {cmd}")
+            it(GlobalLogger).logger.warning(f"Unknown command: {cmd}")
             return
         match cmds[0]:
             case "download" | "dl":
@@ -65,7 +66,7 @@ class InteractiveShell:
             real_url = await it(WebAPI).get_real_url(raw_url)
             url = AppleMusicURL.parse_url(real_url)
             if not url:
-                logger.error("Illegal URL!")
+                it(GlobalLogger).logger.error("Illegal URL!")
                 return
         match url.type:
             case URLType.Song:
@@ -79,7 +80,7 @@ class InteractiveShell:
             case URLType.Playlist:
                 self.loop.create_task(rip_playlist(url, codec, Flags(force_save=force_download)))
             case _:
-                logger.error("Unsupported URLType")
+                it(GlobalLogger).logger.error("Unsupported URLType")
                 return
 
     async def handle_command(self):
@@ -97,4 +98,4 @@ class InteractiveShell:
             try:
                 await self.handle_command()
             finally:
-                logger.info("Existing shell")
+                it(GlobalLogger).logger.info("Existing shell")

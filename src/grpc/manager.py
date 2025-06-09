@@ -1,4 +1,6 @@
 import asyncio
+import logging
+from asyncio import AbstractEventLoop
 from queue import SimpleQueue
 from typing import Awaitable, Callable, Type
 
@@ -8,6 +10,7 @@ from tenacity import retry_if_exception_type, retry, wait_random_exponential, st
 
 from src.grpc.manager_pb2 import *
 from src.grpc.manager_pb2_grpc import WrapperManagerServiceStub, google_dot_protobuf_dot_empty__pb2
+from src.logger import GlobalLogger
 
 
 class WrapperManagerException(Exception):
