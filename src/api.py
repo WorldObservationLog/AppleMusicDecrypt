@@ -106,6 +106,18 @@ class WebAPI:
                 return data
         return None
 
+    async def song_exist(self, song_id: str, storefront: str):
+        req = await self._request("HEAD", f"https://amp-api.music.apple.com/v1/catalog/{storefront}/songs/{song_id}")
+        if req.status_code == 200:
+            return True
+        return False
+
+    async def album_exist(self, album_id: str, storefront: str):
+        req = await self._request("HEAD", f"https://amp-api.music.apple.com/v1/catalog/{storefront}/albums/{album_id}")
+        if req.status_code == 200:
+            return True
+        return False
+
     async def get_albums_from_artist(self, artist_id: str, storefront: str, lang: str, offset: int = 0):
         resp = await self._request("GET",
                                    f"https://amp-api.music.apple.com/v1/catalog/{storefront}/artists/{artist_id}/albums",
@@ -154,18 +166,16 @@ class WebAPI:
         except KeyError:
             return None
 
-    async def exist_on_storefront_by_song_id(self, song_id: str, storefront: str, check_storefront: str,
-                                             lang: str = None):
+    async def exist_on_storefront_by_song_id(self, song_id: str, storefront: str, check_storefront: str):
         if storefront.upper() == check_storefront.upper():
             return True
-        song = await self.get_song_info(song_id, check_storefront, lang)
+        song = await self.song_exist(song_id, check_storefront)
         return bool(song)
 
-    async def exist_on_storefront_by_album_id(self, album_id: str, storefront: str, check_storefront: str,
-                                              lang: str = None):
+    async def exist_on_storefront_by_album_id(self, album_id: str, storefront: str, check_storefront: str):
         if storefront.upper() == check_storefront.upper():
             return True
-        album = await self.get_album_info(album_id, check_storefront, lang)
+        album = await self.album_exist(album_id, check_storefront)
         return bool(album)
 
 
