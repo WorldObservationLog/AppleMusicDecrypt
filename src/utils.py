@@ -1,7 +1,9 @@
 import asyncio
+import concurrent.futures
 import subprocess
 import sys
 import time
+from asyncio import AbstractEventLoop
 from copy import deepcopy
 from datetime import datetime, timedelta
 from itertools import islice
@@ -12,6 +14,7 @@ import regex
 from bs4 import BeautifulSoup
 from creart import it
 from loguru import logger
+from pydantic import ValidationError
 
 from src.api import WebAPI
 from src.config import Config
@@ -19,6 +22,9 @@ from src.exceptions import NotTimeSyncedLyricsException
 from src.grpc.manager import WrapperManager
 from src.models import PlaylistInfo
 from src.types import *
+
+
+executor_pool = concurrent.futures.ThreadPoolExecutor()
 
 
 def check_url(url):
@@ -214,12 +220,22 @@ def check_dep():
 async def check_song_existence(adam_id: str, region: str):
     check = False
     for m_region in (await it(WrapperManager).status()).regions:
-        check = await it(WebAPI).exist_on_storefront_by_song_id(adam_id, region, m_region)
+        try:
+            check = await it(WebAPI).exist_on_storefront_by_song_id(adam_id, region, m_region)
+        except ValidationError:
+            pass
     return check
 
 
 async def check_album_existence(album_id: str, region: str):
     check = False
     for m_region in (await it(WrapperManager).status()).regions:
-        check = await it(WebAPI).exist_on_storefront_by_album_id(album_id, region, m_region)
+        try:
+            check = await it(WebAPI).exist_on_storefront_by_album_id(album_id, region, m_region)
+        except ValidationError:
+            pass
     return check
+
+
+async def run_sync(task: Callable, *args):
+    return await it(AbstractEventLoop).run_in_executor(executor_pool, task, *args)

@@ -20,7 +20,7 @@ from src.task import Task, Status
 from src.types import Codec, ParentDoneHandler
 from src.url import Song, Album, URLType, Playlist
 from src.utils import get_codec_from_codec_id, check_song_existence, check_song_exists, if_raw_atmos, \
-    check_album_existence, playlist_write_song_index
+    check_album_existence, playlist_write_song_index, run_sync
 
 # START -> getMetadata -> getLyrics -> getM3U8 -> downloadSong -> decrypt -> encapsulate -> save -> END
 
@@ -48,40 +48,37 @@ async def recv_decrypted_sample(adam_id: str, sample_index: int, sample: bytes):
     task.decryptedSamples[sample_index] = sample
     task.decryptedCount += 1
     if task.decryptedCount == len(task.decryptedSamples):
-        await decrypt_done(adam_id)
+        it(AbstractEventLoop).create_task(decrypt_done(adam_id))
 
 
 async def decrypt_done(adam_id: str):
     task = adam_id_task_mapping[adam_id]
     codec = get_codec_from_codec_id(task.m3u8Info.codec_id)
 
-    song = await encapsulate(task.info, bytes().join(task.decryptedSamples), it(Config).download.atmosConventToM4a)
+    song = await run_sync(encapsulate, task.info, bytes().join(task.decryptedSamples),
+                          it(Config).download.atmosConventToM4a)
     if not if_raw_atmos(codec, it(Config).download.atmosConventToM4a):
-        song = await write_metadata(song, task.metadata, it(Config).metadata.embedMetadata,
-                                    it(Config).download.coverFormat, task.info.params)
+        song = await run_sync(write_metadata, song, task.metadata, it(Config).metadata.embedMetadata,
+                              it(Config).download.coverFormat, task.info.params)
         if codec != Codec.EC3 or codec != Codec.EC3:
-            song = await fix_encapsulate(song)
+            song = await run_sync(fix_encapsulate, song)
         if codec == Codec.AAC or codec == Codec.AAC_DOWNMIX or codec == Codec.AAC_BINAURAL:
-            song = await fix_esds_box(task.info.raw, song)
+            song = await run_sync(fix_esds_box, task.info.raw, song)
 
-    song = await write_metadata(song, task.metadata, it(Config).metadata.embedMetadata,
-                                it(Config).download.coverFormat, task.info.params)
+    song = await run_sync(write_metadata, song, task.metadata, it(Config).metadata.embedMetadata,
+                          it(Config).download.coverFormat, task.info.params)
 
-    if not await check_song_integrity(song):
+    if not await run_sync(check_song_integrity, song):
         task.logger.failed_integrity()
 
-    filename = await save(song, codec, task.metadata, task.playlist)
+    filename = await run_sync(save, song, codec, task.metadata, task.playlist)
     task.logger.saved()
 
-    if task.parentDone:
-        await task.parentDone.try_done()
+    await task_done(task, Status.DONE)
 
     if it(Config).download.afterDownloaded:
         command = it(Config).download.afterDownloaded.format(filename=filename)
         subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    task.update_status(Status.DONE)
-    del adam_id_task_mapping[adam_id]
 
 
 async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
@@ -148,7 +145,7 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
     task.logger.decrypting()
     task.update_status(Status.DECRYPTING)
     codec = get_codec_from_codec_id(task.m3u8Info.codec_id)
-    task.info = await extract_song(raw_song, codec)
+    task.info = await run_sync(extract_song, raw_song, codec)
     task.init_decrypted_samples()
     for sampleIndex, sample in enumerate(task.info.samples):
         await it(WrapperManager).decrypt(task.adamId, task.m3u8Info.keys[sample.descIndex], sample.data, sampleIndex)
