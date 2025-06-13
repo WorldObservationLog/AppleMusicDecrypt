@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from asyncio import AbstractEventLoop
-from queue import SimpleQueue
 from typing import Awaitable, Callable, Type
 
 from async_lru import alru_cache
@@ -51,22 +50,37 @@ class WrapperManager:
 
     async def login(self, username: str, password: str, on_2fa: Callable[[str, str], Awaitable[int]]):
         await self._login_lock.acquire()
-        login_queue = SimpleQueue()
-        stream = self._stub.Login(iter(login_queue.get, None))
-        login_queue.put(LoginRequest(data=LoginData(username=username, password=password)))
+
+        login_queue = asyncio.Queue()
+
+        async def request_stream():
+            while True:
+                item = await login_queue.get()
+                if item is None:
+                    break
+                yield item
+
+        stream = self._stub.Login(request_stream())
+
+        await login_queue.put(LoginRequest(data=LoginData(username=username, password=password)))
+
         async for reply in stream:
             reply: LoginReply
             match reply.header.code:
                 case -1:
                     self._login_lock.release()
+                    await login_queue.put(None)
                     raise WrapperManagerException(reply.header.msg)
                 case 0:
                     self._login_lock.release()
+                    await login_queue.put(None)
                     return
                 case 2:
                     two_step_code = await on_2fa(username, password)
-                    login_queue.put(LoginRequest(data=LoginData(username=username, password=password,
-                                                                two_step_code=two_step_code)))
+                    await login_queue.put(LoginRequest(data=LoginData(
+                        username=username,
+                        password=password,
+                        two_step_code=two_step_code)))
 
     async def decrypt(self, adam_id: str, key: str, sample: bytes, sample_index: int):
         await self._decrypt_queue.put(
