@@ -25,6 +25,7 @@ prettytable = "^3.10.0"
 pyventus = "^0.7.0"
 grpcio = "^1.72.1"
 grpcio-tools = "^1.72.1"
+creart = "^0.3.0"
 
 [build-system]
 requires = ["poetry-core"]
