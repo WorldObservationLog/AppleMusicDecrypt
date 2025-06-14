@@ -14,6 +14,7 @@ class Region(BaseModel):
 class Download(BaseModel):
     proxy: str
     parallelNum: int
+    maxRunningTasks: int
     getM3u8FromDevice: bool
     codecAlternative: bool
     codecPriority: list[str]

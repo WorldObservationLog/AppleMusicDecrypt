@@ -14,6 +14,8 @@ language = "zh-Hant-HK"
 proxy = ""
 # Number of concurrent song downloads
 parallelNum = 1
+# Number of max running tasks
+maxRunningTasks = 128
 # Get m3u8 from device
 getM3u8FromDevice = true
 # After enabling this feature, if the specified codec does not exist, the script will look for other codec to download

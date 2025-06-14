@@ -25,9 +25,10 @@ from src.utils import get_codec_from_codec_id, check_song_existence, check_song_
 # START -> getMetadata -> getLyrics -> getM3U8 -> downloadSong -> decrypt -> encapsulate -> save -> END
 
 adam_id_task_mapping: Dict[str, Task] = {}
-
+task_lock = asyncio.Semaphore(it(Config).download.maxRunningTasks)
 
 async def task_done(task: Task, status: Status):
+    task_lock.release()
     task.update_status(status)
     if task.parentDone:
         await task.parentDone.try_done()
@@ -83,6 +84,7 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
     task = Task(adam_id=url.id, parent_done=parent_done, playlist=playlist)
     adam_id_task_mapping[url.id] = task
     task.init_logger()
+    await task_lock.acquire()
 
     # Set Metadata
     raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, it(Config).region.language)
