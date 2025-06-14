@@ -65,9 +65,6 @@ async def decrypt_done(adam_id: str):
         if codec == Codec.AAC or codec == Codec.AAC_DOWNMIX or codec == Codec.AAC_BINAURAL:
             song = await run_sync(fix_esds_box, task.info.raw, song)
 
-    song = await run_sync(write_metadata, song, task.metadata, it(Config).metadata.embedMetadata,
-                          it(Config).download.coverFormat, task.info.params)
-
     if not await run_sync(check_song_integrity, song):
         task.logger.failed_integrity()
 
