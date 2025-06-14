@@ -277,6 +277,6 @@ def check_song_integrity(song: bytes) -> bool:
     with open(song_name.absolute(), "wb") as f:
         f.write(song)
     output = subprocess.run(f"ffmpeg -y -v error -i {song_name.absolute()} -c:a pcm_s16le -f null /dev/null",
-                            capture_output=True)
+                            capture_output=True, shell=if_shell())
     tmp_dir.cleanup()
     return not bool(output.stderr)
