@@ -39,6 +39,10 @@ class WebAPI:
             js_resp = client.get("https://beta.music.apple.com" + index_js_uri)
             self.token = regex.search(r'eyJh([^"]*)', js_resp.text)[0]
 
+    # DO NOT REMOVE IT
+    def init(self):
+        pass
+
     @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
            wait=wait_random_exponential(multiplier=1, max=60),
            stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, logging.WARN))

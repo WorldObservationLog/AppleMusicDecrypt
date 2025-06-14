@@ -14,7 +14,7 @@ from src.logger import GlobalLogger
 from src.measurer import SpeedMeasurer
 from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
 from src.url import AppleMusicURL, URLType
-from src.utils import check_dep
+from src.utils import check_dep, run_sync
 
 
 class InteractiveShell:
@@ -29,6 +29,7 @@ class InteractiveShell:
             sys.exit()
 
         self.loop = loop
+        loop.run_until_complete(run_sync(it(WebAPI).init))
         loop.run_until_complete(it(WrapperManager).init(it(Config).instance))
         loop.create_task(it(WrapperManager).decrypt_init(on_success=on_decrypt_success, on_failure=on_decrypt_failed))
 
