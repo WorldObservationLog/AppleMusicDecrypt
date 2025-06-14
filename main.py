@@ -1,8 +1,17 @@
 import asyncio
 import logging
+import sys
 
 from creart import add_creator
 
+if sys.platform in ('win32', 'cygwin', 'cli'):
+    import winloop
+
+    winloop.install()
+else:
+    import uvloop
+
+    uvloop.install()
 loop = asyncio.new_event_loop()
 loop.set_debug(True)
 logging.getLogger("asyncio").setLevel(logging.WARNING)
