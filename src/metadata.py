@@ -14,7 +14,7 @@ NOT_INCLUDED_FIELD = ["playlistIndex", "bit_depth", "sample_rate", "sample_rate_
 TAG_MAPPING = {
     "song_id": "cnID",  # iTunes Catalog ID
     "title": "©nam",  # MP4 title
-    "artist": "©art",  # MP4 artist
+    "artist": "©ART",  # MP4 artist
     "album_id": "plID",  # iTunes Album ID
     "album_artist": "aART",  # MP4 album artist
     "album": "©alb",  # MP4 album
