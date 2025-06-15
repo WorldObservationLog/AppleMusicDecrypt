@@ -43,12 +43,13 @@ audioInfoFormat = ""
 # title, artist, album, album_artist, composer,
 # genre, created, track, tracknum, disk,
 # record_company, upc, isrc, copyright, codec, audio_info
-# song_id, album_id, album_created
+# song_id, album_id, album_created, total_tracks, total_disks
 songNameFormat = "{disk}-{tracknum:02d} {title}"
 # Available values:
 # title, artist, album, album_artist, composer,
 # genre, created, track, tracknum, disk, album_created
 # record_company, upc, isrc, copyright, codec, album_id
+# disk_total
 dirPathFormat = "downloads/{album_artist}/{album}"
 # Available values:
 # title, artist, album, album_artist, composer,
@@ -61,7 +62,7 @@ playlistDirPathFormat = "downloads/playlists/{playlistName}"
 # genre, created, track, tracknum, disk,
 # record_company, upc, isrc, copyright, audio_info
 # playlistName, playlistCuratorName, playlistSongIndex, codec
-# song_id, album_id, album_created
+# song_id, album_id, album_created, total_tracks, total_disks
 playlistSongNameFormat = "{playlistSongIndex:02d}. {artist} - {title}"
 # Save lyrics as .lrc file
 saveLyrics = true

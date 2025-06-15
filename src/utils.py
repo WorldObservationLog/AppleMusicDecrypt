@@ -183,11 +183,15 @@ def get_song_name_and_dir_path(codec: str, metadata, playlist: PlaylistInfo = No
         song_name = it(Config).download.playlistSongNameFormat.format(codec=codec,
                                                                       playlistSongIndex=metadata.playlist_index,
                                                                       audio_info=get_audio_info_str(metadata, codec),
+                                                                      total_tracks=metadata.track_total[metadata.disk],
+                                                                      total_disks=metadata.disk_total,
                                                                       **safe_meta, **safe_pl_meta)
         dir_path = Path(it(Config).download.playlistDirPathFormat.format(codec=codec, **safe_meta, **safe_pl_meta))
     else:
         safe_meta = get_path_safe_dict(metadata.model_dump())
         song_name = it(Config).download.songNameFormat.format(codec=codec,
+                                                              total_tracks=metadata.track_total[metadata.disk],
+                                                              total_disks=metadata.disk_total,
                                                               audio_info=get_audio_info_str(metadata, codec),
                                                               **safe_meta)
         dir_path = Path(it(Config).download.dirPathFormat.format(codec=codec, **safe_meta))
