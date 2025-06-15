@@ -30,7 +30,7 @@ class InteractiveShell:
 
         self.loop = loop
         loop.run_until_complete(run_sync(it(WebAPI).init))
-        loop.run_until_complete(it(WrapperManager).init(it(Config).instance))
+        loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
         safely_create_task(it(WrapperManager).decrypt_init(on_success=on_decrypt_success, on_failure=on_decrypt_failed))
 
         self.parser = argparse.ArgumentParser(exit_on_error=False)

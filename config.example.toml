@@ -1,4 +1,6 @@
-instance = "127.0.0.1:8080"
+[instance]
+url = "127.0.0.1:8080"
+secure = false
 
 [region]
 # Used when the song region cannot be obtained, currently only used for m3u8 command and mitm command

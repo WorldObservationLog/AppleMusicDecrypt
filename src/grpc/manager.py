@@ -4,7 +4,9 @@ from typing import Awaitable, Callable, Type
 
 from async_lru import alru_cache
 from creart import AbstractCreator, CreateTargetInfo, exists_module, it
-from grpc.aio import insecure_channel, Channel
+from grpc import ssl_channel_credentials
+from grpc.aio import insecure_channel, Channel, secure_channel
+from grpc.experimental import ChannelOptions
 from tenacity import retry_if_exception_type, retry, wait_random_exponential, stop_after_attempt, \
     retry_if_not_exception_message, before_sleep_log
 
@@ -29,15 +31,11 @@ class WrapperManager:
         self._login_lock = asyncio.Lock()
         self._decrypt_queue = asyncio.Queue()
 
-    @classmethod
-    async def create(cls, url: str) -> "WrapperManager":
-        self = cls()
-        self._channel = insecure_channel(url)
-        self._stub = WrapperManagerServiceStub(self._channel)
-        return self
-
-    async def init(self, url: str):
-        self._channel = insecure_channel(url)
+    async def init(self, url: str, secure: bool):
+        if secure:
+            self._channel = secure_channel(url, credentials=ssl_channel_credentials(),options=((ChannelOptions.SingleThreadedUnaryStream, 1),))
+        else:
+            self._channel = insecure_channel(url, options=((ChannelOptions.SingleThreadedUnaryStream, 1),))
         self._stub = WrapperManagerServiceStub(self._channel)
         return self
 

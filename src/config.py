@@ -6,6 +6,10 @@ from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
 
+class Instance(BaseModel):
+    url: str
+    secure: bool
+
 class Region(BaseModel):
     language: str
     defaultStorefront: str
@@ -37,7 +41,7 @@ class Metadata(BaseModel):
 
 class Config(BaseModel):
     region: Region
-    instance: str
+    instance: Instance
     download: Download
     metadata: Metadata
 
