@@ -20,8 +20,8 @@ from src.config import Config
 from src.exceptions import NotTimeSyncedLyricsException
 from src.logger import GlobalLogger
 from src.models import PlaylistInfo
+from src.models.album_meta import Tracks
 from src.types import *
-
 
 executor_pool = concurrent.futures.ThreadPoolExecutor()
 background_tasks = set()
@@ -181,7 +181,7 @@ def get_song_name_and_dir_path(codec: str, metadata, playlist: PlaylistInfo = No
         safe_meta = get_path_safe_dict(metadata.model_dump())
         safe_pl_meta = get_path_safe_dict(playlist_metadata_to_params(playlist))
         song_name = it(Config).download.playlistSongNameFormat.format(codec=codec,
-                                                                      playlistSongIndex=metadata.playlistIndex,
+                                                                      playlistSongIndex=metadata.playlist_index,
                                                                       audio_info=get_audio_info_str(metadata, codec),
                                                                       **safe_meta, **safe_pl_meta)
         dir_path = Path(it(Config).download.playlistDirPathFormat.format(codec=codec, **safe_meta, **safe_pl_meta))
@@ -244,6 +244,7 @@ async def check_album_existence(album_id: str, region: str):
 async def run_sync(task: Callable, *args):
     return await it(AbstractEventLoop).run_in_executor(executor_pool, task, *args)
 
+
 def safely_create_task(coro):
     task = it(AbstractEventLoop).create_task(coro)
     background_tasks.add(task)
@@ -254,3 +255,12 @@ def safely_create_task(coro):
             it(GlobalLogger).logger.exception(task.exception())
 
     task.add_done_callback(done_callback)
+
+
+def count_total_track_and_disc(tracks: Tracks):
+    disc_count = tracks.data[-1].attributes.discNumber
+    track_count = {}
+    for track in tracks.data:
+        if track_count.get(track.attributes.discNumber, 0) < track.attributes.trackNumber:
+            track_count[track.attributes.discNumber] = track.attributes.trackNumber
+    return disc_count, track_count

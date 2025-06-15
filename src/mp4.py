@@ -9,6 +9,7 @@ from typing import Tuple
 
 import m3u8
 import regex
+import mutagen.mp4
 from bs4 import BeautifulSoup
 from creart import it
 from loguru import logger
@@ -207,18 +208,14 @@ def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str
     song_name = Path(tmp_dir.name) / Path(f"{name}.m4a")
     with open(song_name.absolute(), "wb") as f:
         f.write(song)
-    absolute_cover_path = ""
-    if "cover" in embed_metadata:
-        cover_path = Path(tmp_dir.name) / Path(f"cover.{cover_format}")
-        absolute_cover_path = cover_path.absolute()
-        with open(cover_path.absolute(), "wb") as f:
-            f.write(metadata.cover)
     subprocess.run(["mp4box",
                     "-time", params.get("CreationTime").strftime("%d/%m/%Y-%H:%M:%S"),
                     "-mtime", params.get("ModificationTime").strftime("%d/%m/%Y-%H:%M:%S"), "-keep-utc",
-                    "-name", f"1={metadata.title}", "-itags", ":".join(["tool=", f"cover={absolute_cover_path}",
-                                                                        metadata.to_itags_params(embed_metadata)]),
-                    song_name.absolute()], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    "-name", f"1={metadata.title}", "-itags", "tool=", song_name.absolute()],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    mp4 = mutagen.mp4.Open(song_name.absolute())
+    mp4.update(metadata.to_mutagen_tags(embed_metadata))
+    mp4.save()
     with open(song_name.absolute(), "rb") as f:
         embed_song = f.read()
     tmp_dir.cleanup()

@@ -59,10 +59,10 @@ async def decrypt_done(adam_id: str):
     song = await run_sync(encapsulate, task.info, bytes().join(task.decryptedSamples),
                           it(Config).download.atmosConventToM4a)
     if not if_raw_atmos(codec, it(Config).download.atmosConventToM4a):
-        song = await run_sync(write_metadata, song, task.metadata, it(Config).metadata.embedMetadata,
-                              it(Config).download.coverFormat, task.info.params)
         if codec != Codec.EC3 or codec != Codec.EC3:
             song = await run_sync(fix_encapsulate, song)
+        song = await run_sync(write_metadata, song, task.metadata, it(Config).metadata.embedMetadata,
+                              it(Config).download.coverFormat, task.info.params)
         if codec == Codec.AAC or codec == Codec.AAC_DOWNMIX or codec == Codec.AAC_BINAURAL:
             song = await run_sync(fix_esds_box, task.info.raw, song)
 
@@ -88,7 +88,9 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
 
     # Set Metadata
     raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, it(Config).region.language)
+    album_data = await it(WebAPI).get_album_info(raw_metadata.relationships.albums.data[0].id, url.storefront, it(Config).region.language)
     task.metadata = SongMetadata.parse_from_song_data(raw_metadata)
+    task.metadata.parse_from_album_data(album_data)
 
     task.update_logger()
     task.logger.create()

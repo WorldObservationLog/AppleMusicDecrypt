@@ -4,6 +4,7 @@ from io import BytesIO
 from ssl import SSLError
 from typing import Type
 
+import hishel
 import httpx
 import regex
 from creart import AbstractCreator, CreateTargetInfo, exists_module, it
@@ -23,9 +24,10 @@ class WebAPI:
 
     def __init__(self, proxy: str, parallel_num: int):
         self._set_token()
-        self.client = httpx.AsyncClient(headers={"Authorization": f"Bearer {self.token}",
-                                                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                                                 "Origin": "https://music.apple.com"}, proxy=proxy if proxy else None)
+        self.client = hishel.AsyncCacheClient(headers={"Authorization": f"Bearer {self.token}",
+                                                       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                                                       "Origin": "https://music.apple.com"},
+                                              proxy=proxy if proxy else None)
         self.download_lock = asyncio.Semaphore(parallel_num)
         self.request_lock = asyncio.Semaphore(256)
 

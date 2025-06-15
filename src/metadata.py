@@ -1,14 +1,38 @@
-from typing import Optional
+from typing import Optional, Dict
 
 from creart import it
+from mutagen.mp4 import MP4Cover
 from pydantic import BaseModel
 
 from src.api import WebAPI
+from src.models import AlbumMeta
 from src.models.song_data import Datum
-from src.utils import ttml_convent_to_lrc
+from src.utils import ttml_convent_to_lrc, count_total_track_and_disc
 
-NOT_INCLUDED_FIELD = ["cover", "playlistIndex", "bit_depth", "sample_rate",
-                      "sample_rate_kHz", "song_id", "album_id", "album_created"]
+NOT_INCLUDED_FIELD = ["playlistIndex", "bit_depth", "sample_rate", "sample_rate_kHz",
+                      "song_id", "album_id", "track_total", "disk_total"]
+TAG_MAPPING = {
+    "song_id": "cnID",  # iTunes Catalog ID
+    "title": "©nam",  # MP4 title
+    "artist": "©art",  # MP4 artist
+    "album_id": "plID",  # iTunes Album ID
+    "album_artist": "aART",  # MP4 album artist
+    "album": "©alb",  # MP4 album
+    "album_created": "©day",  # MP4 YEAR tag
+    "composer": "©wrt",  # MP4 composer
+    "genre": "©gen",  # MP4 genre
+    "created": "purd",  # MP4 iTunes Purchase Date
+    "track": "©trk",  # MP4 track name
+    "tracknum": "trkn",  # MP4 total track number and current
+    "disk": "disk",  # MP4 disc number
+    "lyrics": "©lyr",  # MP4 unsynced lyrics
+    "cover": "covr",  # MP4 cover art atom
+    "copyright": "cprt",  # MP4 copyright
+    "record_company": "©pub",  # MP4 publisher
+    "upc": "----:com.apple.iTunes:BARCODE",  # MP4 barcode (UPC)
+    "isrc": "ISRC",  # MP4 ISRC
+    "rtng": "rtng",  # MP4 advisory rating
+}
 
 
 class SongMetadata(BaseModel):
@@ -24,7 +48,9 @@ class SongMetadata(BaseModel):
     created: Optional[str] = None
     track: Optional[str] = None
     tracknum: Optional[int] = None
+    track_total: Optional[Dict[int, int]] = None
     disk: Optional[int] = None
+    disk_total: Optional[int] = None
     lyrics: Optional[str] = None
     cover: bytes = None
     cover_url: Optional[str] = None
@@ -32,7 +58,8 @@ class SongMetadata(BaseModel):
     record_company: Optional[str] = None
     upc: Optional[str] = None
     isrc: Optional[str] = None
-    playlistIndex: Optional[int] = None
+    rtng: Optional[int] = None
+    playlist_index: Optional[int] = None
     bit_depth: Optional[int] = None
     sample_rate: Optional[int] = None
     sample_rate_kHz: Optional[str] = None
@@ -50,13 +77,41 @@ class SongMetadata(BaseModel):
                     tags.append(f"{key}={lrc}")
                     continue
                 if key.lower() in ('upc', 'isrc'):
-                    tags.append(f"WM/{key.lower()}={value}")
+                    # https://github.com/gpac/gpac/issues/3259
+                    # tags.append(f"WM/{key.lower()}={value}")
                     continue
                 if key == 'composer':
                     tags.append(f"writer={value}")
                     continue
                 tags.append(f"{key}={value}")
         return ":".join(tags)
+
+    def to_mutagen_tags(self, embed_metadata: list[str]):
+        tags = {}
+        for key, value in self.model_dump().items():
+            if not value:
+                continue
+            if key in embed_metadata and value:
+                if key in NOT_INCLUDED_FIELD:
+                    continue
+                if key == "lyrics":
+                    lrc = ttml_convent_to_lrc(value)
+                    tags.update({TAG_MAPPING[key]: lrc})
+                    continue
+                if key == "tracknum":
+                    tags.update({TAG_MAPPING[key]: ((value, self.track_total[self.disk]),)})
+                    continue
+                if key == "disk":
+                    tags.update({TAG_MAPPING[key]: ((value, self.disk_total),)})
+                    continue
+                if key == "cover":
+                    tags.update({TAG_MAPPING[key]: (MP4Cover(value),)})
+                    continue
+                if key == "upc":
+                    tags.update({TAG_MAPPING[key]: (value.encode(),)})
+                    continue
+                tags.update({TAG_MAPPING[key]: str(value)})
+        return tags
 
     @classmethod
     def parse_from_song_data(cls, song_data: Datum):
@@ -75,6 +130,9 @@ class SongMetadata(BaseModel):
                    song_id=song_data.id, album_id=song_data.relationships.albums.data[0].id
                    )
 
+    def parse_from_album_data(self, album_data: AlbumMeta):
+        self.disk_total, self.track_total = count_total_track_and_disc(album_data.data[0].relationships.tracks)
+
     @staticmethod
     def _rating(content_rating: Optional[str]) -> int:
         if not content_rating:
@@ -92,7 +150,7 @@ class SongMetadata(BaseModel):
         self.cover = await it(WebAPI).get_cover(self.cover_url, cover_format, cover_size)
 
     def set_playlist_index(self, index: int):
-        self.playlistIndex = index
+        self.playlist_index = index
 
     def set_bit_depth_and_sample_rate(self, bit_depth: int, sample_rate: int):
         self.bit_depth = bit_depth
