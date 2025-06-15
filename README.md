@@ -43,22 +43,26 @@ dl https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 - Apple Music Artist Link (https://music.apple.com/jp/artist/%E3%82%A8%E3%83%B3%E3%83%A4/160847)
 - Apple Music Playlist Link (https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp)
 
-# Deploy
+# About V2
+AppleMusicDecrypt v2 provides support for remote fast decryption through [WorldObservationLog/wrapper](https://github.com/WorldObservationLog/wrapper) and [WorldObservationLog/wrapper-manager](https://github.com/WorldObservationLog/wrapper-manager)
 
-TODO
+By connecting to a public wrapper-manager instance on the Internet, ripping can be completed without an Apple account or an active Apple Music subscription.
 
-## Run Script
+For faster decryption, wrapper-manager can also be deployed locally. The decryption speed of a single wrapper instance can reach up to 40MB/s
 
-### Use pre-built script (For Windows)
+A wrapper-manager instance for testing: 
+```toml
+[instance]
+url = "wm.wol.moe"
+secure = true
+```
 
-Download latest build from [Actions](https://github.com/WorldObservationLog/AppleMusicDecrypt/actions) (need login your
-GitHub account). Unzip it, and run `main.exe`
-
-### Manually Run
-
+## Run
 ```shell
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt.git
 cd AppleMusicDecrypt
+chmod +x tools/install-deps.sh
+./tools/install-deps.sh
 poetry install
 cp config.example.toml config.toml
 poetry run python main.py
