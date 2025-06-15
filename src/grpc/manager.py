@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from asyncio import AbstractEventLoop
 from typing import Awaitable, Callable, Type
 
 from async_lru import alru_cache
@@ -12,6 +11,7 @@ from tenacity import retry_if_exception_type, retry, wait_random_exponential, st
 from src.grpc.manager_pb2 import *
 from src.grpc.manager_pb2_grpc import WrapperManagerServiceStub, google_dot_protobuf_dot_empty__pb2
 from src.logger import GlobalLogger
+from src.utils import safely_create_task
 
 
 class WrapperManagerException(Exception):
@@ -98,9 +98,9 @@ class WrapperManager:
             reply: DecryptReply
             match reply.header.code:
                 case -1:
-                    it(AbstractEventLoop).create_task(on_failure(reply.data.adam_id, reply.data.key, reply.data.sample, reply.data.sample_index))
+                    safely_create_task(on_failure(reply.data.adam_id, reply.data.key, reply.data.sample, reply.data.sample_index))
                 case 0:
-                    it(AbstractEventLoop).create_task(on_success(reply.data.adam_id, reply.data.key, reply.data.sample, reply.data.sample_index))
+                    safely_create_task(on_success(reply.data.adam_id, reply.data.key, reply.data.sample, reply.data.sample_index))
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (retry_if_not_exception_message('no available instance'))),
            wait=wait_random_exponential(multiplier=1, max=60),

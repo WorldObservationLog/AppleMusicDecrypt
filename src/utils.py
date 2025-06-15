@@ -16,15 +16,15 @@ from creart import it
 from loguru import logger
 from pydantic import ValidationError
 
-from src.api import WebAPI
 from src.config import Config
 from src.exceptions import NotTimeSyncedLyricsException
-from src.grpc.manager import WrapperManager
+from src.logger import GlobalLogger
 from src.models import PlaylistInfo
 from src.types import *
 
 
 executor_pool = concurrent.futures.ThreadPoolExecutor()
+background_tasks = set()
 
 
 def check_url(url):
@@ -218,6 +218,8 @@ def check_dep():
 
 
 async def check_song_existence(adam_id: str, region: str):
+    from src.grpc.manager import WrapperManager
+    from src.api import WebAPI
     check = False
     for m_region in (await it(WrapperManager).status()).regions:
         try:
@@ -228,6 +230,8 @@ async def check_song_existence(adam_id: str, region: str):
 
 
 async def check_album_existence(album_id: str, region: str):
+    from src.grpc.manager import WrapperManager
+    from src.api import WebAPI
     check = False
     for m_region in (await it(WrapperManager).status()).regions:
         try:
@@ -239,3 +243,14 @@ async def check_album_existence(album_id: str, region: str):
 
 async def run_sync(task: Callable, *args):
     return await it(AbstractEventLoop).run_in_executor(executor_pool, task, *args)
+
+def safely_create_task(coro):
+    task = it(AbstractEventLoop).create_task(coro)
+    background_tasks.add(task)
+
+    def done_callback(*args):
+        background_tasks.remove(task)
+        if task.exception():
+            it(GlobalLogger).logger.exception(task.exception())
+
+    task.add_done_callback(done_callback)

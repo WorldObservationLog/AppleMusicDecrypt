@@ -14,7 +14,7 @@ from src.logger import GlobalLogger
 from src.measurer import SpeedMeasurer
 from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
 from src.url import AppleMusicURL, URLType
-from src.utils import check_dep, run_sync
+from src.utils import check_dep, run_sync, safely_create_task
 
 
 class InteractiveShell:
@@ -31,7 +31,7 @@ class InteractiveShell:
         self.loop = loop
         loop.run_until_complete(run_sync(it(WebAPI).init))
         loop.run_until_complete(it(WrapperManager).init(it(Config).instance))
-        loop.create_task(it(WrapperManager).decrypt_init(on_success=on_decrypt_success, on_failure=on_decrypt_failed))
+        safely_create_task(it(WrapperManager).decrypt_init(on_success=on_decrypt_success, on_failure=on_decrypt_failed))
 
         self.parser = argparse.ArgumentParser(exit_on_error=False)
         subparser = self.parser.add_subparsers()
@@ -71,15 +71,13 @@ class InteractiveShell:
                 return
         match url.type:
             case URLType.Song:
-                self.loop.create_task(
-                    rip_song(url, codec, Flags(force_save=force_download)))
+                safely_create_task(rip_song(url, codec, Flags(force_save=force_download)))
             case URLType.Album:
-                self.loop.create_task(rip_album(url, codec, ))
+                safely_create_task(rip_album(url, codec, ))
             case URLType.Artist:
-                self.loop.create_task(
-                    rip_artist(url, codec, Flags(force_save=force_download, include_participate_in_works=include)))
+                safely_create_task(rip_artist(url, codec, Flags(force_save=force_download, include_participate_in_works=include)))
             case URLType.Playlist:
-                self.loop.create_task(rip_playlist(url, codec, Flags(force_save=force_download)))
+                safely_create_task(rip_playlist(url, codec, Flags(force_save=force_download)))
             case _:
                 it(GlobalLogger).logger.error("Unsupported URLType")
                 return

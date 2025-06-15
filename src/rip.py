@@ -20,7 +20,7 @@ from src.task import Task, Status
 from src.types import Codec, ParentDoneHandler
 from src.url import Song, Album, URLType, Playlist
 from src.utils import get_codec_from_codec_id, check_song_existence, check_song_exists, if_raw_atmos, \
-    check_album_existence, playlist_write_song_index, run_sync
+    check_album_existence, playlist_write_song_index, run_sync, safely_create_task
 
 # START -> getMetadata -> getLyrics -> getM3U8 -> downloadSong -> decrypt -> encapsulate -> save -> END
 
@@ -37,7 +37,7 @@ async def task_done(task: Task, status: Status):
 
 async def on_decrypt_success(adam_id: str, key: str, sample: bytes, sample_index: int):
     it(SpeedMeasurer).record_decrypt(len(sample))
-    it(AbstractEventLoop).create_task(recv_decrypted_sample(adam_id, sample_index, sample))
+    safely_create_task(recv_decrypted_sample(adam_id, sample_index, sample))
 
 
 async def on_decrypt_failed(adam_id: str, key: str, sample: bytes, sample_index: int):
@@ -49,7 +49,7 @@ async def recv_decrypted_sample(adam_id: str, sample_index: int, sample: bytes):
     task.decryptedSamples[sample_index] = sample
     task.decryptedCount += 1
     if task.decryptedCount == len(task.decryptedSamples):
-        it(AbstractEventLoop).create_task(decrypt_done(adam_id))
+        safely_create_task(decrypt_done(adam_id))
 
 
 async def decrypt_done(adam_id: str):
