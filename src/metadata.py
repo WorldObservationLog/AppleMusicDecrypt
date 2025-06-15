@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 
 from creart import it
 from mutagen.mp4 import MP4Cover
@@ -44,7 +44,7 @@ class SongMetadata(BaseModel):
     album: Optional[str] = None
     album_created: Optional[str] = None
     composer: Optional[str] = None
-    genre: Optional[str] = None
+    genre: Optional[List[str]] = None
     created: Optional[str] = None
     track: Optional[str] = None
     tracknum: Optional[int] = None
@@ -110,6 +110,9 @@ class SongMetadata(BaseModel):
                 if key == "upc":
                     tags.update({TAG_MAPPING[key]: (value.encode(),)})
                     continue
+                if key == "genre":
+                    tags.update({TAG_MAPPING[key]: value})
+                    continue
                 tags.update({TAG_MAPPING[key]: str(value)})
         return tags
 
@@ -118,7 +121,7 @@ class SongMetadata(BaseModel):
         return cls(title=song_data.attributes.name, artist=song_data.attributes.artistName,
                    album_artist=song_data.relationships.albums.data[0].attributes.artistName,
                    album=song_data.attributes.albumName, composer=song_data.attributes.composerName,
-                   genre=song_data.attributes.genreNames[0], created=song_data.attributes.releaseDate,
+                   genre=song_data.attributes.genreNames, created=song_data.attributes.releaseDate,
                    track=song_data.attributes.name, tracknum=song_data.attributes.trackNumber,
                    disk=song_data.attributes.discNumber, lyrics="", cover_url=song_data.attributes.artwork.url,
                    copyright=song_data.relationships.albums.data[0].attributes.copyright,
