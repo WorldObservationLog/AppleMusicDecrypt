@@ -103,7 +103,7 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
     await task.metadata.get_cover(it(Config).download.coverFormat, it(Config).download.coverSize)
     if raw_metadata.attributes.hasTimeSyncedLyrics:
         task.metadata.lyrics = await it(WrapperManager).lyrics(task.adamId, it(Config).region.language,
-                                                               it(Config).region.defaultStorefront)
+                                                               url.storefront)
     if playlist:
         task.metadata.set_playlist_index(playlist.songIdIndexMapping.get(url.id))
 
