@@ -228,6 +228,8 @@ async def check_song_existence(adam_id: str, region: str):
     for m_region in (await it(WrapperManager).status()).regions:
         try:
             check = await it(WebAPI).exist_on_storefront_by_song_id(adam_id, region, m_region)
+            if check:
+                break
         except ValidationError:
             pass
     return check
