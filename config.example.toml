@@ -85,6 +85,6 @@ afterDownloaded = ""
 # genre, created, track, tracknum, disk,
 # record_company, upc, isrc, copyright,
 # lyrics, cover, ratings(rtng)
-embedMetadata = ["title", "artist", "album", "album_artist", "composer",
+embedMetadata = ["title", "artist", "album", "album_artist", "composer", "album_created",
     "genre", "created", "track", "tracknum", "disk", "lyrics", "cover", "copyright",
     "record_company", "upc", "isrc", "rtng"]
