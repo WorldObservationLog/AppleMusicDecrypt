@@ -13,8 +13,6 @@ else:
 
     uvloop.install()
 loop = asyncio.new_event_loop()
-loop.set_debug(True)
-logging.getLogger("asyncio").setLevel(logging.WARNING)
 
 from src.logger import LoggerCreator
 add_creator(LoggerCreator)
