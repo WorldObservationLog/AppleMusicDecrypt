@@ -13,7 +13,6 @@ import m3u8
 import regex
 from bs4 import BeautifulSoup
 from creart import it
-from loguru import logger
 from pydantic import ValidationError
 
 from src.config import Config
@@ -69,7 +68,7 @@ def timeit(func):
     async def helper(*args, **params):
         start = time.time()
         result = await process(func, *args, **params)
-        logger.debug(f'{func.__name__}: {time.time() - start}')
+        it(GlobalLogger).logger.debug(f'{func.__name__}: {time.time() - start}')
         return result
 
     return helper
@@ -255,10 +254,14 @@ def safely_create_task(coro):
     task = it(AbstractEventLoop).create_task(coro)
     background_tasks.add(task)
 
+
     def done_callback(*args):
         background_tasks.remove(task)
         if task.exception():
-            it(GlobalLogger).logger.exception(task.exception())
+            try:
+                raise task.exception()
+            except Exception as e:
+                it(GlobalLogger).logger.exception(e)
 
     task.add_done_callback(done_callback)
 
