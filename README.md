@@ -58,6 +58,7 @@ secure = true
 ```
 
 ## Run
+For Android users: [android-deploy.md](/android-deploy.md)
 ```shell
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt.git
 cd AppleMusicDecrypt
