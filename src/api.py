@@ -59,7 +59,8 @@ class WebAPI:
         async with self.download_lock:
             result = BytesIO()
             async with self.client.stream('GET', url) as response:
-                total = int(response.headers["Content-Length"])
+                total = int(response.headers.get("Content-Length") if response.headers.get("Content-Length")
+                            else response.headers.get("X-Apple-MS-Content-Length"))
                 async for chunk in response.aiter_bytes():
                     it(SpeedMeasurer).record_download(len(chunk))
                     result.write(chunk)
