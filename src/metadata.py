@@ -113,6 +113,9 @@ class SongMetadata(BaseModel):
                 if key == "genre":
                     tags.update({TAG_MAPPING[key]: value})
                     continue
+                if key == "rtng":
+                    tags.update({TAG_MAPPING[key]: (value,)})
+                    continue
                 tags.update({TAG_MAPPING[key]: str(value)})
         return tags
 
