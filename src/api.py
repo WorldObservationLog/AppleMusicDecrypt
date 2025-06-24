@@ -58,15 +58,16 @@ class WebAPI:
     async def download_song(self, url: str) -> bytes:
         async with self.download_lock:
             result = BytesIO()
-            async with self.client.stream('GET', url) as response:
-                total = int(response.headers.get("Content-Length") if response.headers.get("Content-Length")
-                            else response.headers.get("X-Apple-MS-Content-Length"))
-                async for chunk in response.aiter_bytes():
-                    it(SpeedMeasurer).record_download(len(chunk))
-                    result.write(chunk)
-            if len(result.getvalue()) != total:
-                raise httpx.HTTPError
-            return result.getvalue()
+            async with httpx.AsyncClient() as client:
+                async with client.stream('GET', url) as response:
+                    total = int(response.headers.get("Content-Length") if response.headers.get("Content-Length")
+                                else response.headers.get("X-Apple-MS-Content-Length"))
+                    async for chunk in response.aiter_bytes():
+                        it(SpeedMeasurer).record_download(len(chunk))
+                        result.write(chunk)
+                if len(result.getvalue()) != total:
+                    raise httpx.HTTPError
+                return result.getvalue()
 
     async def get_album_info(self, album_id: str, storefront: str, lang: str):
         req = await self._request("GET",
