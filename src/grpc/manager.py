@@ -102,7 +102,7 @@ class WrapperManager:
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (retry_if_not_exception_message('no available instance'))),
            wait=wait_random_exponential(multiplier=1, max=60),
-           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, logging.WARN))
+           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def m3u8(self, adam_id: str) -> str:
         resp: M3U8Reply = await self._stub.M3U8(M3U8Request(data=M3U8DataRequest(adam_id=adam_id)))
         if resp.header.code != 0:
@@ -111,7 +111,7 @@ class WrapperManager:
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (retry_if_not_exception_message('no available instance'))),
            wait=wait_random_exponential(multiplier=1, max=60),
-           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, logging.WARN))
+           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def lyrics(self, adam_id: str, language: str, region: str) -> str:
         resp: LyricsReply = await self._stub.Lyrics(LyricsRequest(
             data=LyricsDataRequest(adam_id=adam_id, language=language, region=region)))
