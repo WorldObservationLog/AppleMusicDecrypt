@@ -119,6 +119,7 @@ class Datum1(BaseModel):
 
 class Tracks(BaseModel):
     href: Optional[str] = None
+    next: Optional[str] = None
     data: List[Datum1] = None
 
 

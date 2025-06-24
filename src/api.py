@@ -75,7 +75,20 @@ class WebAPI:
                                           "include[songs]": "artists", "fields[artists]": "name",
                                           "fields[albums:albums]": "artistName,artwork,name,releaseDate,url",
                                           "fields[record-labels]": "name", "l": lang})
-        return AlbumMeta.model_validate(req.json())
+        album_info_obj = AlbumMeta.model_validate(req.json())
+        if album_info_obj.data[0].relationships.tracks.next:
+            all_tracks = await self.get_album_tracks(album_id, storefront, lang)
+            album_info_obj.data[0].relationships.tracks.data = all_tracks
+        return album_info_obj
+
+    async def get_album_tracks(self, album_id: str, storefront: str, lang: str, offset: int = 0):
+        req = await self._request("GET", f"https://amp-api.music.apple.com/v1/catalog/{storefront}/albums/{album_id}/tracks?offset={offset}")
+        album_info_obj = AlbumTracks.model_validate(req.json())
+        tracks = album_info_obj.data
+        if album_info_obj.next:
+            next_tracks = await self.get_album_tracks(album_id, storefront, lang, offset + 300)
+            tracks.extend(next_tracks)
+        return tracks
 
     async def get_playlist_info_and_tracks(self, playlist_id: str, storefront: str, lang: str):
         resp = await self._request("GET",

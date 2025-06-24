@@ -1,5 +1,6 @@
 from src.models.album_meta import AlbumMeta
 from src.models.artist_albums import ArtistAlbums
+from src.models.album_tracks import AlbumTracks
 from src.models.artist_info import ArtistInfo
 from src.models.artist_songs import ArtistSongs
 from src.models.playlist_info import PlaylistInfo
