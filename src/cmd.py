@@ -73,7 +73,7 @@ class InteractiveShell:
             case URLType.Song:
                 safely_create_task(rip_song(url, codec, Flags(force_save=force_download)))
             case URLType.Album:
-                safely_create_task(rip_album(url, codec, ))
+                safely_create_task(rip_album(url, codec, Flags(force_save=force_download)))
             case URLType.Artist:
                 safely_create_task(rip_artist(url, codec, Flags(force_save=force_download, include_participate_in_works=include)))
             case URLType.Playlist:
