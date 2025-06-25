@@ -14,7 +14,7 @@ from src.logger import GlobalLogger
 from src.measurer import SpeedMeasurer
 from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
 from src.url import AppleMusicURL, URLType
-from src.utils import check_dep, run_sync, safely_create_task
+from src.utils import check_dep, run_sync, safely_create_task, get_tasks_num
 
 
 class InteractiveShell:
@@ -83,7 +83,7 @@ class InteractiveShell:
                 return
 
     def bottom_toolbar(self):
-        return f"Download Speed: {it(SpeedMeasurer).download_speed()}, Decrypt Speed: {it(SpeedMeasurer).decrypt_speed()}"
+        return f"Download Speed: {it(SpeedMeasurer).download_speed()}, Decrypt Speed: {it(SpeedMeasurer).decrypt_speed()}, Tasks: {get_tasks_num()}"
 
     async def handle_command(self):
         session = PromptSession("> ", bottom_toolbar=self.bottom_toolbar, refresh_interval=1)

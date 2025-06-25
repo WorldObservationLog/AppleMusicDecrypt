@@ -1,6 +1,5 @@
 import asyncio
 import subprocess
-from asyncio import AbstractEventLoop
 from typing import Dict
 
 from creart import it
@@ -26,6 +25,7 @@ from src.utils import get_codec_from_codec_id, check_song_existence, check_song_
 
 adam_id_task_mapping: Dict[str, Task] = {}
 task_lock = asyncio.Semaphore(it(Config).download.maxRunningTasks)
+
 
 async def task_done(task: Task, status: Status):
     task_lock.release()
@@ -169,10 +169,9 @@ async def rip_album(url: Album, codec: str, flags: Flags = Flags(), parent_done:
 
     done_handler = ParentDoneHandler(len(album_info.data[0].relationships.tracks.data), on_children_done)
 
-    async with asyncio.TaskGroup() as tg:
-        for track in album_info.data[0].relationships.tracks.data:
-            song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
-            tg.create_task(rip_song(song, codec, flags, done_handler))
+    for track in album_info.data[0].relationships.tracks.data:
+        song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
+        safely_create_task(rip_song(song, codec, flags, done_handler))
 
 
 async def rip_artist(url: Album, codec: str, flags: Flags = Flags()):
@@ -185,17 +184,16 @@ async def rip_artist(url: Album, codec: str, flags: Flags = Flags()):
     async def on_children_done():
         logger.done()
 
-    async with asyncio.TaskGroup() as tg:
-        if flags.include_participate_in_works:
-            songs = await it(WebAPI).get_songs_from_artist(url.id, url.storefront, it(Config).region.language)
-            done_handler = ParentDoneHandler(len(songs), on_children_done)
-            for song_url in songs:
-                tg.create_task(rip_song(Song.parse_url(song_url), codec, flags, done_handler))
-        else:
-            albums = await it(WebAPI).get_albums_from_artist(url.id, url.storefront, it(Config).region.language)
-            done_handler = ParentDoneHandler(len(albums), on_children_done)
-            for album_url in albums:
-                tg.create_task(rip_album(Album.parse_url(album_url), codec, flags, done_handler))
+    if flags.include_participate_in_works:
+        songs = await it(WebAPI).get_songs_from_artist(url.id, url.storefront, it(Config).region.language)
+        done_handler = ParentDoneHandler(len(songs), on_children_done)
+        for song_url in songs:
+            safely_create_task(rip_song(Song.parse_url(song_url), codec, flags, done_handler))
+    else:
+        albums = await it(WebAPI).get_albums_from_artist(url.id, url.storefront, it(Config).region.language)
+        done_handler = ParentDoneHandler(len(albums), on_children_done)
+        for album_url in albums:
+            safely_create_task(rip_album(Album.parse_url(album_url), codec, flags, done_handler))
 
 
 async def rip_playlist(url: Playlist, codec: str, flags: Flags = Flags()):
@@ -211,8 +209,6 @@ async def rip_playlist(url: Playlist, codec: str, flags: Flags = Flags()):
 
     done_handler = ParentDoneHandler(len(playlist_info.data[0].relationships.tracks.data), on_children_done)
 
-    async with asyncio.TaskGroup() as tg:
-        for track in playlist_info.data[0].relationships.tracks.data:
-            song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
-            tg.create_task(
-                rip_song(song, codec, flags, done_handler, playlist=playlist_info))
+    for track in playlist_info.data[0].relationships.tracks.data:
+        song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
+        safely_create_task(rip_song(song, codec, flags, done_handler, playlist=playlist_info))

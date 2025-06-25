@@ -273,3 +273,7 @@ def count_total_track_and_disc(tracks: Tracks):
         if track_count.get(track.attributes.discNumber, 0) < track.attributes.trackNumber:
             track_count[track.attributes.discNumber] = track.attributes.trackNumber
     return disc_count, track_count
+
+
+def get_tasks_num():
+    return len(background_tasks)
