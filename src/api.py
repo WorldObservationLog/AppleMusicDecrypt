@@ -1,5 +1,4 @@
 import asyncio
-import logging
 from io import BytesIO
 from ssl import SSLError
 from typing import Type
@@ -218,14 +217,14 @@ class WebAPI:
     async def exist_on_storefront_by_song_id(self, song_id: str, storefront: str, check_storefront: str):
         if storefront.upper() == check_storefront.upper():
             return True
-        song = await self.song_exist(song_id, check_storefront)
-        return bool(song)
+        exist = await self.song_exist(song_id, check_storefront)
+        return exist
 
     async def exist_on_storefront_by_album_id(self, album_id: str, storefront: str, check_storefront: str):
         if storefront.upper() == check_storefront.upper():
             return True
-        album = await self.album_exist(album_id, check_storefront)
-        return bool(album)
+        exist = await self.album_exist(album_id, check_storefront)
+        return exist
 
 
 class APICreator(AbstractCreator):

@@ -241,6 +241,8 @@ async def check_album_existence(album_id: str, region: str):
     for m_region in (await it(WrapperManager).status()).regions:
         try:
             check = await it(WebAPI).exist_on_storefront_by_album_id(album_id, region, m_region)
+            if check:
+                break
         except ValidationError:
             pass
     return check
