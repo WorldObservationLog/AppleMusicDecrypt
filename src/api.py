@@ -8,12 +8,40 @@ import hishel
 import httpx
 import regex
 from creart import AbstractCreator, CreateTargetInfo, exists_module, it
+from httpx import Request, Response, AsyncHTTPTransport
 from tenacity import retry, retry_if_exception_type, wait_random_exponential, stop_after_attempt, before_sleep_log
 
 from src.config import Config
 from src.logger import GlobalLogger
 from src.measurer import SpeedMeasurer
 from src.models import *
+
+
+class NameSolver:
+    def get(self, name: str) -> str:
+        if name == "aod.itunes.apple.com":
+            return it(Config).download.appleCDNIP
+        return ''
+
+    def resolve(self, request: Request) -> Request:
+        host = request.url.host
+        ip = self.get(host)
+
+        if ip:
+            request.extensions["sni_hostname"] = host
+            request.url = request.url.copy_with(host=ip)
+
+        return request
+
+
+class AsyncCustomHost(AsyncHTTPTransport):
+    def __init__(self, solver: NameSolver, *args, **kwargs) -> None:
+        self.solver = solver
+        super().__init__(*args, **kwargs)
+
+    async def handle_async_request(self, request: Request) -> Response:
+        request = self.solver.resolve(request)
+        return await super().handle_async_request(request)
 
 
 class WebAPI:
@@ -58,7 +86,7 @@ class WebAPI:
     async def download_song(self, url: str) -> bytes:
         async with self.download_lock:
             result = BytesIO()
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(transport=AsyncCustomHost(NameSolver())) as client:
                 async with client.stream('GET', url) as response:
                     total = int(response.headers.get("Content-Length") if response.headers.get("Content-Length")
                                 else response.headers.get("X-Apple-MS-Content-Length"))

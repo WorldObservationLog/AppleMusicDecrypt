@@ -19,7 +19,7 @@ class Download(BaseModel):
     proxy: str
     parallelNum: int
     maxRunningTasks: int
-    getM3u8FromDevice: bool
+    appleCDNIP: str
     codecAlternative: bool
     codecPriority: list[str]
     atmosConventToM4a: bool
