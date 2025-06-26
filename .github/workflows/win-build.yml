@@ -10,24 +10,22 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: 3.11
-          architecture: x64
       - name: Create venv
-        run: python -m venv .venv
+        run: |
+          Invoke-WebRequest -Uri "https://github.com/winpython/winpython/releases/download/16.6.20250620/Winpython64-3.12.10.1dotrc.zip" -OutFile winpy.zip
+          $td="$env:TEMP";Expand-Archive .\winpy.zip $td;if(-not(Test-Path .\.venv)){New-Item -ItemType Directory .\.venv | Out-Null};Copy-Item "$td\WPy64-312101\python\*" .\.venv -Recurse -Force;Remove-Item "$td\WPy64-312101" -Recurse -Force;Remove-Item .\winpy.zip -Recurse -Force
       - name: Install dependencies
         run: |
-          python -m pip install poetry
-          poetry install
+          .\.venv\python.exe -m pip install poetry
+          .\.venv\python.exe -m poetry install
       - name: Prepare environment
         run: |
           cp config.example.toml config.toml
-          echo .\.venv\Scripts\python.exe main.py > start.ps1
-          echo .venv\Scripts\python.exe main.py > start.bat
+          echo ".\.venv\python.exe main.py" > start.ps1
+          echo ".venv\python.exe main.py" > start.bat
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4
         with:
           name: AppleMusicDecrypt-Windows
-          path: AppleMusicDecrypt
+          path: .
+          include-hidden-files: true
