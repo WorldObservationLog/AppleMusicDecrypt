@@ -88,7 +88,7 @@ def extract_song(raw_song: bytes, codec: str) -> SongInfo:
     subprocess.run(f"gpac -i {raw_mp4.absolute()} nhmlw:pckp=true -o {nhml_name}",
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
     xml_name = (Path(tmp_dir.name) / Path(mp4_name).with_suffix('.xml')).absolute()
-    subprocess.run(f"mp4box -diso {raw_mp4.absolute()} -out {xml_name}",
+    subprocess.run(f"MP4Box -diso {raw_mp4.absolute()} -out {xml_name}",
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
     decoder_params = None
 
@@ -193,7 +193,7 @@ def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool
             subprocess.run(f"gpac -i {nhml_name.absolute()} nhmlr -o {song_name.absolute()}",
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
     if not if_raw_atmos(song_info.codec, atmos_convent):
-        subprocess.run(f'mp4box -brand "M4A " -ab "M4A " -ab "mp42" {song_name.absolute()}',
+        subprocess.run(f'MP4Box -brand "M4A " -ab "M4A " -ab "mp42" {song_name.absolute()}',
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
     with open(song_name.absolute(), "rb") as f:
         final_song = f.read()
@@ -208,7 +208,7 @@ def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str
     song_name = Path(tmp_dir.name) / Path(f"{name}.m4a")
     with open(song_name.absolute(), "wb") as f:
         f.write(song)
-    subprocess.run(["mp4box",
+    subprocess.run(["MP4Box",
                     "-time", params.get("CreationTime").strftime("%d/%m/%Y-%H:%M:%S"),
                     "-mtime", params.get("ModificationTime").strftime("%d/%m/%Y-%H:%M:%S"), "-keep-utc",
                     "-name", f"1={metadata.title}", "-itags", "tool=", song_name.absolute()],
