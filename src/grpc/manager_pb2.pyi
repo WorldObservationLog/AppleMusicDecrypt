@@ -46,14 +46,36 @@ class LoginData(_message.Message):
     TWO_STEP_CODE_FIELD_NUMBER: _ClassVar[int]
     username: str
     password: str
-    two_step_code: int
-    def __init__(self, username: _Optional[str] = ..., password: _Optional[str] = ..., two_step_code: _Optional[int] = ...) -> None: ...
+    two_step_code: str
+    def __init__(self, username: _Optional[str] = ..., password: _Optional[str] = ..., two_step_code: _Optional[str] = ...) -> None: ...
 
 class LoginReply(_message.Message):
-    __slots__ = ("header",)
+    __slots__ = ("header", "data")
     HEADER_FIELD_NUMBER: _ClassVar[int]
+    DATA_FIELD_NUMBER: _ClassVar[int]
     header: ReplyHeader
-    def __init__(self, header: _Optional[_Union[ReplyHeader, _Mapping]] = ...) -> None: ...
+    data: LoginData
+    def __init__(self, header: _Optional[_Union[ReplyHeader, _Mapping]] = ..., data: _Optional[_Union[LoginData, _Mapping]] = ...) -> None: ...
+
+class LogoutRequest(_message.Message):
+    __slots__ = ("data",)
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    data: LogoutData
+    def __init__(self, data: _Optional[_Union[LogoutData, _Mapping]] = ...) -> None: ...
+
+class LogoutData(_message.Message):
+    __slots__ = ("username",)
+    USERNAME_FIELD_NUMBER: _ClassVar[int]
+    username: str
+    def __init__(self, username: _Optional[str] = ...) -> None: ...
+
+class LogoutReply(_message.Message):
+    __slots__ = ("header", "data")
+    HEADER_FIELD_NUMBER: _ClassVar[int]
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    header: ReplyHeader
+    data: LogoutData
+    def __init__(self, header: _Optional[_Union[ReplyHeader, _Mapping]] = ..., data: _Optional[_Union[LogoutData, _Mapping]] = ...) -> None: ...
 
 class DecryptRequest(_message.Message):
     __slots__ = ("data",)
@@ -140,6 +162,68 @@ class LyricsDataResponse(_message.Message):
     adam_id: str
     lyrics: str
     def __init__(self, adam_id: _Optional[str] = ..., lyrics: _Optional[str] = ...) -> None: ...
+
+class LicenseRequest(_message.Message):
+    __slots__ = ("data",)
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    data: LicenseDataRequest
+    def __init__(self, data: _Optional[_Union[LicenseDataRequest, _Mapping]] = ...) -> None: ...
+
+class LicenseDataRequest(_message.Message):
+    __slots__ = ("adam_id", "challenge", "uri")
+    ADAM_ID_FIELD_NUMBER: _ClassVar[int]
+    CHALLENGE_FIELD_NUMBER: _ClassVar[int]
+    URI_FIELD_NUMBER: _ClassVar[int]
+    adam_id: str
+    challenge: str
+    uri: str
+    def __init__(self, adam_id: _Optional[str] = ..., challenge: _Optional[str] = ..., uri: _Optional[str] = ...) -> None: ...
+
+class LicenseReply(_message.Message):
+    __slots__ = ("header", "data")
+    HEADER_FIELD_NUMBER: _ClassVar[int]
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    header: ReplyHeader
+    data: LicenseDataResponse
+    def __init__(self, header: _Optional[_Union[ReplyHeader, _Mapping]] = ..., data: _Optional[_Union[LicenseDataResponse, _Mapping]] = ...) -> None: ...
+
+class LicenseDataResponse(_message.Message):
+    __slots__ = ("adam_id", "license", "renew")
+    ADAM_ID_FIELD_NUMBER: _ClassVar[int]
+    LICENSE_FIELD_NUMBER: _ClassVar[int]
+    RENEW_FIELD_NUMBER: _ClassVar[int]
+    adam_id: str
+    license: str
+    renew: int
+    def __init__(self, adam_id: _Optional[str] = ..., license: _Optional[str] = ..., renew: _Optional[int] = ...) -> None: ...
+
+class WebPlaybackRequest(_message.Message):
+    __slots__ = ("data",)
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    data: WebPlaybackDataRequest
+    def __init__(self, data: _Optional[_Union[WebPlaybackDataRequest, _Mapping]] = ...) -> None: ...
+
+class WebPlaybackDataRequest(_message.Message):
+    __slots__ = ("adam_id",)
+    ADAM_ID_FIELD_NUMBER: _ClassVar[int]
+    adam_id: str
+    def __init__(self, adam_id: _Optional[str] = ...) -> None: ...
+
+class WebPlaybackReply(_message.Message):
+    __slots__ = ("header", "data")
+    HEADER_FIELD_NUMBER: _ClassVar[int]
+    DATA_FIELD_NUMBER: _ClassVar[int]
+    header: ReplyHeader
+    data: WebPlaybackDataResponse
+    def __init__(self, header: _Optional[_Union[ReplyHeader, _Mapping]] = ..., data: _Optional[_Union[WebPlaybackDataResponse, _Mapping]] = ...) -> None: ...
+
+class WebPlaybackDataResponse(_message.Message):
+    __slots__ = ("adam_id", "m3u8")
+    ADAM_ID_FIELD_NUMBER: _ClassVar[int]
+    M3U8_FIELD_NUMBER: _ClassVar[int]
+    adam_id: str
+    m3u8: str
+    def __init__(self, adam_id: _Optional[str] = ..., m3u8: _Optional[str] = ...) -> None: ...
 
 class ErrorReply(_message.Message):
     __slots__ = ("header",)

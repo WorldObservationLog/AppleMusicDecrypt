@@ -6,7 +6,7 @@ import warnings
 from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 from src.grpc import manager_pb2 as manager__pb2
 
-GRPC_GENERATED_VERSION = '1.72.1'
+GRPC_GENERATED_VERSION = '1.73.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -45,6 +45,11 @@ class WrapperManagerServiceStub(object):
                 request_serializer=manager__pb2.LoginRequest.SerializeToString,
                 response_deserializer=manager__pb2.LoginReply.FromString,
                 _registered_method=True)
+        self.Logout = channel.unary_unary(
+                '/manager.v1.WrapperManagerService/Logout',
+                request_serializer=manager__pb2.LogoutRequest.SerializeToString,
+                response_deserializer=manager__pb2.LogoutReply.FromString,
+                _registered_method=True)
         self.Decrypt = channel.stream_stream(
                 '/manager.v1.WrapperManagerService/Decrypt',
                 request_serializer=manager__pb2.DecryptRequest.SerializeToString,
@@ -60,6 +65,16 @@ class WrapperManagerServiceStub(object):
                 request_serializer=manager__pb2.LyricsRequest.SerializeToString,
                 response_deserializer=manager__pb2.LyricsReply.FromString,
                 _registered_method=True)
+        self.License = channel.unary_unary(
+                '/manager.v1.WrapperManagerService/License',
+                request_serializer=manager__pb2.LicenseRequest.SerializeToString,
+                response_deserializer=manager__pb2.LicenseReply.FromString,
+                _registered_method=True)
+        self.WebPlayback = channel.unary_unary(
+                '/manager.v1.WrapperManagerService/WebPlayback',
+                request_serializer=manager__pb2.WebPlaybackRequest.SerializeToString,
+                response_deserializer=manager__pb2.WebPlaybackReply.FromString,
+                _registered_method=True)
 
 
 class WrapperManagerServiceServicer(object):
@@ -72,6 +87,12 @@ class WrapperManagerServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
     def Login(self, request_iterator, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def Logout(self, request, context):
         """Missing associated documentation comment in .proto file."""
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -95,6 +116,18 @@ class WrapperManagerServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def License(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def WebPlayback(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_WrapperManagerServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -107,6 +140,11 @@ def add_WrapperManagerServiceServicer_to_server(servicer, server):
                     servicer.Login,
                     request_deserializer=manager__pb2.LoginRequest.FromString,
                     response_serializer=manager__pb2.LoginReply.SerializeToString,
+            ),
+            'Logout': grpc.unary_unary_rpc_method_handler(
+                    servicer.Logout,
+                    request_deserializer=manager__pb2.LogoutRequest.FromString,
+                    response_serializer=manager__pb2.LogoutReply.SerializeToString,
             ),
             'Decrypt': grpc.stream_stream_rpc_method_handler(
                     servicer.Decrypt,
@@ -122,6 +160,16 @@ def add_WrapperManagerServiceServicer_to_server(servicer, server):
                     servicer.Lyrics,
                     request_deserializer=manager__pb2.LyricsRequest.FromString,
                     response_serializer=manager__pb2.LyricsReply.SerializeToString,
+            ),
+            'License': grpc.unary_unary_rpc_method_handler(
+                    servicer.License,
+                    request_deserializer=manager__pb2.LicenseRequest.FromString,
+                    response_serializer=manager__pb2.LicenseReply.SerializeToString,
+            ),
+            'WebPlayback': grpc.unary_unary_rpc_method_handler(
+                    servicer.WebPlayback,
+                    request_deserializer=manager__pb2.WebPlaybackRequest.FromString,
+                    response_serializer=manager__pb2.WebPlaybackReply.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -178,6 +226,33 @@ class WrapperManagerService(object):
             '/manager.v1.WrapperManagerService/Login',
             manager__pb2.LoginRequest.SerializeToString,
             manager__pb2.LoginReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def Logout(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/manager.v1.WrapperManagerService/Logout',
+            manager__pb2.LogoutRequest.SerializeToString,
+            manager__pb2.LogoutReply.FromString,
             options,
             channel_credentials,
             insecure,
@@ -259,6 +334,60 @@ class WrapperManagerService(object):
             '/manager.v1.WrapperManagerService/Lyrics',
             manager__pb2.LyricsRequest.SerializeToString,
             manager__pb2.LyricsReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def License(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/manager.v1.WrapperManagerService/License',
+            manager__pb2.LicenseRequest.SerializeToString,
+            manager__pb2.LicenseReply.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def WebPlayback(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/manager.v1.WrapperManagerService/WebPlayback',
+            manager__pb2.WebPlaybackRequest.SerializeToString,
+            manager__pb2.WebPlaybackReply.FromString,
             options,
             channel_credentials,
             insecure,

@@ -33,7 +33,8 @@ class WrapperManager:
 
     async def init(self, url: str, secure: bool):
         if secure:
-            self._channel = secure_channel(url, credentials=ssl_channel_credentials(),options=((ChannelOptions.SingleThreadedUnaryStream, 1),))
+            self._channel = secure_channel(url, credentials=ssl_channel_credentials(),
+                                           options=((ChannelOptions.SingleThreadedUnaryStream, 1),))
         else:
             self._channel = insecure_channel(url, options=((ChannelOptions.SingleThreadedUnaryStream, 1),))
         self._stub = WrapperManagerServiceStub(self._channel)
@@ -96,11 +97,14 @@ class WrapperManager:
             reply: DecryptReply
             match reply.header.code:
                 case -1:
-                    safely_create_task(on_failure(reply.data.adam_id, reply.data.key, reply.data.sample, reply.data.sample_index))
+                    safely_create_task(
+                        on_failure(reply.data.adam_id, reply.data.key, reply.data.sample, reply.data.sample_index))
                 case 0:
-                    safely_create_task(on_success(reply.data.adam_id, reply.data.key, reply.data.sample, reply.data.sample_index))
+                    safely_create_task(
+                        on_success(reply.data.adam_id, reply.data.key, reply.data.sample, reply.data.sample_index))
 
-    @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (retry_if_not_exception_message('no available instance'))),
+    @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
+            retry_if_not_exception_message('no available instance'))),
            wait=wait_random_exponential(multiplier=1, max=60),
            stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def m3u8(self, adam_id: str) -> str:
@@ -109,7 +113,8 @@ class WrapperManager:
             raise WrapperManagerException(resp.header.msg)
         return resp.data.m3u8
 
-    @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (retry_if_not_exception_message('no available instance'))),
+    @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
+            retry_if_not_exception_message('no available instance'))),
            wait=wait_random_exponential(multiplier=1, max=60),
            stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def lyrics(self, adam_id: str, language: str, region: str) -> str:
@@ -118,6 +123,30 @@ class WrapperManager:
         if resp.header.code != 0:
             raise WrapperManagerException(resp.header.msg)
         return resp.data.lyrics
+
+    @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
+            retry_if_not_exception_message('no available instance'))),
+           wait=wait_random_exponential(multiplier=1, max=60),
+           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+    async def webPlayback(self, adam_id: str) -> str:
+        resp: WebPlaybackReply = await self._stub.WebPlayback(WebPlaybackRequest(
+            data=WebPlaybackDataRequest(adam_id=adam_id)
+        ))
+        if resp.header.code != 0:
+            raise WrapperManagerException(resp.header.msg)
+        return resp.data.m3u8
+
+    @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
+            retry_if_not_exception_message('no available instance'))),
+           wait=wait_random_exponential(multiplier=1, max=60),
+           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+    async def license(self, adam_id: str, challenge: str, kid: str) -> str:
+        resp: LicenseReply = await self._stub.License(LicenseRequest(
+            data=LicenseDataRequest(adam_id=adam_id, challenge=challenge, uri=f"data:text/plain;base64,{kid}")
+        ))
+        if resp.header.code != 0:
+            raise WrapperManagerException(resp.header.msg)
+        return resp.data.license
 
 
 class WMCreator(AbstractCreator):
