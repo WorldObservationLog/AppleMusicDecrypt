@@ -114,6 +114,16 @@ class WrapperManager:
         return resp.data.m3u8
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
+            retry_if_not_exception_message('no such account'))),
+           wait=wait_random_exponential(multiplier=1, max=60),
+           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+    async def logout(self, username: str):
+        resp: LogoutReply = await self._stub.Logout(LogoutRequest(data=LogoutData(username=username)))
+        if resp.header.code != 0:
+            raise WrapperManagerException(resp.header.msg)
+        return
+
+    @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
             retry_if_not_exception_message('no available instance'))),
            wait=wait_random_exponential(multiplier=1, max=60),
            stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
