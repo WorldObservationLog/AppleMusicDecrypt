@@ -13,7 +13,7 @@ Enter the Debian environment(`pd login debian`)
 ```shell
 apt update && apt install python3 python3-poetry
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt && cd AppleMusicDecrypt
-./tools/install-deps.sh
+bash ./tools/install-deps.sh
 poetry install
 cp config.example.toml config.toml
 nano config.toml
