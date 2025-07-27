@@ -62,8 +62,7 @@ For Android users: [android-deploy.md](/android-deploy.md)
 ```shell
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt.git
 cd AppleMusicDecrypt
-chmod +x tools/install-deps.sh
-./tools/install-deps.sh
+bash ./tools/install-deps.sh
 poetry install
 cp config.example.toml config.toml
 poetry run python main.py
