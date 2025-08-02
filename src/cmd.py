@@ -100,4 +100,4 @@ class InteractiveShell:
             try:
                 await self.handle_command()
             finally:
-                it(GlobalLogger).logger.info("Existing shell")
+                it(GlobalLogger).logger.info("Exit.")
