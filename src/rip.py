@@ -125,8 +125,7 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
     if codec == Codec.ALAC and raw_metadata.attributes.extendedAssetUrls.enhancedHls:
         m3u8_url = await it(WrapperManager).m3u8(task.adamId)
     else:
-        if Codec == Codec.AAC_LEGACY:
-            task.logger.lossless_audio_not_exist_aac()
+        if codec == Codec.AAC_LEGACY:
             safely_create_task(rip_song_legacy(task))
             return
         else:
