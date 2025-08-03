@@ -74,8 +74,8 @@ class RipLogger:
     def already_exist(self):
         self.logger.info(f"Song already exists")
 
-    def failed_lyrics(self):
-        self.logger.warning("Failed to get lyrics")
+    def lyrics_not_exist(self):
+        self.logger.warning("Lyrics do not exist")
 
     def audio_not_exist(self):
         self.logger.error("Failed to download song. Audio does not exist")

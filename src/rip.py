@@ -7,7 +7,7 @@ from creart import it
 from src.api import WebAPI
 from src.config import Config
 from src.flags import Flags
-from src.grpc.manager import WrapperManager
+from src.grpc.manager import WrapperManager, WrapperManagerException
 from src.logger import RipLogger
 from src.measurer import SpeedMeasurer
 from src.metadata import SongMetadata
@@ -106,8 +106,12 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
 
     await task.metadata.get_cover(it(Config).download.coverFormat, it(Config).download.coverSize)
     if raw_metadata.attributes.hasTimeSyncedLyrics:
-        task.metadata.lyrics = await it(WrapperManager).lyrics(task.adamId, it(Config).region.language,
-                                                               url.storefront)
+        try:
+            task.metadata.lyrics = await it(WrapperManager).lyrics(task.adamId, it(Config).region.language,
+                                                                   url.storefront)
+        except WrapperManagerException as e:
+            if e.msg == "no available lyrics":
+                task.logger.lyrics_not_exist()
     if playlist:
         task.metadata.set_playlist_index(playlist.songIdIndexMapping.get(url.id))
 
