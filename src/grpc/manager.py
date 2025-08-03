@@ -124,7 +124,7 @@ class WrapperManager:
         return
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
-            retry_if_not_exception_message('no available instance'))),
+            retry_if_not_exception_message('no available instance')) & (retry_if_not_exception_message('no available lyrics'))),
            wait=wait_random_exponential(multiplier=1, max=60),
            stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def lyrics(self, adam_id: str, language: str, region: str) -> str:
