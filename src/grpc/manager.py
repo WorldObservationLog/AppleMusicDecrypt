@@ -47,7 +47,7 @@ class WrapperManager:
             raise WrapperManagerException(resp.header.msg)
         return resp.data
 
-    async def login(self, username: str, password: str, on_2fa: Callable[[str, str], Awaitable[int]]):
+    async def login(self, username: str, password: str, on_2fa: Callable[[str, str], Awaitable[str]]):
         await self._login_lock.acquire()
 
         login_queue = asyncio.Queue()
@@ -152,7 +152,7 @@ class WrapperManager:
            stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def license(self, adam_id: str, challenge: str, kid: str) -> str:
         resp: LicenseReply = await self._stub.License(LicenseRequest(
-            data=LicenseDataRequest(adam_id=adam_id, challenge=challenge, uri=f"data:text/plain;base64,{kid}")
+            data=LicenseDataRequest(adam_id=adam_id, challenge=challenge, uri=kid)
         ))
         if resp.header.code != 0:
             raise WrapperManagerException(resp.header.msg)
