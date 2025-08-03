@@ -212,7 +212,7 @@ def convent_mac_timestamp_to_datetime(timestamp: int):
 
 
 def check_dep():
-    for dep in ["ffmpeg", "gpac", "MP4Box", "mp4edit", "mp4extract"]:
+    for dep in ["ffmpeg", "gpac", "MP4Box", "mp4edit", "mp4extract", "mp4decrypt"]:
         try:
             subprocess.run(dep, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError:
