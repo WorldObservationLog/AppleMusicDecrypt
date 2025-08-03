@@ -20,6 +20,9 @@ from src.types import Codec, ParentDoneHandler
 from src.url import Song, Album, URLType, Playlist
 from src.utils import get_codec_from_codec_id, check_song_existence, check_song_exists, if_raw_atmos, \
     check_album_existence, playlist_write_song_index, run_sync, safely_create_task
+from src.legacy.mp4 import extract_media as legacy_extract_media
+from src.legacy.mp4 import decrypt as legacy_decrypt
+from src.legacy.decrypt import WidevineDecrypt
 
 # START -> getMetadata -> getLyrics -> getM3U8 -> downloadSong -> decrypt -> encapsulate -> save -> END
 
@@ -88,7 +91,8 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
 
     # Set Metadata
     raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, it(Config).region.language)
-    album_data = await it(WebAPI).get_album_info(raw_metadata.relationships.albums.data[0].id, url.storefront, it(Config).region.language)
+    album_data = await it(WebAPI).get_album_info(raw_metadata.relationships.albums.data[0].id, url.storefront,
+                                                 it(Config).region.language)
     task.metadata = SongMetadata.parse_from_song_data(raw_metadata)
     task.metadata.parse_from_album_data(album_data)
 
@@ -121,8 +125,17 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
     if codec == Codec.ALAC and raw_metadata.attributes.extendedAssetUrls.enhancedHls:
         m3u8_url = await it(WrapperManager).m3u8(task.adamId)
     else:
-        m3u8_url = raw_metadata.attributes.extendedAssetUrls.enhancedHls
-    if not m3u8_url and not raw_metadata.attributes.extendedAssetUrls.enhancedHls:
+        if Codec == Codec.AAC_LEGACY:
+            task.logger.lossless_audio_not_exist_aac()
+            safely_create_task(rip_song_legacy(task))
+            return
+        else:
+            m3u8_url = raw_metadata.attributes.extendedAssetUrls.enhancedHls
+    if not m3u8_url and it(Config).download.codecAlternative and Codec.AAC_LEGACY in it(Config).download.codecPriority:
+        task.logger.lossless_audio_not_exist_aac()
+        safely_create_task(rip_song_legacy(task))
+        return
+    elif not m3u8_url:
         task.logger.lossless_audio_not_exist()
         await task_done(task, Status.FAILED)
         return
@@ -150,6 +163,39 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
     task.init_decrypted_samples()
     for sampleIndex, sample in enumerate(task.info.samples):
         await it(WrapperManager).decrypt(task.adamId, task.m3u8Info.keys[sample.descIndex], sample.data, sampleIndex)
+
+
+async def rip_song_legacy(task: Task):
+    task.m3u8Info = await legacy_extract_media(await it(WrapperManager).webPlayback(task.adamId))
+
+    task.logger.downloading()
+    task.update_status(Status.DOWNLOADING)
+    raw_song = await it(WebAPI).download_song(task.m3u8Info.uri)
+    task.info = await run_sync(extract_song, raw_song, Codec.AAC_LEGACY)
+
+    task.logger.decrypting()
+    task.update_status(Status.DECRYPTING)
+    wvDecrypt = WidevineDecrypt()
+    challenge = wvDecrypt.generate_challenge(task.m3u8Info.keys[0].split(",")[1])
+    wvLicense = await it(WrapperManager).license(adam_id=task.adamId, challenge=challenge,
+                                                 kid=task.m3u8Info.keys[0])
+    keys = wvDecrypt.generate_key(wvLicense)
+    song = await run_sync(legacy_decrypt, raw_song, keys[1].kid.hex, keys[1].key.hex())
+
+    song = await run_sync(write_metadata, song, task.metadata, it(Config).metadata.embedMetadata,
+                          it(Config).download.coverFormat, task.info.params)
+
+    if not await run_sync(check_song_integrity, song):
+        task.logger.failed_integrity()
+
+    filename = await run_sync(save, song, Codec.AAC_LEGACY, task.metadata, task.playlist)
+    task.logger.saved()
+
+    await task_done(task, Status.DONE)
+
+    if it(Config).download.afterDownloaded:
+        command = it(Config).download.afterDownloaded.format(filename=filename)
+        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
 async def rip_album(url: Album, codec: str, flags: Flags = Flags(), parent_done: ParentDoneHandler = None):

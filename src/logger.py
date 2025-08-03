@@ -83,6 +83,9 @@ class RipLogger:
     def lossless_audio_not_exist(self):
         self.logger.error("Failed to download song. Lossless audio does not exist")
 
+    def lossless_audio_not_exist_aac(self):
+        self.logger.warning("Lossless audio does not exist. Using aac-legacy to rip")
+
     def downloading(self):
         self.logger.info("Downloading song...")
 

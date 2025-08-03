@@ -39,8 +39,8 @@ class M3U8Info(BaseModel):
     uri: str
     keys: list[str]
     codec_id: str
-    bit_depth: Optional[int]
-    sample_rate: Optional[int]
+    bit_depth: Optional[int] = None
+    sample_rate: Optional[int] = None
 
 
 class Codec:
@@ -50,6 +50,7 @@ class Codec:
     AAC_BINAURAL = "aac-binaural"
     AAC_DOWNMIX = "aac-downmix"
     AAC = "aac"
+    AAC_LEGACY = "aac-legacy"
 
 
 class CodecKeySuffix:
@@ -73,5 +74,6 @@ class CodecRegex:
     def get_pattern_by_codec(cls, codec: str):
         codec_pattern_mapping = {Codec.ALAC: cls.RegexCodecAlac, Codec.EC3: cls.RegexCodecAtmos,
                                  Codec.AAC_DOWNMIX: cls.RegexCodecDownmix, Codec.AAC_BINAURAL: cls.RegexCodecBinaural,
-                                 Codec.AAC: cls.RegexCodecAAC, Codec.AC3: cls.RegexCodecAC3}
+                                 Codec.AAC: cls.RegexCodecAAC, Codec.AAC_LEGACY: cls.RegexCodecAAC,
+                                 Codec.AC3: cls.RegexCodecAC3}
         return codec_pattern_mapping.get(codec)

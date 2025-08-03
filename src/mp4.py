@@ -108,7 +108,7 @@ def extract_song(raw_song: bytes, codec: str) -> SongInfo:
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, shell=if_shell())
             with open(alac_atom_name, "rb") as f:
                 decoder_params = f.read()
-        case Codec.AAC | Codec.AAC_DOWNMIX | Codec.AAC_BINAURAL:
+        case Codec.AAC | Codec.AAC_DOWNMIX | Codec.AAC_BINAURAL | Codec.AAC_LEGACY:
             info_name = (Path(tmp_dir.name) / Path(mp4_name).with_suffix('.info')).absolute()
             with open(info_name, "rb") as f:
                 decoder_params = f.read()

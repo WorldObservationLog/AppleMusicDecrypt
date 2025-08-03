@@ -38,7 +38,7 @@ class InteractiveShell:
         download_parser = subparser.add_parser("download", aliases=["dl"])
         download_parser.add_argument("url", type=str)
         download_parser.add_argument("-c", "--codec",
-                                     choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "ac3"],
+                                     choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "aac-legacy", "ac3"],
                                      default="alac")
         download_parser.add_argument("-f", "--force", default=False, action="store_true")
         download_parser.add_argument("--include-participate-songs", default=False, dest="include", action="store_true")
