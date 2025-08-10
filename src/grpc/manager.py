@@ -93,8 +93,11 @@ class WrapperManager:
     async def decrypt_init(self, on_success: Callable[[str, str, bytes, int], Awaitable[None]],
                            on_failure: Callable[[str, str, bytes, int], Awaitable[None]]):
         stream = self._stub.Decrypt(self._decrypt_request_generator())
+        safely_create_task(self._decrypt_keepalive())
         async for reply in stream:
             reply: DecryptReply
+            if reply.data.adam_id == "KEEPALIVE":
+                continue
             match reply.header.code:
                 case -1:
                     safely_create_task(
@@ -102,6 +105,11 @@ class WrapperManager:
                 case 0:
                     safely_create_task(
                         on_success(reply.data.adam_id, reply.data.key, reply.data.sample, reply.data.sample_index))
+
+    async def _decrypt_keepalive(self):
+        while True:
+            await self._decrypt_queue.put(DecryptRequest(data=DecryptData(adam_id="KEEPALIVE")))
+            await asyncio.sleep(15)
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
             retry_if_not_exception_message('no available instance'))),
