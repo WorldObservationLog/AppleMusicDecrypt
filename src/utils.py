@@ -1,7 +1,6 @@
 import asyncio
 import concurrent.futures
 import subprocess
-import sys
 import time
 from asyncio import AbstractEventLoop
 from copy import deepcopy
@@ -194,9 +193,9 @@ def get_song_name_and_dir_path(codec: str, metadata, playlist: PlaylistInfo = No
                                                               audio_info=get_audio_info_str(metadata, codec),
                                                               **safe_meta)
         dir_path = Path(it(Config).download.dirPathFormat.format(codec=codec, **safe_meta))
-    if sys.platform == "win32":
-        song_name = get_valid_filename(song_name)
-        dir_path = Path(*[get_valid_dir_name(part) if ":\\" not in part else part for part in dir_path.parts])
+
+    song_name = get_valid_filename(song_name)
+    dir_path = Path(*[get_valid_dir_name(part) if ":\\" not in part else part for part in dir_path.parts])
     return song_name, dir_path
 
 
