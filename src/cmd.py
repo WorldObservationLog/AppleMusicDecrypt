@@ -32,6 +32,7 @@ class InteractiveShell:
         loop.run_until_complete(run_sync(it(WebAPI).init))
         loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
         safely_create_task(it(WrapperManager).decrypt_init(on_success=on_decrypt_success, on_failure=on_decrypt_failed))
+        loop.run_until_complete(self.show_status())
 
         self.parser = argparse.ArgumentParser(exit_on_error=False)
         subparser = self.parser.add_subparsers()
@@ -43,7 +44,12 @@ class InteractiveShell:
         download_parser.add_argument("-f", "--force", default=False, action="store_true")
         download_parser.add_argument("--include-participate-songs", default=False, dest="include", action="store_true")
 
+        subparser.add_parser("status")
         subparser.add_parser("exit")
+
+    async def show_status(self):
+        st_resp = await it(WrapperManager).status()
+        print(f"Regions available on wm instace: {st_resp.regions}")
 
     async def command_parser(self, cmd: str):
         if not cmd.strip():
@@ -57,6 +63,8 @@ class InteractiveShell:
         match cmds[0]:
             case "download" | "dl":
                 await self.do_download(args.url, args.codec, args.force, args.include)
+            case "status":
+                await self.show_status()
             case "exit":
                 self.loop.stop()
                 sys.exit()
