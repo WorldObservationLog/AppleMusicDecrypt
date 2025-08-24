@@ -1,4 +1,4 @@
-FROM python:3-slim
+FROM python:3-alpine
 
 WORKDIR /app
 
@@ -6,9 +6,7 @@ COPY . /app
 
 # Install Poetry
 RUN set -eux; \
-    apt-get update; \
-    apt-get install -y bash curl; \
-    apt-get clean; \
+    apk add --no-cache curl; \
     \
     curl -sSL https://install.python-poetry.org | python3 -
 
@@ -16,14 +14,13 @@ ENV PATH="/root/.local/bin:$PATH"
 
 # Build GPAC and Bento4
 RUN set -eux; \
-    apt-get update; \
-    apt-get install -y build-essential pkg-config git cmake zlib1g-dev; \
+    apk add --no-cache git g++ make cmake zlib-dev coreutils; \
     \
     # Build and install GPAC
     \
     git clone --depth=1 https://github.com/gpac/gpac.git ./build/gpac || exit 1; \
     cd ./build/gpac; \
-    ./configure --static-bin; \
+    ./configure; \
     make -j$(nproc); \
     make install; \
     MP4BOX_PATH=$(command -v MP4Box); \
@@ -43,17 +40,13 @@ RUN set -eux; \
     # Clean up
     \
     rm -rf ./build; \
-    apt-get autoremove --purge -y build-essential pkg-config git cmake zlib1g-dev; \
-    apt-get clean
+    apk del git g++ make cmake zlib-dev coreutils;
 
 # Install Python dependencies
 RUN set -eux; \
-    apt-get update; \
-    apt-get install -y build-essential ffmpeg; \
+    apk add --no-cache ffmpeg; \
     \
-    poetry install; \
-    \
-    apt-get autoremove --purge -y build-essential; \
-    apt-get clean
+    export PATH="/root/.local/bin:$PATH"; \
+    poetry install;
 
 CMD ["poetry", "run", "python", "main.py"]
