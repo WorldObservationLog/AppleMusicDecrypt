@@ -29,8 +29,8 @@ secure = true
 [download]
 parallelNum = 2 # The recommended value is half of maxRunningTasks
 maxRunningTasks = 4 # This value depends on the memory size of the device and is not recommended to be higher than 8
-dirPathFormat = "/scdard/Music/{album_artist}/{album}"
-playlistDirPathFormat = "/scdard/Music/playlists/{playlistName}"
+dirPathFormat = "/sdcard/Music/{album_artist}/{album}"
+playlistDirPathFormat = "/sdcard/Music/playlists/{playlistName}"
 ```
 ## Step 4: Run AppleMusicDecrypt
 `poetry run python main.py`
