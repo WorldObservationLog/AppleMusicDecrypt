@@ -49,7 +49,7 @@ class InteractiveShell:
 
     async def show_status(self):
         st_resp = await it(WrapperManager).status()
-        print(f"Regions available on wm instace: {st_resp.regions}")
+        it(GlobalLogger).logger.info(f"Regions available on wrapper-manager instance: {', '.join(st_resp.regions)}")
 
     async def command_parser(self, cmd: str):
         if not cmd.strip():
