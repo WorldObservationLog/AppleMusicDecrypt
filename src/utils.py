@@ -195,7 +195,12 @@ def get_song_name_and_dir_path(codec: str, metadata, playlist: PlaylistInfo = No
         dir_path = Path(it(Config).download.dirPathFormat.format(codec=codec, **safe_meta))
 
     song_name = get_valid_filename(song_name)
-    dir_path = Path(*[get_valid_dir_name(part) if ":\\" not in part else part for part in dir_path.parts])
+    is_abs = dir_path.is_absolute()
+    sanitized_parts = [
+        part if i == 0 and is_abs else get_valid_dir_name(part)
+        for i, part in enumerate(dir_path.parts)
+    ]
+    dir_path = Path(*sanitized_parts)
     return song_name, dir_path
 
 
