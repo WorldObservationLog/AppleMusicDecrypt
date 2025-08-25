@@ -1,5 +1,5 @@
 import asyncio
-import logging
+import json
 from typing import Awaitable, Callable, Type
 
 from async_lru import alru_cache
@@ -32,11 +32,27 @@ class WrapperManager:
         self._decrypt_queue = asyncio.Queue()
 
     async def init(self, url: str, secure: bool):
+        service_config_json = json.dumps(
+            {
+                "methodConfig": [
+                    {
+                        "name": [{}],
+                        "retryPolicy": {
+                            "maxAttempts": 5,
+                            "initialBackoff": "0.1s",
+                            "maxBackoff": "1s",
+                            "backoffMultiplier": 2,
+                            "retryableStatusCodes": ["UNAVAILABLE", "INTERNAL"],
+                        },
+                    }
+                ]
+            }
+        )
+        options = ((ChannelOptions.SingleThreadedUnaryStream, 1), ("grpc.service_config", service_config_json))
         if secure:
-            self._channel = secure_channel(url, credentials=ssl_channel_credentials(),
-                                           options=((ChannelOptions.SingleThreadedUnaryStream, 1),))
+            self._channel = secure_channel(url, credentials=ssl_channel_credentials(), options=options)
         else:
-            self._channel = insecure_channel(url, options=((ChannelOptions.SingleThreadedUnaryStream, 1),))
+            self._channel = insecure_channel(url, options=options)
         self._stub = WrapperManagerServiceStub(self._channel)
         return self
 
@@ -132,7 +148,7 @@ class WrapperManager:
         return
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
-            retry_if_not_exception_message('no available instance')) & (retry_if_not_exception_message('no available lyrics'))),
+            retry_if_not_exception_message('no available instance'))),
            wait=wait_random_exponential(multiplier=1, max=60),
            stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def lyrics(self, adam_id: str, language: str, region: str) -> str:
