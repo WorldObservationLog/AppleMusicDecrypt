@@ -33,6 +33,7 @@ dl https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 - `aac (audio-stereo)`
 - `aac-binaural (audio-stereo-binaural)`
 - `aac-downmix (audio-stereo-downmix)`
+- `aac-legacy (audio-stereo, non-lossless audio)`
 
 # Support Link
 
