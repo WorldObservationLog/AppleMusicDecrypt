@@ -19,10 +19,14 @@ parallelNum = 1
 # Number of max running tasks
 maxRunningTasks = 128
 # Specify the IP address to use when downloading to speed up downloading
+# Taiwan: 17.253.117.201-17.253.117.203
+# Hongkong: 17.253.85.201-17.253.85.206, 17.253.87.195, 17.253.87.196, 17.253.87.201, 17.253.87.203
+# Japan: 17.253.69.200, 17.253.69.202, 17.253.75.201, 17.253.75.202
 appleCDNIP = ""
-# After enabling this feature, if the specified codec does not exist, the script will look for other codec to download
+# After enabling this feature, if the specified codec does not exist, the script will look for another codec to download
 codecAlternative = true
-# Priority for script to look for alternative codec
+# Priority to look for alternative codec
+# To download AAC lossy audio when lossless audio is not available, add “aac-legacy” to this configuration.
 codecPriority = ["alac", "ec3", "ac3", "aac"]
 # Encapsulate Atmos(ec-3/ac-3) as M4A and write the song metadata
 atmosConventToM4a = true
