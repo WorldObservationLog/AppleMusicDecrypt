@@ -9,37 +9,39 @@ CONFIG_VERSION = "0.0.1"
 
 
 class Instance(BaseModel):
-    url: str
-    secure: bool
+    url: str = "127.0.0.1:8080"
+    secure: bool = False
 
 
 class Region(BaseModel):
-    language: str
-    languageNotExistWarning: bool
+    language: str = "zh-Hant-HK"
+    languageNotExistWarning: bool = True
 
 
 class Download(BaseModel):
-    proxy: str
-    parallelNum: int
-    maxRunningTasks: int
-    appleCDNIP: str
-    codecAlternative: bool
-    codecPriority: list[str]
-    atmosConventToM4a: bool
-    audioInfoFormat: str
-    songNameFormat: str
-    dirPathFormat: str
-    playlistDirPathFormat: str
-    playlistSongNameFormat: str
-    saveLyrics: bool
-    saveCover: bool
-    coverFormat: str
-    coverSize: str
-    afterDownloaded: str
+    proxy: str = ""
+    parallelNum: int = 1
+    maxRunningTasks: int = 128
+    appleCDNIP: str = ""
+    codecAlternative: bool = True
+    codecPriority: list[str] = ["alac", "ec3", "ac3", "aac"]
+    atmosConventToM4a: bool = True
+    audioInfoFormat: str = ""
+    songNameFormat: str = "{disk}-{tracknum:02d} {title}"
+    dirPathFormat: str = "downloads/{album_artist}/{album}"
+    playlistDirPathFormat: str = "downloads/playlists/{playlistName}"
+    playlistSongNameFormat: str = "{playlistSongIndex:02d}. {artist} - {title}"
+    saveLyrics: bool = True
+    saveCover: bool = True
+    coverFormat: str = "jpg"
+    coverSize: str = "5000x5000"
+    afterDownloaded: str = ""
 
 
 class Metadata(BaseModel):
-    embedMetadata: list[str]
+    embedMetadata: list[str] = ["title", "artist", "album", "album_artist", "composer", "album_created",
+                                "genre", "created", "track", "tracknum", "disk", "lyrics", "cover", "copyright",
+                                "record_company", "upc", "isrc", "rtng"]
 
 
 class Config(BaseModel):
