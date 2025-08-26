@@ -42,6 +42,7 @@ class InteractiveShell:
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "aac-legacy", "ac3"],
                                      default="alac")
         download_parser.add_argument("-f", "--force", default=False, action="store_true")
+        download_parser.add_argument("-l", "--language", default=it(Config).region.language, action="store")
         download_parser.add_argument("--include-participate-songs", default=False, dest="include", action="store_true")
 
         subparser.add_parser("status")
@@ -62,14 +63,14 @@ class InteractiveShell:
             return
         match cmds[0]:
             case "download" | "dl":
-                await self.do_download(args.url, args.codec, args.force, args.include)
+                await self.do_download(args.url, args.codec, args.force, args.language, args.include)
             case "status":
                 await self.show_status()
             case "exit":
                 self.loop.stop()
                 sys.exit()
 
-    async def do_download(self, raw_url: str, codec: str, force_download: bool, include: bool = False):
+    async def do_download(self, raw_url: str, codec: str, force_download: bool, language: str, include: bool = False):
         url = AppleMusicURL.parse_url(raw_url)
         if not url:
             real_url = await it(WebAPI).get_real_url(raw_url)
@@ -79,13 +80,14 @@ class InteractiveShell:
                 return
         match url.type:
             case URLType.Song:
-                safely_create_task(rip_song(url, codec, Flags(force_save=force_download)))
+                safely_create_task(rip_song(url, codec, Flags(force_save=force_download, language=language)))
             case URLType.Album:
-                safely_create_task(rip_album(url, codec, Flags(force_save=force_download)))
+                safely_create_task(rip_album(url, codec, Flags(force_save=force_download, language=language)))
             case URLType.Artist:
-                safely_create_task(rip_artist(url, codec, Flags(force_save=force_download, include_participate_in_works=include)))
+                safely_create_task(rip_artist(url, codec, Flags(force_save=force_download, language=language,
+                                                                include_participate_in_works=include)))
             case URLType.Playlist:
-                safely_create_task(rip_playlist(url, codec, Flags(force_save=force_download)))
+                safely_create_task(rip_playlist(url, codec, Flags(force_save=force_download, language=language)))
             case _:
                 it(GlobalLogger).logger.error("Unsupported URLType")
                 return

@@ -10,9 +10,10 @@ class Instance(BaseModel):
     url: str
     secure: bool
 
+
 class Region(BaseModel):
     language: str
-    defaultStorefront: str
+    languageNotExistWarning: bool
 
 
 class Download(BaseModel):

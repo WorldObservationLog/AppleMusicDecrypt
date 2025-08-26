@@ -3,13 +3,12 @@ url = "127.0.0.1:8080"
 secure = false
 
 [region]
-# Used when the song region cannot be obtained, currently only used for m3u8 command and mitm command
-# Recommend value: Your Apple Music's subscription region
-defaultStorefront = "hk"
 # The language of song metadata. Influence song title, author and other information.
 # Simplified Chinese: zh-Hans-CN, Tradidional Chinese(Hong Kong): zh-Hant-HK, Tradidional Chinese(Taiwan): zh-Hant-TW
 # English(British): en-GB, English(American): en-US, Japanese: ja, Korean: ko
 language = "zh-Hant-HK"
+# Pring warning when selected language does not exist on songs' region
+languageNotExistWarning = true
 
 [download]
 # Send request to Apple Music through proxy. Only support http and https protocol
@@ -30,7 +29,7 @@ codecAlternative = true
 codecPriority = ["alac", "ec3", "ac3", "aac"]
 # Encapsulate Atmos(ec-3/ac-3) as M4A and write the song metadata
 atmosConventToM4a = true
-# Follow the Python Format format (https://docs.python.org/3/library/string.html#formatstrings)
+# Follow the Python Format (https://docs.python.org/3/library/string.html#formatstrings)
 # Write the audio information to the songNameFormat and playlistSongNameFormat
 # Only support alac codec
 # Available values: bit_depth, sample_rate, sample_rate_kHz, codec
@@ -73,10 +72,6 @@ saveLyrics = true
 saveCover = true
 coverFormat = "jpg"
 coverSize = "5000x5000"
-# 192000 96000 48000 44100
-alacMax = 192000
-# 2768 2448
-atmosMax = 2768
 # The command to be executed after the song is ripped successfully, passing in the filename parameter.
 # Example: "\"C:\\Program Files\\DAUM\\PotPlayer\\PotPlayerMini64.exe\" \"{filename}\""
 # Pay attention to escaping issues

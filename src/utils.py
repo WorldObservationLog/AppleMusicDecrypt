@@ -1,5 +1,6 @@
 import asyncio
 import concurrent.futures
+import json
 import subprocess
 import time
 from asyncio import AbstractEventLoop
@@ -260,7 +261,6 @@ def safely_create_task(coro):
     task = it(AbstractEventLoop).create_task(coro)
     background_tasks.add(task)
 
-
     def done_callback(*args):
         background_tasks.remove(task)
         if task.exception():
@@ -283,3 +283,17 @@ def count_total_track_and_disc(tracks: Tracks):
 
 def get_tasks_num():
     return len(background_tasks)
+
+
+def query_language(region: str):
+    with open("assets/storefronts.json", "r") as f:
+        storefronts = json.load(f)
+        for storefront in storefronts["data"]:
+            if storefront["id"].upper() == region.upper():
+                return storefront["attributes"]["defaultLanguageTag"], storefront["attributes"]["supportedLanguageTags"]
+        return None
+
+
+def language_exist(region: str, language: str):
+    _, languages = query_language(region)
+    return language in languages

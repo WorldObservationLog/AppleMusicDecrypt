@@ -71,6 +71,9 @@ class RipLogger:
         self.logger.error(
             f"Unable to download {self.item_type}. This {self.item_type} does not exist in all available storefronts")
 
+    def language_not_exist(self, region: str, current_language: str, default_language: str):
+        self.logger.warning(f"Selected language {current_language} does not exist in region {region.upper()}, falling back to {default_language}")
+
     def already_exist(self):
         self.logger.info(f"Song already exists")
 

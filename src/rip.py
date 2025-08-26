@@ -19,7 +19,7 @@ from src.task import Task, Status
 from src.types import Codec, ParentDoneHandler
 from src.url import Song, Album, URLType, Playlist
 from src.utils import get_codec_from_codec_id, check_song_existence, check_song_exists, if_raw_atmos, \
-    check_album_existence, playlist_write_song_index, run_sync, safely_create_task
+    check_album_existence, playlist_write_song_index, run_sync, safely_create_task, language_exist, query_language
 from src.legacy.mp4 import extract_media as legacy_extract_media
 from src.legacy.mp4 import decrypt as legacy_decrypt
 from src.legacy.decrypt import WidevineDecrypt
@@ -90,14 +90,19 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
     await task_lock.acquire()
 
     # Set Metadata
-    raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, it(Config).region.language)
+    raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, flags.language)
     album_data = await it(WebAPI).get_album_info(raw_metadata.relationships.albums.data[0].id, url.storefront,
-                                                 it(Config).region.language)
+                                                 flags.language)
     task.metadata = SongMetadata.parse_from_song_data(raw_metadata)
     task.metadata.parse_from_album_data(album_data)
 
     task.update_logger()
     task.logger.create()
+
+    # Check language
+    if it(Config).region.languageNotExistWarning and not language_exist(url.storefront, flags.language):
+        default_language, _ = query_language(url.storefront)
+        task.logger.language_not_exist(url.storefront, flags.language, default_language)
 
     if not await check_song_existence(url.id, url.storefront):
         task.logger.not_exist()
@@ -106,12 +111,8 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
 
     await task.metadata.get_cover(it(Config).download.coverFormat, it(Config).download.coverSize)
     if raw_metadata.attributes.hasTimeSyncedLyrics:
-        try:
-            task.metadata.lyrics = await it(WrapperManager).lyrics(task.adamId, it(Config).region.language,
-                                                                   url.storefront)
-        except WrapperManagerException as e:
-            if e.msg == "no available lyrics":
-                task.logger.lyrics_not_exist()
+        task.metadata.lyrics = await it(WrapperManager).lyrics(task.adamId, flags.language,
+                                                               url.storefront)
     if playlist:
         task.metadata.set_playlist_index(playlist.songIdIndexMapping.get(url.id))
 
@@ -202,7 +203,7 @@ async def rip_song_legacy(task: Task):
 
 
 async def rip_album(url: Album, codec: str, flags: Flags = Flags(), parent_done: ParentDoneHandler = None):
-    album_info = await it(WebAPI).get_album_info(url.id, url.storefront, it(Config).region.language)
+    album_info = await it(WebAPI).get_album_info(url.id, url.storefront, flags.language)
     logger = RipLogger(url.type, url.id)
     logger.set_fullname(album_info.data[0].attributes.artistName, album_info.data[0].attributes.name)
 
@@ -224,7 +225,7 @@ async def rip_album(url: Album, codec: str, flags: Flags = Flags(), parent_done:
 
 
 async def rip_artist(url: Album, codec: str, flags: Flags = Flags()):
-    artist_info = await it(WebAPI).get_artist_info(url.id, url.storefront, it(Config).region.language)
+    artist_info = await it(WebAPI).get_artist_info(url.id, url.storefront, flags.language)
     logger = RipLogger(url.type, url.id)
     logger.set_fullname(artist_info.data[0].attributes.name)
 
@@ -234,19 +235,19 @@ async def rip_artist(url: Album, codec: str, flags: Flags = Flags()):
         logger.done()
 
     if flags.include_participate_in_works:
-        songs = await it(WebAPI).get_songs_from_artist(url.id, url.storefront, it(Config).region.language)
+        songs = await it(WebAPI).get_songs_from_artist(url.id, url.storefront, flags.language)
         done_handler = ParentDoneHandler(len(songs), on_children_done)
         for song_url in songs:
             safely_create_task(rip_song(Song.parse_url(song_url), codec, flags, done_handler))
     else:
-        albums = await it(WebAPI).get_albums_from_artist(url.id, url.storefront, it(Config).region.language)
+        albums = await it(WebAPI).get_albums_from_artist(url.id, url.storefront, flags.language)
         done_handler = ParentDoneHandler(len(albums), on_children_done)
         for album_url in albums:
             safely_create_task(rip_album(Album.parse_url(album_url), codec, flags, done_handler))
 
 
 async def rip_playlist(url: Playlist, codec: str, flags: Flags = Flags()):
-    playlist_info = await it(WebAPI).get_playlist_info_and_tracks(url.id, url.storefront, it(Config).region.language)
+    playlist_info = await it(WebAPI).get_playlist_info_and_tracks(url.id, url.storefront, flags.language)
     playlist_info = playlist_write_song_index(playlist_info)
     logger = RipLogger(url.type, url.id)
     logger.set_fullname(playlist_info.data[0].attributes.curatorName, playlist_info.data[0].attributes.name)
