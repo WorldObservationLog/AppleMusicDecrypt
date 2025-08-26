@@ -59,6 +59,8 @@ secure = true
 
 ## Run
 For Android users: [android-deploy.md](/android-deploy.md)
+
+For Windows users: use [the pre-configured version](https://nightly.link/WorldObservationLog/AppleMusicDecrypt/workflows/win-build/v2/AppleMusicDecrypt-Windows.zip) that works out of the box
 ```shell
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt.git
 cd AppleMusicDecrypt
