@@ -5,6 +5,8 @@ from creart import exists_module
 from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
+CONFIG_VERSION = "0.0.1"
+
 
 class Instance(BaseModel):
     url: str
@@ -41,6 +43,7 @@ class Metadata(BaseModel):
 
 
 class Config(BaseModel):
+    version: str = "0.0.0"
     region: Region
     instance: Instance
     download: Download

@@ -14,7 +14,7 @@ from src.logger import GlobalLogger
 from src.measurer import SpeedMeasurer
 from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
 from src.url import AppleMusicURL, URLType
-from src.utils import check_dep, run_sync, safely_create_task, get_tasks_num
+from src.utils import check_dep, run_sync, safely_create_task, get_tasks_num, config_outdated
 
 
 class InteractiveShell:
@@ -33,6 +33,9 @@ class InteractiveShell:
         loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
         safely_create_task(it(WrapperManager).decrypt_init(on_success=on_decrypt_success, on_failure=on_decrypt_failed))
         loop.run_until_complete(self.show_status())
+
+        if config_outdated():
+            it(GlobalLogger).logger.warning("The configuration file is out of date. Please refer to config.example.toml to update it")
 
         self.parser = argparse.ArgumentParser(exit_on_error=False)
         subparser = self.parser.add_subparsers()

@@ -8,6 +8,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 from itertools import islice
 from pathlib import Path
+from distutils.version import LooseVersion
 
 import m3u8
 import regex
@@ -15,7 +16,7 @@ from bs4 import BeautifulSoup
 from creart import it
 from pydantic import ValidationError
 
-from src.config import Config
+from src.config import Config, CONFIG_VERSION
 from src.exceptions import NotTimeSyncedLyricsException
 from src.logger import GlobalLogger
 from src.models import PlaylistInfo
@@ -297,3 +298,7 @@ def query_language(region: str):
 def language_exist(region: str, language: str):
     _, languages = query_language(region)
     return language in languages
+
+
+def config_outdated():
+    return LooseVersion(it(Config).version) < LooseVersion(CONFIG_VERSION)

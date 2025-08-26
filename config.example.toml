@@ -1,3 +1,6 @@
+# DO NOT EDIT IT
+version = "0.0.1"
+
 [instance]
 url = "127.0.0.1:8080"
 secure = false
