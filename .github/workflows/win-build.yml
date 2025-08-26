@@ -21,8 +21,27 @@ jobs:
       - name: Prepare environment
         run: |
           cp config.example.toml config.toml
-          echo ".\.venv\python.exe main.py" > start.ps1
-          echo ".venv\python.exe main.py" > start.bat
+          echo "$env:PATH="$(Split-Path -Parent $MyInvocation.MyCommand.Path)\deps;$env:PATH"; .\.venv\python.exe main.py" > start.ps1
+          echo "set PATH=%~dp0deps;%PATH% && .venv\python.exe main.py" > start.bat
+      - name: Prepare dependencies
+        run: |
+          mkdir deps
+          cd deps
+          Invoke-WebRequest -Uri https://github.com/Bioruebe/UniExtract2/releases/download/v2.0.0-rc.3/UniExtractRC3.zip -OutFile UniExtractRC3.zip
+          Expand-Archive -Path .\UniExtractRC3.zip -DestinationPath .
+          Invoke-WebRequest -Uri https://www.7-zip.org/a/7z2501-x64.exe -OutFile 7z-installer.exe
+          .\UniExtract\UniExtract.exe .\7z-installer.exe 7z
+          Invoke-WebRequest -Uri https://download.tsi.telecom-paristech.fr/gpac/new_builds/gpac_latest_head_win64.exe -OutFile gpac-installer.exe
+          .\UniExtract\UniExtract.exe .\gpac-installer.exe GPAC
+          cp GPAC/*.exe, GPAC/*.dll .
+          Invoke-WebRequest -Uri https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z -OutFile ffmpeg.7z
+          .\7z\7z.exe e .\ffmpeg.7z ffmpeg.exe -r "-o."
+          Invoke-WebRequest -Uri https://www.bok.net/Bento4/binaries/Bento4-SDK-1-6-0-641.x86_64-microsoft-win32.zip -OutFile Bento4-tools.zip
+          .\7z\7z.exe e .\Bento4-tools.zip mp4extract.exe mp4edit.exe mp4decrypt.exe -r "-o."
+          rm -Recurse Bento4-tools.zip, 7z, ffmpeg.7z, UniExtractRC3.zip, gpac-installer.exe, UniExtract
+      - name: Edit config
+        run:
+          (Get-Content config.toml) -replace 'url = "127.0.0.1:8080"','url = "wm.wol.moe"' -replace 'secure = false','secure = true' | Set-Content config.toml
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4
         with:
