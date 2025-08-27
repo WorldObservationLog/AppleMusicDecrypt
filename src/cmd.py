@@ -5,11 +5,12 @@ import sys
 from creart import it
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit.completion import WordCompleter
 
 from src.api import WebAPI
 from src.config import Config
 from src.flags import Flags
-from src.grpc.manager import WrapperManager
+from src.grpc.manager import WrapperManager, WrapperManagerException
 from src.logger import GlobalLogger
 from src.measurer import SpeedMeasurer
 from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
@@ -98,15 +99,51 @@ class InteractiveShell:
     def bottom_toolbar(self):
         return f"Download Speed: {it(SpeedMeasurer).download_speed()}, Decrypt Speed: {it(SpeedMeasurer).decrypt_speed()}, Tasks: {get_tasks_num()-2}"
 
+    def completer(self):
+        mycompleter = ['dl', 'status', 'login', 'logout', 'exit']
+        return WordCompleter(mycompleter)
+
     async def handle_command(self):
-        session = PromptSession("> ", bottom_toolbar=self.bottom_toolbar, refresh_interval=1)
+        session = PromptSession("> ", bottom_toolbar=self.bottom_toolbar, completer=self.completer(), refresh_interval=1)
 
         while True:
             try:
                 command = await session.prompt_async()
-                await self.command_parser(command)
+                if command.lower() == 'login':
+                    await self.login_flow()
+                if command.lower() == 'logout':
+                    await self.logout_flow()
+                elif command.strip() == '':
+                    continue
+                else: await self.command_parser(command)
             except (EOFError, KeyboardInterrupt):
                 return
+
+    async def on_2fa(self, username: str, password: str):
+        two_step_code = input("2FA code: ")
+        return two_step_code
+
+    async def login_flow(self):
+        await it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure)
+        username = input("Username: ")
+        password = input("Password: ")
+        try:
+            await it(WrapperManager).login(username, password, self.on_2fa)
+        except WrapperManagerException as e:
+            it(GlobalLogger).logger.error("Login Failed!")
+            return
+        it(GlobalLogger).logger.info("Login Success!")
+
+    async def logout_flow(self):
+        await it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure)
+        username = input("Username: ")
+        try:
+            await it(WrapperManager).logout(username)
+        except WrapperManagerException as e:
+            it(GlobalLogger).logger.error("Logout Failed!")
+            return
+        it(GlobalLogger).logger.info("Logout Success!")
+
 
     async def start(self):
         with patch_stdout():
