@@ -96,7 +96,7 @@ class InteractiveShell:
                 return
 
     def bottom_toolbar(self):
-        return f"Download Speed: {it(SpeedMeasurer).download_speed()}, Decrypt Speed: {it(SpeedMeasurer).decrypt_speed()}, Tasks: {get_tasks_num()}"
+        return f"Download Speed: {it(SpeedMeasurer).download_speed()}, Decrypt Speed: {it(SpeedMeasurer).decrypt_speed()}, Tasks: {get_tasks_num()-2}"
 
     async def handle_command(self):
         session = PromptSession("> ", bottom_toolbar=self.bottom_toolbar, refresh_interval=1)
