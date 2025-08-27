@@ -50,6 +50,8 @@ class InteractiveShell:
         download_parser.add_argument("--include-participate-songs", default=False, dest="include", action="store_true")
 
         subparser.add_parser("status")
+        subparser.add_parser("login")
+        subparser.add_parser("logout")
         subparser.add_parser("exit")
 
     async def show_status(self):
@@ -120,13 +122,15 @@ class InteractiveShell:
                 return
 
     async def on_2fa(self, username: str, password: str):
-        two_step_code = input("2FA code: ")
+        session = PromptSession()
+        two_step_code = await session.prompt_async("2FA code: ")
         return two_step_code
 
     async def login_flow(self):
         await it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure)
-        username = input("Username: ")
-        password = input("Password: ")
+        session = PromptSession()
+        username = await session.prompt_async("Username: ")
+        password = await session.prompt_async("Password: ", is_password=True)
         try:
             await it(WrapperManager).login(username, password, self.on_2fa)
         except WrapperManagerException as e:
@@ -136,7 +140,8 @@ class InteractiveShell:
 
     async def logout_flow(self):
         await it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure)
-        username = input("Username: ")
+        session = PromptSession()
+        username = await session.prompt_async("Username: ")
         try:
             await it(WrapperManager).logout(username)
         except WrapperManagerException as e:
