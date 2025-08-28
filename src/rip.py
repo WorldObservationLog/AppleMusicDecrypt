@@ -6,6 +6,7 @@ from creart import it
 
 from src.api import WebAPI
 from src.config import Config
+from src.exceptions import CodecNotFoundException
 from src.flags import Flags
 from src.grpc.manager import WrapperManager, WrapperManagerException
 from src.logger import RipLogger
@@ -144,7 +145,13 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
         await task_done(task, Status.FAILED)
         return
 
-    task.m3u8Info = await extract_media(m3u8_url, codec, task.metadata)
+    try:
+        task.m3u8Info = await extract_media(m3u8_url, codec, task.metadata)
+    except CodecNotFoundException:
+        task.logger.audio_not_exist()
+        await task_done(task, Status.FAILED)
+        return
+
     task.logger.selected_codec(task.m3u8Info.codec_id)
     if all([bool(task.m3u8Info.bit_depth), bool(task.m3u8Info.sample_rate)]):
         task.metadata.set_bit_depth_and_sample_rate(task.m3u8Info.bit_depth, task.m3u8Info.sample_rate)
