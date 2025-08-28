@@ -106,3 +106,6 @@ class RipLogger:
 
     def selected_codec(self, selected_codec):
         self.logger.info(f"Selected codec: {selected_codec}")
+
+    def codec_alternative(self):
+        self.logger.warning("Unable to find the specified audio, switched to another audio codec")
