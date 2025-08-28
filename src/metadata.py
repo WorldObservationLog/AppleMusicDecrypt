@@ -30,7 +30,7 @@ TAG_MAPPING = {
     "copyright": "cprt",  # MP4 copyright
     "record_company": "©pub",  # MP4 publisher
     "upc": "----:com.apple.iTunes:BARCODE",  # MP4 barcode (UPC)
-    "isrc": "ISRC",  # MP4 ISRC
+    "isrc": "----:com.apple.iTunes:ISRC",  # MP4 ISRC
     "rtng": "rtng",  # MP4 advisory rating
 }
 
@@ -108,6 +108,9 @@ class SongMetadata(BaseModel):
                     tags.update({TAG_MAPPING[key]: (MP4Cover(value),)})
                     continue
                 if key == "upc":
+                    tags.update({TAG_MAPPING[key]: (value.encode(),)})
+                    continue
+                if key == "isrc":
                     tags.update({TAG_MAPPING[key]: (value.encode(),)})
                     continue
                 if key == "genre":
