@@ -5,7 +5,7 @@ from creart import exists_module
 from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
-CONFIG_VERSION = "0.0.1"
+CONFIG_VERSION = "0.0.2"
 
 
 class Instance(BaseModel):
@@ -35,6 +35,8 @@ class Download(BaseModel):
     saveCover: bool = True
     coverFormat: str = "jpg"
     coverSize: str = "5000x5000"
+    maxSampleRate: int = 192000
+    maxBitDepth: int = 24
     afterDownloaded: str = ""
 
 

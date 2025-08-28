@@ -1,5 +1,5 @@
 # DO NOT EDIT IT
-version = "0.0.1"
+version = "0.0.2"
 
 [instance]
 url = "127.0.0.1:8080"
@@ -75,6 +75,9 @@ saveLyrics = true
 saveCover = true
 coverFormat = "jpg"
 coverSize = "5000x5000"
+# Limit the maximum bit rate and bit depth of audio files. Only valid for ALAC codec
+maxSampleRate = 192000
+maxBitDepth = 24
 # The command to be executed after the song is ripped successfully, passing in the filename parameter.
 # Example: "\"C:\\Program Files\\DAUM\\PotPlayer\\PotPlayerMini64.exe\" \"{filename}\""
 # Pay attention to escaping issues

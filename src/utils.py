@@ -48,10 +48,16 @@ def byte_length(i):
 def find_best_codec(parsed_m3u8: m3u8.M3U8, codec: str) -> Optional[m3u8.Playlist]:
     available_medias = [playlist for playlist in parsed_m3u8.playlists
                         if regex.match(CodecRegex.get_pattern_by_codec(codec), playlist.stream_info.audio)]
-    if not available_medias:
-        return None
     available_medias.sort(key=lambda x: x.stream_info.average_bandwidth, reverse=True)
-    return available_medias[0]
+    if codec == Codec.ALAC:
+        limited_medias = [media for media in available_medias
+                          if int(media.media[0].extras["bit_depth"]) <= it(Config).download.maxBitDepth
+                          and int(media.media[0].extras["sample_rate"]) <= it(Config).download.maxSampleRate]
+    else:
+        limited_medias = available_medias
+    if not limited_medias:
+        return None
+    return limited_medias[0]
 
 
 def chunk(it, size):
