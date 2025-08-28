@@ -5,7 +5,7 @@ import sys
 from creart import it
 from prompt_toolkit import PromptSession
 from prompt_toolkit.patch_stdout import patch_stdout
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit.completion import NestedCompleter
 
 from src.api import WebAPI
 from src.config import Config
@@ -102,8 +102,35 @@ class InteractiveShell:
         return f"Download Speed: {it(SpeedMeasurer).download_speed()}, Decrypt Speed: {it(SpeedMeasurer).decrypt_speed()}, Tasks: {get_tasks_num()-2}"
 
     def completer(self):
-        mycompleter = ['dl', 'status', 'login', 'logout', 'exit']
-        return WordCompleter(mycompleter)
+        mycompleter = {
+            "dl": {
+                "--codec": {
+                    "ec3": None,
+                    "aac": None,
+                    "alac": None,
+                    "aac-binaural": None,
+                    "aac-downmix": None,
+                    "aac-legacy": None,
+                    "ac3": None
+                },
+                "--force": None,
+                "--language": {
+                    "en-US": None,
+                    "en-GB": None,
+                    "zh-Hans-CN": None,
+                    "zh-Hant-HK": None,
+                    "zh-Hant-TW": None,
+                    "ja": None,
+                    "ko": None
+                },
+                "--include-participate-songs": None
+            },
+            "status": None,
+            "login": None,
+            "logout": None,
+            "exit": None
+        }
+        return NestedCompleter.from_nested_dict(mycompleter)
 
     async def handle_command(self):
         session = PromptSession("> ", bottom_toolbar=self.bottom_toolbar, completer=self.completer(), refresh_interval=1)
