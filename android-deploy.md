@@ -11,7 +11,7 @@ pd i debian
 ## Step 2: Deploy AppleMusicDecrypt
 Enter the Debian environment(`pd login debian`)
 ```shell
-apt update && apt install python3 python3-poetry
+apt update && apt install pipx && pipx install poetry && pipx ensurepath && source ~/.bashrc
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt
 cd AppleMusicDecrypt
 bash ./tools/install-deps.sh
