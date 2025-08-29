@@ -1,10 +1,6 @@
 # AppleMusicDecrypt
 
-Apple Music decryption tool, based
-on [zhaarey/apple-music-alac-atmos-downloader](https://github.com/zhaarey/apple-music-alac-atmos-downloader)
-
-**WARNING: This project is currently in an extremely early stage, and there are still a large number of undiscovered
-bugs and unfinished features. USE IT WITH CAUTION.**
+Apple Music decryption tool, inspired by [zhaarey/apple-music-alac-atmos-downloader](https://github.com/zhaarey/apple-music-alac-atmos-downloader)
 
 # Usage
 
@@ -71,3 +67,12 @@ poetry install
 cp config.example.toml config.toml
 poetry run python main.py
 ```
+
+## FAQ
+### Song did not pass the integrity check
+There are two possible causes for this problem:
+1. Potential wrapper decryption error. This problem usually disappears after a few days. You can try restarting the wrapper-manager, changing the wrapper-manager instance, or waiting for a few days.
+2. The audio source file provided by Apple Music is damaged. See more: https://t.me/abcthoughts/6294
+
+### The bit depth of the ripped audio file does not match the selected codec
+Some audio files provided by Apple Music are incorrectly encoded to a higher bit depth. This does not affect the content of the audio itself.
