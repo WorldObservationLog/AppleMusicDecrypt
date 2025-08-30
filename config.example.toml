@@ -28,7 +28,7 @@ appleCDNIP = ""
 # After enabling this feature, if the specified codec does not exist, the script will look for another codec to download
 codecAlternative = true
 # Priority to look for alternative codec
-# To download AAC lossy audio when lossless audio is not available, add “aac-legacy” to this configuration.
+# To download AAC lossy audio when lossless audio is not available, add "aac-legacy" to this configuration.
 codecPriority = ["alac", "ec3", "ac3", "aac"]
 # Encapsulate Atmos(ec-3/ac-3) as M4A and write the song metadata
 atmosConventToM4a = true
