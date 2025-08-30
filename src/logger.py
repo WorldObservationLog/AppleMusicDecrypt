@@ -95,8 +95,11 @@ class RipLogger:
     def decrypting(self):
         self.logger.info("Decrypting song...")
 
-    def failed_integrity(self):
-        self.logger.warning(f"Song did not pass the integrity check!")
+    def failed_integrity(self, error_Level: bool):
+        if error_Level:
+            self.logger.error(f"Song did not pass the integrity check!")
+        else:
+            self.logger.warning(f"Song did not pass the integrity check!")
 
     def saved(self):
         self.logger.success("Song saved!")

@@ -1,5 +1,5 @@
 # DO NOT EDIT IT
-version = "0.0.2"
+version = "0.0.3"
 
 [instance]
 url = "127.0.0.1:8080"
@@ -32,6 +32,10 @@ codecAlternative = true
 codecPriority = ["alac", "ec3", "ac3", "aac"]
 # Encapsulate Atmos(ec-3/ac-3) as M4A and write the song metadata
 atmosConventToM4a = true
+# If the song integrity check fails, the task will fail and the song will not be saved.
+# Due to the possibility of source file corruption, open with caution.
+# See more: https://github.com/WorldObservationLog/AppleMusicDecrypt?tab=readme-ov-file#song-did-not-pass-the-integrity-check
+failedSongNotPassIntegrityCheck = false
 # Follow the Python Format (https://docs.python.org/3/library/string.html#formatstrings)
 # Write the audio information to the songNameFormat and playlistSongNameFormat
 # Only support alac codec

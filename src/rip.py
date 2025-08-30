@@ -72,7 +72,12 @@ async def decrypt_done(adam_id: str):
             song = await run_sync(fix_esds_box, task.info.raw, song)
 
     if not await run_sync(check_song_integrity, song):
-        task.logger.failed_integrity()
+        if it(Config).download.failedSongNotPassIntegrityCheck:
+            task.logger.failed_integrity(True)
+            await task_done(task, Status.FAILED)
+            return
+        else:
+            task.logger.failed_integrity(False)
 
     filename = await run_sync(save, song, codec, task.metadata, task.playlist)
     task.logger.saved()

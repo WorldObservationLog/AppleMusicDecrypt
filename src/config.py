@@ -5,7 +5,7 @@ from creart import exists_module
 from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
-CONFIG_VERSION = "0.0.2"
+CONFIG_VERSION = "0.0.3"
 
 
 class Instance(BaseModel):
@@ -26,6 +26,7 @@ class Download(BaseModel):
     codecAlternative: bool = True
     codecPriority: list[str] = ["alac", "ec3", "ac3", "aac"]
     atmosConventToM4a: bool = True
+    failedSongNotPassIntegrityCheck: bool = False
     audioInfoFormat: str = ""
     songNameFormat: str = "{disk}-{tracknum:02d} {title}"
     dirPathFormat: str = "downloads/{album_artist}/{album}"
