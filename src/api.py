@@ -12,7 +12,7 @@ from tenacity import retry, retry_if_exception_type, wait_random_exponential, st
 
 from src.config import Config
 from src.logger import GlobalLogger
-from src.measurer import SpeedMeasurer
+from src.measurer import Measurer
 from src.models import *
 
 
@@ -90,7 +90,7 @@ class WebAPI:
                     total = int(response.headers.get("Content-Length") if response.headers.get("Content-Length")
                                 else response.headers.get("X-Apple-MS-Content-Length"))
                     async for chunk in response.aiter_bytes():
-                        it(SpeedMeasurer).record_download(len(chunk))
+                        it(Measurer).record_download(len(chunk))
                         result.write(chunk)
                 if len(result.getvalue()) != total:
                     raise httpx.HTTPError

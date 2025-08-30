@@ -5,11 +5,12 @@ from typing import Type
 from creart import CreateTargetInfo, AbstractCreator, exists_module
 
 
-class SpeedMeasurer:
+class Measurer:
     def __init__(self, sample_window=1):
         self._sample_window = sample_window
         self._download_records = deque()  # 存储 (时间戳, 字节数)
         self._decrypt_records = deque()  # 存储 (时间戳, 字节数)
+        self._running_tasks = 0
 
     def record_download(self, content_length: int):
         now = time.time()
@@ -18,6 +19,12 @@ class SpeedMeasurer:
     def record_decrypt(self, content_length: int):
         now = time.time()
         self._decrypt_records.append((now, content_length))
+
+    def record_task_start(self):
+        self._running_tasks += 1
+
+    def record_task_finish(self):
+        self._running_tasks -= 1
 
     def download_speed(self) -> str:
         now = time.time()
@@ -28,6 +35,9 @@ class SpeedMeasurer:
         now = time.time()
         self._evict_old(self._decrypt_records, now)
         return self._calc_speed(self._decrypt_records)
+
+    def tasks_count(self):
+        return self._running_tasks
 
     def _evict_old(self, dq, now):
         """只保留采样窗口内的数据"""
@@ -47,7 +57,7 @@ class SpeedMeasurer:
 
 class MeasurerCreator(AbstractCreator):
     targets = (
-        CreateTargetInfo("src.measurer", "SpeedMeasurer"),
+        CreateTargetInfo("src.measurer", "Measurer"),
     )
 
     @staticmethod
@@ -55,5 +65,5 @@ class MeasurerCreator(AbstractCreator):
         return exists_module("src.config")
 
     @staticmethod
-    def create(create_type: Type[SpeedMeasurer]) -> SpeedMeasurer:
+    def create(create_type: Type[Measurer]) -> Measurer:
         return create_type()

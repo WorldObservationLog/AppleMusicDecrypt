@@ -10,7 +10,7 @@ from src.exceptions import CodecNotFoundException
 from src.flags import Flags
 from src.grpc.manager import WrapperManager, WrapperManagerException
 from src.logger import RipLogger
-from src.measurer import SpeedMeasurer
+from src.measurer import Measurer
 from src.metadata import SongMetadata
 from src.models import PlaylistInfo
 from src.mp4 import extract_media, extract_song, encapsulate, write_metadata, fix_encapsulate, fix_esds_box, \
@@ -37,10 +37,11 @@ async def task_done(task: Task, status: Status):
     if task.parentDone:
         await task.parentDone.try_done()
     del adam_id_task_mapping[task.adamId]
+    it(Measurer).record_task_finish()
 
 
 async def on_decrypt_success(adam_id: str, key: str, sample: bytes, sample_index: int):
-    it(SpeedMeasurer).record_decrypt(len(sample))
+    it(Measurer).record_decrypt(len(sample))
     safely_create_task(recv_decrypted_sample(adam_id, sample_index, sample))
 
 
@@ -89,6 +90,7 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
     adam_id_task_mapping[url.id] = task
     task.init_logger()
     await task_lock.acquire()
+    it(Measurer).record_task_start()
 
     # Set Metadata
     raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, flags.language)

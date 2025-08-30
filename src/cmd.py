@@ -4,18 +4,18 @@ import sys
 
 from creart import it
 from prompt_toolkit import PromptSession
-from prompt_toolkit.patch_stdout import patch_stdout
 from prompt_toolkit.completion import NestedCompleter
+from prompt_toolkit.patch_stdout import patch_stdout
 
 from src.api import WebAPI
 from src.config import Config
 from src.flags import Flags
 from src.grpc.manager import WrapperManager, WrapperManagerException
 from src.logger import GlobalLogger
-from src.measurer import SpeedMeasurer
+from src.measurer import Measurer
 from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
 from src.url import AppleMusicURL, URLType
-from src.utils import check_dep, run_sync, safely_create_task, get_tasks_num, config_outdated
+from src.utils import check_dep, run_sync, safely_create_task, config_outdated
 
 
 class InteractiveShell:
@@ -99,7 +99,7 @@ class InteractiveShell:
                 return
 
     def bottom_toolbar(self):
-        return f"Download Speed: {it(SpeedMeasurer).download_speed()}, Decrypt Speed: {it(SpeedMeasurer).decrypt_speed()}, Tasks: {get_tasks_num()-2}"
+        return f"Download Speed: {it(Measurer).download_speed()}, Decrypt Speed: {it(Measurer).decrypt_speed()}, Tasks: {it(Measurer).tasks_count()}"
 
     def completer(self):
         mycompleter = {
@@ -144,7 +144,8 @@ class InteractiveShell:
                     await self.logout_flow()
                 elif command.strip() == '':
                     continue
-                else: await self.command_parser(command)
+                else:
+                    await self.command_parser(command)
             except (EOFError, KeyboardInterrupt):
                 return
 
