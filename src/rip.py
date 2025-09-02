@@ -153,7 +153,7 @@ async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
         return
 
     try:
-        task.m3u8Info = await extract_media(m3u8_url, codec, task.metadata)
+        task.m3u8Info = await extract_media(m3u8_url, codec, task)
     except CodecNotFoundException:
         task.logger.audio_not_exist()
         await task_done(task, Status.FAILED)
