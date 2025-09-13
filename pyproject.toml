@@ -19,8 +19,11 @@ m3u8 = "^6.0.0"
 tenacity = "^9.1.2"
 prompt-toolkit = "^3.0.43"
 winloop = { version = "^0.2.1", platform = "win32" }
-uvloop = [{ version = "^0.21.0", platform = "linux" },
-    { version = "^0.21.0", platform = "darwin" }]
+uvloop = [
+    { version = "^0.21.0", platform = "linux" },
+    { version = "^0.21.0", platform = "darwin" },
+    { version = "^0.21.0", platform = "android" }
+]
 prettytable = "^3.10.0"
 pyventus = "^0.7.0"
 grpcio = "^1.74.0"
