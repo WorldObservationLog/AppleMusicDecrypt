@@ -55,6 +55,7 @@ class InteractiveShell:
         subparser.add_parser("exit")
 
     async def show_status(self):
+        it(WrapperManager).status.cache_invalidate()
         st_resp = await it(WrapperManager).status()
         it(GlobalLogger).logger.info(f"Regions available on wrapper-manager instance: {', '.join(st_resp.regions)}")
 
@@ -165,6 +166,7 @@ class InteractiveShell:
             it(GlobalLogger).logger.error("Login Failed!")
             return
         it(GlobalLogger).logger.info("Login Success!")
+        it(WrapperManager).status.cache_invalidate()
 
     async def logout_flow(self):
         await it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure)
@@ -176,6 +178,7 @@ class InteractiveShell:
             it(GlobalLogger).logger.error("Logout Failed!")
             return
         it(GlobalLogger).logger.info("Logout Success!")
+        it(WrapperManager).status.cache_invalidate()
 
 
     async def start(self):

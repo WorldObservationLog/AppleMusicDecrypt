@@ -10,7 +10,7 @@ from src.models.song_data import Datum
 from src.utils import ttml_convent_to_lrc, count_total_track_and_disc
 
 NOT_INCLUDED_FIELD = ["playlistIndex", "bit_depth", "sample_rate", "sample_rate_kHz",
-                      "song_id", "album_id", "track_total", "disk_total"]
+                      "track_total", "disk_total", "cover_url"]
 TAG_MAPPING = {
     "song_id": "cnID",  # iTunes Catalog ID
     "title": "©nam",  # MP4 title
@@ -32,6 +32,7 @@ TAG_MAPPING = {
     "upc": "----:com.apple.iTunes:BARCODE",  # MP4 barcode (UPC)
     "isrc": "----:com.apple.iTunes:ISRC",  # MP4 ISRC
     "rtng": "rtng",  # MP4 advisory rating
+    "artist_id": "atID"  # iTunes Artist ID
 }
 
 
@@ -63,6 +64,7 @@ class SongMetadata(BaseModel):
     bit_depth: Optional[int] = None
     sample_rate: Optional[int] = None
     sample_rate_kHz: Optional[str] = None
+    artist_id: Optional[str] = None
 
     def to_itags_params(self, embed_metadata: list[str]):
         tags = []
@@ -89,9 +91,9 @@ class SongMetadata(BaseModel):
     def to_mutagen_tags(self, embed_metadata: list[str]):
         tags = {}
         for key, value in self.model_dump().items():
-            if not value:
+            if not value and key != "rtng":
                 continue
-            if key in embed_metadata and value:
+            if key in embed_metadata:
                 if key in NOT_INCLUDED_FIELD:
                     continue
                 if key == "lyrics":
@@ -119,6 +121,15 @@ class SongMetadata(BaseModel):
                 if key == "rtng":
                     tags.update({TAG_MAPPING[key]: (value,)})
                     continue
+                if key == "song_id":
+                    tags.update({TAG_MAPPING[key]: (int(value),)})
+                    continue
+                if key == "album_id":
+                    tags.update({TAG_MAPPING[key]: (int(value),)})
+                    continue
+                if key == "artist_id":
+                    tags.update({TAG_MAPPING[key]: (int(value),)})
+                    continue
                 tags.update({TAG_MAPPING[key]: str(value)})
         return tags
 
@@ -136,7 +147,8 @@ class SongMetadata(BaseModel):
                    isrc=song_data.attributes.isrc,
                    album_created=song_data.relationships.albums.data[0].attributes.releaseDate,
                    rtng=cls._rating(song_data.attributes.contentRating),
-                   song_id=song_data.id, album_id=song_data.relationships.albums.data[0].id
+                   song_id=song_data.id, album_id=song_data.relationships.albums.data[0].id,
+                   artist_id=song_data.relationships.artists.data[0].id
                    )
 
     def parse_from_album_data(self, album_data: AlbumMeta):
