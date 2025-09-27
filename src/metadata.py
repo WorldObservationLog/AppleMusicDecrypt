@@ -22,7 +22,6 @@ TAG_MAPPING = {
     "composer": "©wrt",  # MP4 composer
     "genre": "©gen",  # MP4 genre
     "created": "purd",  # MP4 iTunes Purchase Date
-    "track": "©trk",  # MP4 track name
     "tracknum": "trkn",  # MP4 total track number and current
     "disk": "disk",  # MP4 disc number
     "lyrics": "©lyr",  # MP4 unsynced lyrics
@@ -47,7 +46,6 @@ class SongMetadata(BaseModel):
     composer: Optional[str] = None
     genre: Optional[List[str]] = None
     created: Optional[str] = None
-    track: Optional[str] = None
     tracknum: Optional[int] = None
     track_total: Optional[Dict[int, int]] = None
     disk: Optional[int] = None
@@ -139,7 +137,7 @@ class SongMetadata(BaseModel):
                    album_artist=song_data.relationships.albums.data[0].attributes.artistName,
                    album=song_data.attributes.albumName, composer=song_data.attributes.composerName,
                    genre=song_data.attributes.genreNames, created=song_data.attributes.releaseDate,
-                   track=song_data.attributes.name, tracknum=song_data.attributes.trackNumber,
+                   tracknum=song_data.attributes.trackNumber,
                    disk=song_data.attributes.discNumber, lyrics="", cover_url=song_data.attributes.artwork.url,
                    copyright=song_data.relationships.albums.data[0].attributes.copyright,
                    record_company=song_data.relationships.albums.data[0].attributes.recordLabel,
