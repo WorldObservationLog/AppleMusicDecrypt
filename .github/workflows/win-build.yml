@@ -22,6 +22,7 @@ jobs:
         run: |
           Copy-Item config.example.toml config.toml
           (Get-Content config.toml) -replace 'url = "127.0.0.1:8080"','url = "wm.wol.moe"' -replace 'secure = false','secure = true' | Set-Content config.toml
+          (Get-Content config.toml) -replace 'enable = false','enable = true' | Set-Content config.toml
           
           @'
           $env:PATH="$(Split-Path -Parent $MyInvocation.MyCommand.Path)\deps;"
@@ -45,7 +46,17 @@ jobs:
           .\7z\7z.exe e .\ffmpeg.7z ffmpeg.exe -r "-o."
           Invoke-WebRequest -Uri https://www.bok.net/Bento4/binaries/Bento4-SDK-1-6-0-641.x86_64-microsoft-win32.zip -OutFile Bento4-tools.zip
           .\7z\7z.exe e .\Bento4-tools.zip mp4extract.exe mp4edit.exe mp4decrypt.exe -r "-o."
-          rm -Recurse Bento4-tools.zip, 7z, 7z.exe, 7z-installer.exe, ffmpeg.7z, gpac-installer.exe, GPAC
+          Invoke-WebRequest -Uri https://qemu.weilnetz.de/w64/qemu-w64-setup-20250826.exe -OutFile qemu-installer.exe
+          .\7z\7z.exe x qemu-installer.exe -oqemu
+          cp qemu/qemu-system-x86_64.exe, qemu/*.dll .
+          rm -Recurse Bento4-tools.zip, 7z, 7z.exe, 7z-installer.exe, ffmpeg.7z, gpac-installer.exe, GPAC, qemu-installer.exe, qemu
+
+      - name: Prepare assets
+        run: |
+          Invoke-WebRequest -Uri https://nightly.link/WorldObservationLog/wrapper-manager/workflows/wrapper-manager-image/main/wrapper-manager-image.zip -OutFile wrapper-manager-image.zip
+          Expand-Archive -Path wrapper-manager-image.zip -DestinationPath assets
+          rm wrapper-manager-image.zip
+
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4
         with:
