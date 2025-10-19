@@ -15,7 +15,7 @@ enable = false
 enableHardwareAcceleration = false
 memorySize = "512M"
 # Waiting time for wrapper-manager to start
-timeout = 120
+timeout = 80
 
 [region]
 # The language of song metadata. Influence song title, author and other information.
