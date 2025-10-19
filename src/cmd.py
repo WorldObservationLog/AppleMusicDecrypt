@@ -43,7 +43,7 @@ class InteractiveShell:
                 it(Config).instance.url = "127.0.0.1:32767"
                 it(Config).instance.secure = False
                 loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
-            except grpc.aio.AioRpcError:
+            except grpc.aio._call.AioRpcError:
                 it(GlobalLogger).logger.error("Unable to connect to the local wrapper-manager, please try to extend the timeout")
                 sys.exit()
         else:
