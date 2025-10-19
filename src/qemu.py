@@ -10,7 +10,7 @@ from creart import it
 from src.config import Config
 from src.logger import GlobalLogger
 
-ARGUMENTS = ["qemu-system-x86_64", "-machine q35", "-cpu qemu64-v1", f"-m {it(Config).localInstance.memorySize}",
+ARGUMENTS = ["qemu-system-x86_64", "-machine q35", "-cpu Skylake-Server-v5", f"-m {it(Config).localInstance.memorySize}",
              "-display none", "-hda assets/wrapper-manager.qcow2", "-device virtio-net-pci,netdev=net0",
              "-netdev user,id=net0,hostfwd=tcp:127.0.0.1:32767-:32767"]
 HWACCEL_WIN = "-accel whpx,kernel-irqchip=off"
