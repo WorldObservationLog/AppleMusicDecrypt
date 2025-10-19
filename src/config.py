@@ -17,6 +17,7 @@ class LocalInstance(BaseModel):
     enable: bool = False
     enableHardwareAcceleration: bool = True
     memorySize: str = "512M"
+    cpuModel: str = "Cascadelake-Server-v5"
     timeout: int = 30
 
 

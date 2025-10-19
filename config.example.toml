@@ -14,6 +14,7 @@ enable = false
 # For Linux users, run `sudo kvm-ok` to check if KVM supported
 enableHardwareAcceleration = false
 memorySize = "512M"
+cpuModel = "Cascadelake-Server-v5"
 # Waiting time for wrapper-manager to start
 timeout = 80
 
