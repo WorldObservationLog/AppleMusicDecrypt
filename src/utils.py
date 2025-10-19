@@ -230,7 +230,10 @@ def convent_mac_timestamp_to_datetime(timestamp: int):
 
 
 def check_dep():
-    for dep in ["ffmpeg", "gpac", "MP4Box", "mp4edit", "mp4extract", "mp4decrypt"]:
+    deps = ["ffmpeg", "gpac", "MP4Box", "mp4edit", "mp4extract", "mp4decrypt"]
+    if it(Config).localInstance.enable:
+        deps.append("qemu-system-x86_64 --version")
+    for dep in deps:
         try:
             subprocess.run(dep, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except FileNotFoundError:
