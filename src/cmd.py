@@ -1,7 +1,9 @@
 import argparse
 import asyncio
 import sys
+import time
 
+import grpc.aio
 from creart import it
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import NestedCompleter
@@ -13,14 +15,16 @@ from src.flags import Flags
 from src.grpc.manager import WrapperManager, WrapperManagerException
 from src.logger import GlobalLogger
 from src.measurer import Measurer
+from src.qemu import QemuInstance
 from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
 from src.url import AppleMusicURL, URLType
-from src.utils import check_dep, run_sync, safely_create_task, config_outdated
+from src.utils import check_dep, run_sync, safely_create_task, config_outdated, countdown
 
 
 class InteractiveShell:
     loop: asyncio.AbstractEventLoop
     parser: argparse.ArgumentParser
+    localInstance: QemuInstance = QemuInstance()
 
     def __init__(self, loop: asyncio.AbstractEventLoop):
         dep_installed, missing_dep = check_dep()
@@ -31,7 +35,17 @@ class InteractiveShell:
 
         self.loop = loop
         loop.run_until_complete(run_sync(it(WebAPI).init))
-        loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
+        if it(Config).localInstance.enable:
+            loop.run_until_complete(self.localInstance.launch_instance(loop))
+            it(GlobalLogger).logger.info("Waiting for wrapper-manager to start...")
+            loop.run_until_complete(countdown(it(Config).localInstance.timeout))
+            try:
+                loop.run_until_complete(it(WrapperManager).init("127.0.0.1:32767", False))
+            except grpc.aio.AioRpcError:
+                it(GlobalLogger).logger.error("Unable to connect to the local wrapper-manager, please try to extend the timeout")
+                sys.exit()
+        else:
+            loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
         safely_create_task(it(WrapperManager).decrypt_init(on_success=on_decrypt_success, on_failure=on_decrypt_failed))
         loop.run_until_complete(self.show_status())
 
@@ -57,6 +71,8 @@ class InteractiveShell:
     async def show_status(self):
         it(WrapperManager).status.cache_invalidate()
         st_resp = await it(WrapperManager).status()
+        if not st_resp.regions:
+            it(GlobalLogger).logger.error("The currently used wrapper-manager instance has no available account. Please execute login command to log in.")
         it(GlobalLogger).logger.info(f"Regions available on wrapper-manager instance: {', '.join(st_resp.regions)}")
 
     async def command_parser(self, cmd: str):
@@ -187,3 +203,5 @@ class InteractiveShell:
                 await self.handle_command()
             finally:
                 it(GlobalLogger).logger.info("Exit.")
+                if it(Config).localInstance.enable:
+                    self.localInstance.terminate()

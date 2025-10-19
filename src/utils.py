@@ -88,6 +88,7 @@ def get_digit_from_string(text: str) -> int:
 def ttml_convent_to_lrc(ttml: str) -> str:
     b = BeautifulSoup(ttml, features="xml")
     lrc_lines = []
+
     for item in b.tt.body.children:
         for lyric in item.children:
             h, m, s, ms = 0, 0, 0, 0
@@ -116,6 +117,11 @@ def ttml_convent_to_lrc(ttml: str) -> str:
                                    get_digit_from_string(split_time[2]), get_digit_from_string(split_time[3]))
             lrc_lines.append(
                 f"[{str(m + h * 60).rjust(2, '0')}:{str(s).rjust(2, '0')}.{str(int(ms / 10)).rjust(2, '0')}]{lyric.text}")
+            if b.tt.head.metadata.iTunesMetadata.translation:
+                for translation in b.tt.head.metadata.iTunesMetadata.translation.children:
+                    if lyric.get("itunes:key") == translation.get("for"):
+                        lrc_lines.append(
+                            f"[{str(m + h * 60).rjust(2, '0')}:{str(s).rjust(2, '0')}.{str(int(ms / 10)).rjust(2, '0')}]{translation.text}")
     return "\n".join(lrc_lines)
 
 
@@ -308,3 +314,12 @@ def language_exist(region: str, language: str):
 
 def config_outdated():
     return LooseVersion(it(Config).version) < LooseVersion(CONFIG_VERSION)
+
+
+async def countdown(seconds: int):
+    while seconds > 0:
+        mins, secs = divmod(seconds, 60)  # Convert seconds to minutes and remaining seconds
+        timeformat = '{:02d}:{:02d}'.format(mins, secs)  # Format for MM:SS display
+        print(timeformat, end='\r')  # Print on the same line, overwriting previous output
+        await asyncio.sleep(1) # Pause for 1 second
+        seconds -= 1  # Decrement the time

@@ -5,12 +5,19 @@ from creart import exists_module
 from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
-CONFIG_VERSION = "0.0.3"
+CONFIG_VERSION = "0.0.4"
 
 
 class Instance(BaseModel):
     url: str = "127.0.0.1:8080"
     secure: bool = False
+
+
+class LocalInstance(BaseModel):
+    enable: bool = False
+    enableHardwareAcceleration: bool = True
+    memorySize: str = "512M"
+    timeout: int = 30
 
 
 class Region(BaseModel):
@@ -51,6 +58,7 @@ class Config(BaseModel):
     version: str = "0.0.0"
     region: Region
     instance: Instance
+    localInstance: LocalInstance
     download: Download
     metadata: Metadata
 

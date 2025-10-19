@@ -1,9 +1,21 @@
 # DO NOT EDIT IT
-version = "0.0.3"
+version = "0.0.4"
 
 [instance]
 url = "127.0.0.1:8080"
 secure = false
+
+[localInstance]
+# Use qemu to launch wrapper-manager
+# This setting will overwrite instance setting
+enable = true
+# Use WHPX on Windows and KVM on Linux
+# For Windows users, run `Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform` to check if WHPX enabled
+# For Linux users, run `sudo kvm-ok` to check if KVM supported
+enableHardwareAcceleration = true
+memorySize = "512M"
+# Waiting time for wrapper-manager to start
+timeout = 60
 
 [region]
 # The language of song metadata. Influence song title, author and other information.
