@@ -49,6 +49,8 @@ jobs:
           Invoke-WebRequest -Uri https://qemu.weilnetz.de/w64/qemu-w64-setup-20250826.exe -OutFile qemu-installer.exe
           .\7z\7z.exe x qemu-installer.exe -oqemu
           cp qemu/qemu-system-x86_64.exe, qemu/*.dll .
+          mkdir share
+          cp qemu/share/vgabios-stdvga.bin, qemu/share/bios-256k.bin, qemu/share/efi-virtio.rom, qemu/share/kvmvapic.bin share
           rm -Recurse Bento4-tools.zip, 7z, 7z.exe, 7z-installer.exe, ffmpeg.7z, gpac-installer.exe, GPAC, qemu-installer.exe, qemu
 
       - name: Prepare assets
