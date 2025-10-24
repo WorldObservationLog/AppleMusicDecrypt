@@ -91,6 +91,8 @@ async def decrypt_done(adam_id: str):
 
 async def rip_song(url: Song, codec: str, flags: Flags = Flags(),
                    parent_done: ParentDoneHandler = None, playlist: PlaylistInfo = None):
+    if url.id in adam_id_task_mapping.keys():
+        return
     task = Task(adam_id=url.id, parent_done=parent_done, playlist=playlist)
     adam_id_task_mapping[url.id] = task
     task.init_logger()
