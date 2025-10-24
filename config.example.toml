@@ -1,5 +1,5 @@
 # DO NOT EDIT IT
-version = "0.0.4"
+version = "0.0.5"
 
 [instance]
 url = "127.0.0.1:8080"
@@ -13,6 +13,8 @@ enable = false
 # For Windows users, run `Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform` to check if WHPX enabled
 # For Linux users, run `sudo kvm-ok` to check if KVM supported
 enableHardwareAcceleration = false
+# For Windows WHPX, you may have to set hardwareAccelerator to `whpx,kernel-irqchip=off` and cpuModel to `qemu64-v1`
+hardwareAccelerator = ""
 memorySize = "512M"
 cpuModel = "Cascadelake-Server-v5"
 # Waiting time for wrapper-manager to start

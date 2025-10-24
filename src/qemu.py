@@ -13,8 +13,7 @@ from src.logger import GlobalLogger
 ARGUMENTS = ["qemu-system-x86_64", "-machine q35", f"-cpu {it(Config).localInstance.cpuModel}",
              f"-m {it(Config).localInstance.memorySize}", "-display none", "-hda assets/wrapper-manager.qcow2",
              "-device virtio-net-pci,netdev=net0", "-netdev user,id=net0,hostfwd=tcp:127.0.0.1:32767-:32767"]
-HWACCEL_WIN = "-accel whpx"
-HWACCEL_LINUX = "-accel kvm"
+HWACCEL = f"-accel {it(Config).localInstance.hardwareAccelerator}"
 
 
 class QemuInstance:
@@ -24,11 +23,10 @@ class QemuInstance:
         if not self.image_available():
             await self.get_instance_image()
         if it(Config).localInstance.enableHardwareAcceleration:
-            if sys.platform == "win32":
-                ARGUMENTS.insert(3, HWACCEL_WIN)
-            elif sys.platform == "linux":
-                ARGUMENTS.insert(3, HWACCEL_LINUX)
-        self.proc = loop.create_task(asyncio.create_subprocess_shell(" ".join(ARGUMENTS), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE))
+            ARGUMENTS.insert(3, HWACCEL)
+        self.proc = loop.create_task(
+            asyncio.create_subprocess_shell(" ".join(ARGUMENTS), stdout=asyncio.subprocess.PIPE,
+                                            stderr=asyncio.subprocess.PIPE))
 
     def terminate(self):
         self.proc.result().kill()
