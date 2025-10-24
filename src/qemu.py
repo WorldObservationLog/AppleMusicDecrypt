@@ -31,6 +31,12 @@ class QemuInstance:
     def terminate(self):
         self.proc.result().kill()
 
+    def running(self):
+        if self.proc.done():
+            return not bool(self.proc.result().returncode)
+        else:
+            return True
+
     async def get_instance_image(self):
         it(GlobalLogger).logger.warning("The wrapper-manager image does not exist. Downloading...")
         async with httpx.AsyncClient(follow_redirects=True) as client:

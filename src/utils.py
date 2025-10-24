@@ -2,6 +2,7 @@ import asyncio
 import concurrent.futures
 import json
 import subprocess
+import sys
 import time
 from asyncio import AbstractEventLoop
 from copy import deepcopy
@@ -21,6 +22,7 @@ from src.exceptions import NotTimeSyncedLyricsException
 from src.logger import GlobalLogger
 from src.models import PlaylistInfo
 from src.models.album_meta import Tracks
+from src.qemu import QemuInstance
 from src.types import *
 
 executor_pool = concurrent.futures.ThreadPoolExecutor()
@@ -319,8 +321,11 @@ def config_outdated():
     return LooseVersion(it(Config).version) < LooseVersion(CONFIG_VERSION)
 
 
-async def countdown(seconds: int):
+async def countdown(seconds: int, qemuInstance: QemuInstance):
     while seconds > 0:
+        if not qemuInstance.running():
+            it(GlobalLogger).logger.error("Failed to start qemu")
+            sys.exit()
         mins, secs = divmod(seconds, 60)  # Convert seconds to minutes and remaining seconds
         timeformat = '{:02d}:{:02d}'.format(mins, secs)  # Format for MM:SS display
         print(timeformat, end='\r')  # Print on the same line, overwriting previous output

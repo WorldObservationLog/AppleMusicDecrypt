@@ -37,7 +37,7 @@ class InteractiveShell:
         if it(Config).localInstance.enable:
             loop.run_until_complete(self.localInstance.launch_instance(loop))
             it(GlobalLogger).logger.info("Waiting for wrapper-manager to start...")
-            loop.run_until_complete(countdown(it(Config).localInstance.timeout))
+            loop.run_until_complete(countdown(it(Config).localInstance.timeout, self.localInstance))
             it(Config).instance.url = "127.0.0.1:32767"
             it(Config).instance.secure = False
         loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
