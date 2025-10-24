@@ -1,7 +1,6 @@
 import argparse
 import asyncio
 import sys
-import time
 
 import grpc.aio
 from creart import it
@@ -39,17 +38,15 @@ class InteractiveShell:
             loop.run_until_complete(self.localInstance.launch_instance(loop))
             it(GlobalLogger).logger.info("Waiting for wrapper-manager to start...")
             loop.run_until_complete(countdown(it(Config).localInstance.timeout))
-            try:
-                it(Config).instance.url = "127.0.0.1:32767"
-                it(Config).instance.secure = False
-                loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
-            except grpc.aio._call.AioRpcError:
-                it(GlobalLogger).logger.error("Unable to connect to the local wrapper-manager, please try to extend the timeout")
-                sys.exit()
-        else:
-            loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
+            it(Config).instance.url = "127.0.0.1:32767"
+            it(Config).instance.secure = False
+        loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
         safely_create_task(it(WrapperManager).decrypt_init(on_success=on_decrypt_success, on_failure=on_decrypt_failed))
-        loop.run_until_complete(self.show_status())
+        try:
+            loop.run_until_complete(self.show_status())
+        except grpc.aio._call.AioRpcError:
+            it(GlobalLogger).logger.error("Unable to connect to the wrapper-manager")
+            sys.exit()
 
         if config_outdated():
             it(GlobalLogger).logger.warning("The configuration file is out of date. Please refer to config.example.toml to update it")
