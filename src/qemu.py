@@ -11,7 +11,7 @@ from src.config import Config
 from src.logger import GlobalLogger
 
 ARGUMENTS = ["qemu-system-x86_64", "-machine q35", f"-cpu {it(Config).localInstance.cpuModel}",
-             f"-m {it(Config).localInstance.memorySize}", "-display none", "-hda assets/wrapper-manager.qcow2",
+             f"-m {it(Config).localInstance.memorySize}", "-hda assets/wrapper-manager.qcow2",
              "-device virtio-net-pci,netdev=net0", "-netdev user,id=net0,hostfwd=tcp:127.0.0.1:32767-:32767"]
 HWACCEL = f"-accel {it(Config).localInstance.hardwareAccelerator}"
 
@@ -24,6 +24,8 @@ class QemuInstance:
             await self.get_instance_image()
         if it(Config).localInstance.enableHardwareAcceleration:
             ARGUMENTS.insert(3, HWACCEL)
+        if not it(Config).localInstance.showWindow:
+            ARGUMENTS.insert(5, "-display none")
         self.proc = loop.create_task(
             asyncio.create_subprocess_shell(" ".join(ARGUMENTS), stdout=asyncio.subprocess.PIPE,
                                             stderr=asyncio.subprocess.PIPE))
