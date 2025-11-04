@@ -63,9 +63,9 @@ class WebAPI:
            stop=stop_after_attempt(32))
     def _set_token(self):
         with httpx.Client() as client:
-            resp = client.get("https://beta.music.apple.com", follow_redirects=True)
-            index_js_uri = regex.findall(r"/assets/index-legacy-[^/]+\.js", resp.text)[0]
-            js_resp = client.get("https://beta.music.apple.com" + index_js_uri)
+            resp = client.get("https://music.apple.com", follow_redirects=True)
+            index_js_uri = regex.findall(r"/assets/index~[^/]+\.js", resp.text)[0]
+            js_resp = client.get("https://music.apple.com" + index_js_uri)
             self.token = regex.search(r'eyJh([^"]*)', js_resp.text)[0]
 
     # DO NOT REMOVE IT
