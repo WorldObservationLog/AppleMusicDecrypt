@@ -2,6 +2,8 @@
 
 Apple Music decryption tool, inspired by [zhaarey/apple-music-alac-atmos-downloader](https://github.com/zhaarey/apple-music-alac-atmos-downloader)
 
+Discussion Group: https://t.me/apple_music_alac 
+
 # Usage
 
 ```shell
