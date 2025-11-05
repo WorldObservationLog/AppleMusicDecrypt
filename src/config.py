@@ -5,7 +5,7 @@ from creart import exists_module
 from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
-CONFIG_VERSION = "0.0.6"
+CONFIG_VERSION = "0.0.7"
 
 
 class Instance(BaseModel):
@@ -19,8 +19,8 @@ class LocalInstance(BaseModel):
     hardwareAccelerator: str = ""
     memorySize: str = "512M"
     cpuModel: str = "Cascadelake-Server-v5"
-    timeout: int = 30
     showWindow: bool = False
+    startArgs: str = "-host 0.0.0.0 -port 32767 -debug"
 
 
 class Region(BaseModel):

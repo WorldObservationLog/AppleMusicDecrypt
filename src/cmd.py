@@ -17,7 +17,7 @@ from src.measurer import Measurer
 from src.qemu import QemuInstance
 from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
 from src.url import AppleMusicURL, URLType
-from src.utils import check_dep, run_sync, safely_create_task, config_outdated, countdown
+from src.utils import check_dep, run_sync, safely_create_task, config_outdated
 
 
 class InteractiveShell:
@@ -36,8 +36,6 @@ class InteractiveShell:
         loop.run_until_complete(run_sync(it(WebAPI).init))
         if it(Config).localInstance.enable:
             loop.run_until_complete(self.localInstance.launch_instance(loop))
-            it(GlobalLogger).logger.info("Waiting for wrapper-manager to start...")
-            loop.run_until_complete(countdown(it(Config).localInstance.timeout, self.localInstance))
             it(Config).instance.url = "127.0.0.1:32767"
             it(Config).instance.secure = False
         loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
@@ -203,4 +201,4 @@ class InteractiveShell:
             finally:
                 it(GlobalLogger).logger.info("Exit.")
                 if it(Config).localInstance.enable:
-                    self.localInstance.terminate()
+                    await self.localInstance.terminate()

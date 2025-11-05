@@ -319,15 +319,3 @@ def language_exist(region: str, language: str):
 
 def config_outdated():
     return LooseVersion(it(Config).version) < LooseVersion(CONFIG_VERSION)
-
-
-async def countdown(seconds: int, qemuInstance: QemuInstance):
-    while seconds > 0:
-        if not qemuInstance.running():
-            it(GlobalLogger).logger.error("Failed to start qemu")
-            sys.exit()
-        mins, secs = divmod(seconds, 60)  # Convert seconds to minutes and remaining seconds
-        timeformat = '{:02d}:{:02d}'.format(mins, secs)  # Format for MM:SS display
-        print(timeformat, end='\r')  # Print on the same line, overwriting previous output
-        await asyncio.sleep(1) # Pause for 1 second
-        seconds -= 1  # Decrement the time

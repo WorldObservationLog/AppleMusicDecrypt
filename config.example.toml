@@ -1,5 +1,5 @@
 # DO NOT EDIT IT
-version = "0.0.6"
+version = "0.0.7"
 
 [instance]
 url = "127.0.0.1:8080"
@@ -17,9 +17,8 @@ enableHardwareAcceleration = false
 hardwareAccelerator = ""
 memorySize = "512M"
 cpuModel = "Cascadelake-Server-v5"
-# Waiting time for wrapper-manager to start
-timeout = 80
 showWindow = false
+startArgs = "-host 0.0.0.0 -port 32767 -debug"
 
 [region]
 # The language of song metadata. Influence song title, author and other information.
