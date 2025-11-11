@@ -7,6 +7,7 @@ from pathlib import Path
 
 import httpx
 from creart import it
+from tenacity import retry, retry_if_exception_type, wait_random_exponential, stop_after_attempt, before_sleep_log
 
 from src.config import Config
 from src.logger import GlobalLogger
@@ -39,6 +40,9 @@ class QGAClient:
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
 
+    @retry(retry=retry_if_exception_type((asyncio.TimeoutError)),
+           wait=wait_random_exponential(multiplier=1, max=60),
+           stop=stop_after_attempt(8), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def init(self):
         self.reader, self.writer = await asyncio.open_connection("127.0.0.1", 32766)
 
@@ -47,6 +51,7 @@ class QGAClient:
 
     async def send_cmd(self, command: str, arguments: dict):
         self.writer.write(json.dumps({"execute": command, "arguments": arguments}).encode())
+        print("waiting for result")
         result = json.loads(await self.reader.readline())
         if result.get("error"):
             raise QGAException(result.get("error"))
@@ -92,6 +97,10 @@ class QemuInstance:
             raise QemuCrashedException(stdout.decode(), stderr.decode())
         await self.client.write_file("/etc/wm-args", it(Config).localInstance.startArgs)
         await self.client.execute("/sbin/rc-service", ["wrapper-manager", "start"])
+        while True:
+            if await self.instance_running():
+                break
+            await asyncio.sleep(1)
         await asyncio.sleep(5)  # Waiting for wrapper to start
 
     def qemu_running(self):
