@@ -51,7 +51,6 @@ class QGAClient:
 
     async def send_cmd(self, command: str, arguments: dict):
         self.writer.write(json.dumps({"execute": command, "arguments": arguments}).encode())
-        print("waiting for result")
         result = json.loads(await self.reader.readline())
         if result.get("error"):
             raise QGAException(result.get("error"))
