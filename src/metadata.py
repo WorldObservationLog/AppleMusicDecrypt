@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from src.api import WebAPI
 from src.models import AlbumMeta
 from src.models.song_data import Datum
-from src.utils import ttml_convent_to_lrc, count_total_track_and_disc
+from src.utils import ttml_convent, count_total_track_and_disc
 
 NOT_INCLUDED_FIELD = ["playlistIndex", "bit_depth", "sample_rate", "sample_rate_kHz",
                       "track_total", "disk_total", "cover_url"]
@@ -75,7 +75,7 @@ class SongMetadata(BaseModel):
                 if key in NOT_INCLUDED_FIELD:
                     continue
                 if key == "lyrics":
-                    lrc = ttml_convent_to_lrc(value)
+                    lrc = ttml_convent(value)
                     tags.append(f"{key}={lrc}")
                     continue
                 if key.lower() in ('upc', 'isrc'):
@@ -97,7 +97,7 @@ class SongMetadata(BaseModel):
                 if key in NOT_INCLUDED_FIELD:
                     continue
                 if key == "lyrics":
-                    lrc = ttml_convent_to_lrc(value)
+                    lrc = ttml_convent(value)
                     tags.update({TAG_MAPPING[key]: lrc})
                     continue
                 if key == "tracknum":

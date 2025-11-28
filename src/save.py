@@ -6,7 +6,7 @@ from creart import it
 from src.config import Config
 from src.metadata import SongMetadata
 from src.models import PlaylistInfo
-from src.utils import ttml_convent_to_lrc, get_song_name_and_dir_path, get_suffix
+from src.utils import ttml_convent, get_song_name_and_dir_path, get_suffix
 
 
 def save(song: bytes, codec: str, metadata: SongMetadata, playlist: PlaylistInfo = None):
@@ -21,7 +21,7 @@ def save(song: bytes, codec: str, metadata: SongMetadata, playlist: PlaylistInfo
         with open(cover_path.absolute(), "wb") as f:
             f.write(metadata.cover)
     if it(Config).download.saveLyrics and metadata.lyrics:
-        lrc = ttml_convent_to_lrc(metadata.lyrics)
+        lrc = ttml_convent(metadata.lyrics)
         if lrc:
             lrc_path = dir_path / Path(song_name + ".lrc")
             lrc_path.write_text(lrc, encoding="utf-8")

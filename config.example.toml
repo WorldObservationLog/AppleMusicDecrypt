@@ -1,5 +1,5 @@
 # DO NOT EDIT IT
-version = "0.0.7"
+version = "0.0.8"
 
 [instance]
 url = "127.0.0.1:8080"
@@ -91,6 +91,8 @@ playlistDirPathFormat = "downloads/playlists/{playlistName}"
 playlistSongNameFormat = "{playlistSongIndex:02d}. {artist} - {title}"
 # Save lyrics as .lrc file
 saveLyrics = true
+# lrc or ttml
+lyricsFormat = "ttml"
 saveCover = true
 coverFormat = "jpg"
 coverSize = "5000x5000"

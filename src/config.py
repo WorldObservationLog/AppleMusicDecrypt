@@ -5,7 +5,7 @@ from creart import exists_module
 from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
-CONFIG_VERSION = "0.0.7"
+CONFIG_VERSION = "0.0.8"
 
 
 class Instance(BaseModel):
@@ -43,6 +43,7 @@ class Download(BaseModel):
     playlistDirPathFormat: str = "downloads/playlists/{playlistName}"
     playlistSongNameFormat: str = "{playlistSongIndex:02d}. {artist} - {title}"
     saveLyrics: bool = True
+    lyricsFormat: str = "lrc"
     saveCover: bool = True
     coverFormat: str = "jpg"
     coverSize: str = "5000x5000"

@@ -87,7 +87,10 @@ def get_digit_from_string(text: str) -> int:
     return int(''.join(filter(str.isdigit, text)))
 
 
-def ttml_convent_to_lrc(ttml: str) -> str:
+def ttml_convent(ttml: str) -> str:
+    if it(Config).download.lyricsFormat == "ttml":
+        return ttml
+
     b = BeautifulSoup(ttml, features="xml")
     lrc_lines = []
 
