@@ -38,7 +38,14 @@ class InteractiveShell:
             loop.run_until_complete(self.localInstance.launch_instance(loop))
             it(Config).instance.url = "127.0.0.1:32767"
             it(Config).instance.secure = False
-        loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
+            loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
+            while True:
+                it(WrapperManager).status.cache_invalidate()
+                if loop.run_until_complete(it(WrapperManager).status()).ready:
+                    break
+                loop.run_until_complete(asyncio.sleep(3))
+        else:
+            loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
         safely_create_task(it(WrapperManager).decrypt_init(on_success=on_decrypt_success, on_failure=on_decrypt_failed))
         try:
             loop.run_until_complete(self.show_status())

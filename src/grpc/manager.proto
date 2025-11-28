@@ -33,6 +33,7 @@ message StatusData {
   bool status = 1;
   repeated string regions = 2;
   int32 client_count = 3;
+  bool ready = 4;
 }
 
 // ---------- Login ----------

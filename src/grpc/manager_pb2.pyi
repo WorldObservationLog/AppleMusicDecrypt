@@ -24,14 +24,16 @@ class StatusReply(_message.Message):
     def __init__(self, header: _Optional[_Union[ReplyHeader, _Mapping]] = ..., data: _Optional[_Union[StatusData, _Mapping]] = ...) -> None: ...
 
 class StatusData(_message.Message):
-    __slots__ = ("status", "regions", "client_count")
+    __slots__ = ("status", "regions", "client_count", "ready")
     STATUS_FIELD_NUMBER: _ClassVar[int]
     REGIONS_FIELD_NUMBER: _ClassVar[int]
     CLIENT_COUNT_FIELD_NUMBER: _ClassVar[int]
+    READY_FIELD_NUMBER: _ClassVar[int]
     status: bool
     regions: _containers.RepeatedScalarFieldContainer[str]
     client_count: int
-    def __init__(self, status: bool = ..., regions: _Optional[_Iterable[str]] = ..., client_count: _Optional[int] = ...) -> None: ...
+    ready: bool
+    def __init__(self, status: bool = ..., regions: _Optional[_Iterable[str]] = ..., client_count: _Optional[int] = ..., ready: bool = ...) -> None: ...
 
 class LoginRequest(_message.Message):
     __slots__ = ("data",)

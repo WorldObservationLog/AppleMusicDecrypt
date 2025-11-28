@@ -100,7 +100,6 @@ class QemuInstance:
             if await self.instance_running():
                 break
             await asyncio.sleep(1)
-        await asyncio.sleep(5)  # Waiting for wrapper to start
 
     def qemu_running(self):
         if self.proc.done():
