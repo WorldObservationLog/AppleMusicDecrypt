@@ -108,7 +108,7 @@ class Datum2(BaseModel):
     type: Optional[str] = None
     href: Optional[str] = None
     attributes: Attributes1
-    meta: Meta
+    meta: Optional[Meta] = None
 
 
 class Tracks(BaseModel):
