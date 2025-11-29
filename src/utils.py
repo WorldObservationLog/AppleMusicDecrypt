@@ -100,7 +100,7 @@ def ttml_convent(ttml: str) -> str:
             lyric_time: str = lyric.get("begin")
             if not lyric_time:
                 return ""
-                #raise NotTimeSyncedLyricsException
+                # raise NotTimeSyncedLyricsException
             if lyric_time.find('.') == -1:
                 lyric_time += '.000'
             match lyric_time.count(":"):
@@ -123,11 +123,16 @@ def ttml_convent(ttml: str) -> str:
                                    get_digit_from_string(split_time[2]), get_digit_from_string(split_time[3]))
             lrc_lines.append(
                 f"[{str(m + h * 60).rjust(2, '0')}:{str(s).rjust(2, '0')}.{str(int(ms / 10)).rjust(2, '0')}]{lyric.text}")
-            if b.tt.head.metadata.iTunesMetadata.translation:
+            if "translation" in it(Config).download.lyricsExtra and b.tt.head.metadata.iTunesMetadata.translation:
                 for translation in b.tt.head.metadata.iTunesMetadata.translation.children:
                     if lyric.get("itunes:key") == translation.get("for"):
                         lrc_lines.append(
                             f"[{str(m + h * 60).rjust(2, '0')}:{str(s).rjust(2, '0')}.{str(int(ms / 10)).rjust(2, '0')}]{translation.text}")
+            if "pronunciation" in it(Config).download.lyricsExtra and b.tt.head.metadata.iTunesMetadata.transliteration:
+                for transliteration in b.tt.head.metadata.iTunesMetadata.transliteration.children:
+                    if lyric.get("itunes:key") == transliteration.get("for"):
+                        lrc_lines.append(
+                            f"[{str(m + h * 60).rjust(2, '0')}:{str(s).rjust(2, '0')}.{str(int(ms / 10)).rjust(2, '0')}]{transliteration.text}")
     return "\n".join(lrc_lines)
 
 

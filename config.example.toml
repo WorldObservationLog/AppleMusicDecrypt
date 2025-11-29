@@ -1,5 +1,5 @@
 # DO NOT EDIT IT
-version = "0.0.8"
+version = "0.0.9"
 
 [instance]
 url = "127.0.0.1:8080"
@@ -92,7 +92,10 @@ playlistSongNameFormat = "{playlistSongIndex:02d}. {artist} - {title}"
 # Save lyrics as .lrc file
 saveLyrics = true
 # lrc or ttml
-lyricsFormat = "ttml"
+# TTML format lyrics will be saved as .ttml suffix
+lyricsFormat = "lrc"
+# Only applies to lrc lyrics
+lyricsExtra = ["translation", "pronunciation"]
 saveCover = true
 coverFormat = "jpg"
 coverSize = "5000x5000"

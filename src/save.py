@@ -23,6 +23,9 @@ def save(song: bytes, codec: str, metadata: SongMetadata, playlist: PlaylistInfo
     if it(Config).download.saveLyrics and metadata.lyrics:
         lrc = ttml_convent(metadata.lyrics)
         if lrc:
-            lrc_path = dir_path / Path(song_name + ".lrc")
+            if it(Config).download.lyricsFormat == "ttml":
+                lrc_path = dir_path / Path(song_name + ".ttml")
+            else:
+                lrc_path = dir_path / Path(song_name + ".lrc")
             lrc_path.write_text(lrc, encoding="utf-8")
     return song_path.absolute()
