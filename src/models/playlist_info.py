@@ -100,7 +100,7 @@ class ContentVersion(BaseModel):
 
 
 class Meta(BaseModel):
-    contentVersion: ContentVersion
+    contentVersion: Optional[ContentVersion] = None
 
 
 class Datum2(BaseModel):
