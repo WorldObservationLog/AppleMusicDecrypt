@@ -58,6 +58,7 @@ class RipLogger:
             self.full_name = artist
         else:
             self.full_name = f"{artist} - {name}"
+        self.full_name = self.full_name.replace("<", "<").replace(">", ">")
         self.logger.remove()
         self.logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True,
                         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
