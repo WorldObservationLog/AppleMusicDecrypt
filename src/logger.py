@@ -38,8 +38,8 @@ class RipLogger:
     metadata: "SongMetadata"
 
     def __init__(self, _type: str, item_id: str):
-        self.item_type = _type
-        self.item_id = item_id
+        self.item_type = _type.replace("<", r"\<").replace(">", r"\>")
+        self.item_id = item_id.replace("<", r"\<").replace(">", r"\>")
         logger.remove()
         self.logger = copy.deepcopy(logger)
         self.logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True,
