@@ -58,11 +58,13 @@ class RipLogger:
             self.full_name = artist
         else:
             self.full_name = f"{artist} - {name}"
+
+        escaped_full_name = self.full_name.replace("<", r"\<").replace(">", r"\>")
         self.logger.remove()
         self.logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True,
                         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
                                + f" | <b>{self.item_type.upper()}</b>"
-                               + f" | <b>{self.full_name}</b>"
+                               + f" | <b>{escaped_full_name}</b>"
                                + " | <level>{level}</level>"
                                + " - <level>{message}</level>",
                         level="INFO")
