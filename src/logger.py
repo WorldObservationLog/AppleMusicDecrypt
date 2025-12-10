@@ -1,4 +1,5 @@
 import copy
+import urllib.parse
 from typing import Type
 
 from creart import AbstractCreator, CreateTargetInfo, exists_module
@@ -39,7 +40,7 @@ class RipLogger:
 
     def __init__(self, _type: str, item_id: str):
         self.item_type = _type
-        self.item_id = item_id
+        self.item_id = urllib.parse.quote(item_id)
         logger.remove()
         self.logger = copy.deepcopy(logger)
         self.logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True,
@@ -58,6 +59,7 @@ class RipLogger:
             self.full_name = artist
         else:
             self.full_name = f"{artist} - {name}"
+        self.full_name = self.full_name.replace("<", "\\<").replace(">", "\\>")
         self.logger.remove()
         self.logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True,
                         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
