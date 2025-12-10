@@ -52,8 +52,12 @@ For faster decryption, wrapper-manager can also be deployed locally. The decrypt
 
 A wrapper-manager instance for testing: 
 ```toml
-[instance]
+[instance] # Mantainced by @WorldObservationLog
 url = "wm.wol.moe"
+secure = true
+# or
+[instance] # Mantainced by @itouakira
+url = "wm1.wol.moe"
 secure = true
 ```
 
