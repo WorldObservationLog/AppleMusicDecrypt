@@ -15,7 +15,7 @@ apt update && apt install pipx git -y && pipx install poetry && pipx ensurepath 
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt
 cd AppleMusicDecrypt
 bash ./tools/install-deps.sh
-poetry install
+poetry env use /usr/bin/python3 && poetry install
 cp config.example.toml config.toml
 nano config.toml
 ```
