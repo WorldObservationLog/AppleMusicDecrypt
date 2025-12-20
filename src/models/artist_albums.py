@@ -36,7 +36,7 @@ class Attributes(BaseModel):
     upc: Optional[str] = None
     artwork: Artwork
     url: Optional[str] = None
-    playParams: PlayParams
+    playParams: Optional[PlayParams] = None
     recordLabel: Optional[str] = None
     trackCount: Optional[int] = None
     isCompilation: Optional[bool] = None
