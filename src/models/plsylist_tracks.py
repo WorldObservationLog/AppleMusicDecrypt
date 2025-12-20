@@ -65,7 +65,7 @@ class Datum(BaseModel):
     type: Optional[str] = None
     href: Optional[str] = None
     attributes: Attributes
-    meta: Meta
+    meta: Optional[Meta] = None
 
 
 class PlaylistTracks(BaseModel):
