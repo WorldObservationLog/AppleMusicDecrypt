@@ -124,8 +124,11 @@ def ttml_convent(ttml: str) -> str:
             lrc_lines.append(
                 f"[{str(m + h * 60).rjust(2, '0')}:{str(s).rjust(2, '0')}.{str(int(ms / 10)).rjust(2, '0')}]{lyric.text}")
             if "translation" in it(Config).download.lyricsExtra and b.tt.head.metadata.iTunesMetadata.translation:
+                trans_type = b.tt.head.metadata.iTunesMetadata.translation.get("type")
                 for translation in b.tt.head.metadata.iTunesMetadata.translation.children:
                     if lyric.get("itunes:key") == translation.get("for"):
+                        if trans_type == "replacement":
+                            del lrc_lines[-1]
                         lrc_lines.append(
                             f"[{str(m + h * 60).rjust(2, '0')}:{str(s).rjust(2, '0')}.{str(int(ms / 10)).rjust(2, '0')}]{translation.text}")
             if "pronunciation" in it(Config).download.lyricsExtra and b.tt.head.metadata.iTunesMetadata.transliteration:
