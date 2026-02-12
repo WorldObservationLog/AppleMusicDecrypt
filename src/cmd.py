@@ -1,6 +1,7 @@
 import argparse
 import asyncio
 import sys
+import os
 
 import grpc.aio
 from creart import it
@@ -94,8 +95,7 @@ class InteractiveShell:
             case "status":
                 await self.show_status()
             case "exit":
-                self.loop.stop()
-                sys.exit()
+                self.handle_exit()
 
     async def do_download(self, raw_url: str, codec: str, force_download: bool, language: str, include: bool = False):
         url = AppleMusicURL.parse_url(raw_url)
@@ -153,6 +153,16 @@ class InteractiveShell:
         }
         return NestedCompleter.from_nested_dict(mycompleter)
 
+    def handle_exit(self):
+        if it(Measurer).tasks_count() > 0:
+            it(GlobalLogger).logger.info("There is still {} tasks, do you really want to exit? (y/N)".format(it(Measurer).tasks_count()))
+            response = input().strip().lower()
+            if response != 'y':
+                return
+        it(GlobalLogger).logger.info("Exit.")
+        self.loop.stop()
+        os._exit(0)
+
     async def handle_command(self):
         session = PromptSession("> ", bottom_toolbar=self.bottom_toolbar, completer=self.completer(), refresh_interval=1)
 
@@ -168,7 +178,7 @@ class InteractiveShell:
                 else:
                     await self.command_parser(command)
             except (EOFError, KeyboardInterrupt):
-                return
+                self.handle_exit()
 
     async def on_2fa(self, username: str, password: str):
         session = PromptSession()
@@ -206,6 +216,5 @@ class InteractiveShell:
             try:
                 await self.handle_command()
             finally:
-                it(GlobalLogger).logger.info("Exit.")
                 if it(Config).localInstance.enable:
-                    await self.localInstance.terminate()
+                    self.localInstance.terminate()
