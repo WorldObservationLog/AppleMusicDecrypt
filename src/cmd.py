@@ -59,11 +59,12 @@ class InteractiveShell:
         self.parser = argparse.ArgumentParser(exit_on_error=False)
         subparser = self.parser.add_subparsers()
         download_parser = subparser.add_parser("download", aliases=["dl"])
-        download_parser.add_argument("url",  nargs='+' ,type=str)
+        download_parser.add_argument("url",  nargs='*' ,type=str)
         download_parser.add_argument("-c", "--codec",
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "aac-legacy", "ac3"],
                                      default="alac")
         download_parser.add_argument("-f", "--force", default=False, action="store_true")
+        download_parser.add_argument("-b", "--batch", default=False, action="store_true")
         download_parser.add_argument("-l", "--language", default=it(Config).region.language, action="store")
         download_parser.add_argument("--include-participate-songs", default=False, dest="include", action="store_true")
 
@@ -71,6 +72,8 @@ class InteractiveShell:
         subparser.add_parser("login")
         subparser.add_parser("logout")
         subparser.add_parser("exit")
+
+        self.batch_download_mode = 0
 
     async def show_status(self):
         it(WrapperManager).status.cache_invalidate()
@@ -83,6 +86,13 @@ class InteractiveShell:
         if not cmd.strip():
             return
         cmds = cmd.split(" ")
+        if self.batch_download_mode:
+            if cmds[0]=="exit":
+                self.batch_download_mode=0
+                return
+            args=self.batch_download_args
+            await self.do_download(cmds, args.codec, args.force, args.language, args.include)
+            return
         try:
             args = self.parser.parse_args(cmds)
         except (argparse.ArgumentError, argparse.ArgumentTypeError, SystemExit):
@@ -90,6 +100,11 @@ class InteractiveShell:
             return
         match cmds[0]:
             case "download" | "dl":
+                if args.batch:
+                    self.batch_download_mode = 1
+                    self.batch_download_args = args
+                    return
+                
                 await self.do_download(args.url, args.codec, args.force, args.language, args.include)
             case "status":
                 await self.show_status()
