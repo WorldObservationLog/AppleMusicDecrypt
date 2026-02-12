@@ -89,6 +89,7 @@ class InteractiveShell:
         if self.batch_download_mode:
             if cmds[0]=="exit":
                 self.batch_download_mode=False
+                it(GlobalLogger).logger.info("Batch mode exited. Returning to normal command mode.")
                 return
             args=self.batch_download_args
             await self.do_download(cmds, args.codec, args.force, args.language, args.include)
@@ -103,6 +104,7 @@ class InteractiveShell:
                 if args.batch:
                     self.batch_download_mode = True
                     self.batch_download_args = args
+                    it(GlobalLogger).logger.info("Entering batch mode. Enter one or more URLs per line (space-separated), type 'exit' to quit")
                     return
                 
                 await self.do_download(args.url, args.codec, args.force, args.language, args.include)
