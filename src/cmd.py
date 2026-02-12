@@ -73,7 +73,7 @@ class InteractiveShell:
         subparser.add_parser("logout")
         subparser.add_parser("exit")
 
-        self.batch_download_mode = 0
+        self.batch_download_mode = False
 
     async def show_status(self):
         it(WrapperManager).status.cache_invalidate()
@@ -88,7 +88,7 @@ class InteractiveShell:
         cmds = cmd.split(" ")
         if self.batch_download_mode:
             if cmds[0]=="exit":
-                self.batch_download_mode=0
+                self.batch_download_mode=False
                 return
             args=self.batch_download_args
             await self.do_download(cmds, args.codec, args.force, args.language, args.include)
@@ -101,7 +101,7 @@ class InteractiveShell:
         match cmds[0]:
             case "download" | "dl":
                 if args.batch:
-                    self.batch_download_mode = 1
+                    self.batch_download_mode = True
                     self.batch_download_args = args
                     return
                 
