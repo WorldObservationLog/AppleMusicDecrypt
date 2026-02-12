@@ -59,7 +59,7 @@ class InteractiveShell:
         self.parser = argparse.ArgumentParser(exit_on_error=False)
         subparser = self.parser.add_subparsers()
         download_parser = subparser.add_parser("download", aliases=["dl"])
-        download_parser.add_argument("url", type=str)
+        download_parser.add_argument("url",  nargs='+' ,type=str)
         download_parser.add_argument("-c", "--codec",
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "aac-legacy", "ac3"],
                                      default="alac")
@@ -97,27 +97,28 @@ class InteractiveShell:
                 self.loop.stop()
                 sys.exit()
 
-    async def do_download(self, raw_url: str, codec: str, force_download: bool, language: str, include: bool = False):
-        url = AppleMusicURL.parse_url(raw_url)
-        if not url:
-            real_url = await it(WebAPI).get_real_url(raw_url)
-            url = AppleMusicURL.parse_url(real_url)
+    async def do_download(self, raw_urls: list[str], codec: str, force_download: bool, language: str, include: bool = False):
+        for raw_url in raw_urls:
+            url = AppleMusicURL.parse_url(raw_url)
             if not url:
-                it(GlobalLogger).logger.error("Illegal URL!")
-                return
-        match url.type:
-            case URLType.Song:
-                safely_create_task(rip_song(url, codec, Flags(force_save=force_download, language=language)))
-            case URLType.Album:
-                safely_create_task(rip_album(url, codec, Flags(force_save=force_download, language=language)))
-            case URLType.Artist:
-                safely_create_task(rip_artist(url, codec, Flags(force_save=force_download, language=language,
-                                                                include_participate_in_works=include)))
-            case URLType.Playlist:
-                safely_create_task(rip_playlist(url, codec, Flags(force_save=force_download, language=language)))
-            case _:
-                it(GlobalLogger).logger.error("Unsupported URLType")
-                return
+                real_url = await it(WebAPI).get_real_url(raw_url)
+                url = AppleMusicURL.parse_url(real_url)
+                if not url:
+                    it(GlobalLogger).logger.error(f"Illegal URL! - {raw_url}")
+                    continue
+            match url.type:
+                case URLType.Song:
+                    safely_create_task(rip_song(url, codec, Flags(force_save=force_download, language=language)))
+                case URLType.Album:
+                    safely_create_task(rip_album(url, codec, Flags(force_save=force_download, language=language)))
+                case URLType.Artist:
+                    safely_create_task(rip_artist(url, codec, Flags(force_save=force_download, language=language,
+                                                                    include_participate_in_works=include)))
+                case URLType.Playlist:
+                    safely_create_task(rip_playlist(url, codec, Flags(force_save=force_download, language=language)))
+                case _:
+                    it(GlobalLogger).logger.error(f"Unsupported URLType - {raw_url}")
+                    continue
 
     def bottom_toolbar(self):
         return f"Download Speed: {it(Measurer).download_speed()}, Decrypt Speed: {it(Measurer).decrypt_speed()}, Tasks: {it(Measurer).tasks_count()}"
