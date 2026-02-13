@@ -1,5 +1,5 @@
 # DO NOT EDIT IT
-version = "0.0.9"
+version = "0.0.10"
 
 [instance]
 url = "127.0.0.1:8080"
@@ -106,6 +106,8 @@ maxBitDepth = 24
 # Example: "\"C:\\Program Files\\DAUM\\PotPlayer\\PotPlayerMini64.exe\" \"{filename}\""
 # Pay attention to escaping issues
 afterDownloaded = ""
+retryTime = 8
+maxWaitTime = 30
 
 [metadata]
 # Metadata to be written to the song

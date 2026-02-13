@@ -59,8 +59,8 @@ class WebAPI:
         self.request_lock = asyncio.Semaphore(256)
 
     @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
-           wait=wait_random_exponential(multiplier=1, max=60),
-           stop=stop_after_attempt(32))
+           wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
+           stop=stop_after_attempt(it(Config).download.retryTime))
     def _set_token(self):
         with httpx.Client() as client:
             resp = client.get("https://music.apple.com", follow_redirects=True)
@@ -73,15 +73,15 @@ class WebAPI:
         pass
 
     @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
-           wait=wait_random_exponential(multiplier=1, max=60),
-           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+           wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
+           stop=stop_after_attempt(it(Config).download.retryTime), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def _request(self, *args, **kwargs):
         async with self.request_lock:
             return await self.client.request(*args, **kwargs)
 
     @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
-           wait=wait_random_exponential(multiplier=1, max=60),
-           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+           wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
+           stop=stop_after_attempt(it(Config).download.retryTime), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def download_song(self, url: str) -> bytes:
         async with self.download_lock:
             result = BytesIO()

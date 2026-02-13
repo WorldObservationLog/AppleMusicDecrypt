@@ -13,6 +13,7 @@ from tenacity import retry_if_exception_type, retry, wait_random_exponential, st
 from src.grpc.manager_pb2 import *
 from src.grpc.manager_pb2_grpc import WrapperManagerServiceStub, google_dot_protobuf_dot_empty__pb2
 from src.logger import GlobalLogger
+from src.config import Config
 from src.utils import safely_create_task
 
 
@@ -129,8 +130,8 @@ class WrapperManager:
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
             retry_if_not_exception_message('no available instance'))),
-           wait=wait_random_exponential(multiplier=1, max=60),
-           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+           wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
+           stop=stop_after_attempt(it(Config).download.retryTime), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def m3u8(self, adam_id: str) -> str:
         resp: M3U8Reply = await self._stub.M3U8(M3U8Request(data=M3U8DataRequest(adam_id=adam_id)))
         if resp.header.code != 0:
@@ -139,8 +140,8 @@ class WrapperManager:
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
             retry_if_not_exception_message('no such account'))),
-           wait=wait_random_exponential(multiplier=1, max=60),
-           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+           wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
+           stop=stop_after_attempt(it(Config).download.retryTime), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def logout(self, username: str):
         resp: LogoutReply = await self._stub.Logout(LogoutRequest(data=LogoutData(username=username)))
         if resp.header.code != 0:
@@ -149,8 +150,8 @@ class WrapperManager:
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
             retry_if_not_exception_message('no available instance'))),
-           wait=wait_random_exponential(multiplier=1, max=60),
-           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+           wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
+           stop=stop_after_attempt(it(Config).download.retryTime), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def lyrics(self, adam_id: str, language: str, region: str) -> str:
         resp: LyricsReply = await self._stub.Lyrics(LyricsRequest(
             data=LyricsDataRequest(adam_id=adam_id, language=language, region=region)))
@@ -160,8 +161,8 @@ class WrapperManager:
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
             retry_if_not_exception_message('no available instance'))),
-           wait=wait_random_exponential(multiplier=1, max=60),
-           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+           wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
+           stop=stop_after_attempt(it(Config).download.retryTime), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def webPlayback(self, adam_id: str) -> str:
         resp: WebPlaybackReply = await self._stub.WebPlayback(WebPlaybackRequest(
             data=WebPlaybackDataRequest(adam_id=adam_id)
@@ -172,8 +173,8 @@ class WrapperManager:
 
     @retry(retry=((retry_if_exception_type(WrapperManagerException)) & (
             retry_if_not_exception_message('no available instance'))),
-           wait=wait_random_exponential(multiplier=1, max=60),
-           stop=stop_after_attempt(32), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+           wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
+           stop=stop_after_attempt(it(Config).download.retryTime), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def license(self, adam_id: str, challenge: str, kid: str) -> str:
         resp: LicenseReply = await self._stub.License(LicenseRequest(
             data=LicenseDataRequest(adam_id=adam_id, challenge=challenge, uri=kid)

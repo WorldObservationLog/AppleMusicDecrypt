@@ -29,6 +29,14 @@ https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 https://music.apple.com/jp/album/nameless-name-single/1688539265
 # Download multiple songs in one line
 dl https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp https://music.apple.com/jp/album/nameless-name-single/1688539265
+# Check the available quality of the song
+quality https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
+# Or a shorter command
+qa https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
+# You can hide a column by enabling it in the options.
+qa --codec-id https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
+# When you add --invert, it works the opposite way, showing the column for whichever option you enable.
+qa --invert --codec-id https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 ```
 
 # Support Codec

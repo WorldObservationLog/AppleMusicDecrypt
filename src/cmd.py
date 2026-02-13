@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import copy
 import sys
 import os
 
@@ -19,6 +20,7 @@ from src.qemu import QemuInstance
 from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
 from src.url import AppleMusicURL, URLType
 from src.utils import check_dep, run_sync, safely_create_task, config_outdated
+from src.quality import print_song_quality, print_album_quality, print_playlist_quality, key_to_Headers
 
 
 class InteractiveShell:
@@ -60,7 +62,8 @@ class InteractiveShell:
         self.parser = argparse.ArgumentParser(exit_on_error=False)
         subparser = self.parser.add_subparsers()
         download_parser = subparser.add_parser("download", aliases=["dl"])
-        download_parser.add_argument("url",  nargs='*' ,type=str)
+        quality_parser = subparser.add_parser("quality", aliases=["qa"])
+        download_parser.add_argument("url",  nargs='*', type=str)
         download_parser.add_argument("-c", "--codec",
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "aac-legacy", "ac3"],
                                      default="alac")
@@ -69,12 +72,23 @@ class InteractiveShell:
         download_parser.add_argument("-l", "--language", default=it(Config).region.language, action="store")
         download_parser.add_argument("--include-participate-songs", default=False, dest="include", action="store_true")
 
+        quality_parser.add_argument("url",  nargs='*', type=str)
+        quality_parser.add_argument("-i","--invert", default=False, action="store_true")
+        quality_parser.add_argument("--codec-id", default=True, action="store_false")
+        quality_parser.add_argument("--codec", default=True, action="store_false")
+        quality_parser.add_argument("--bitrate", default=True, action="store_false")
+        quality_parser.add_argument("--average-bitrate", default=True, action="store_false")
+        quality_parser.add_argument("--channels", default=True, action="store_false")
+        quality_parser.add_argument("--sample-rate", default=True, action="store_false")
+        quality_parser.add_argument("--bit-depth", default=True, action="store_false")
+        quality_parser.add_argument("-b", "--batch", default=False, action="store_true")
+
         subparser.add_parser("status")
         subparser.add_parser("login")
         subparser.add_parser("logout")
         subparser.add_parser("exit")
 
-        self.batch_download_mode = False
+        self.batch_mode = False
 
     async def show_status(self):
         it(WrapperManager).status.cache_invalidate()
@@ -83,36 +97,50 @@ class InteractiveShell:
             it(GlobalLogger).logger.error("The currently used wrapper-manager instance has no available account. Please execute login command to log in.")
         it(GlobalLogger).logger.info(f"Regions available on wrapper-manager instance: {', '.join(st_resp.regions)}")
 
+    async def handle_batch_mode(self, args, cmds):
+        try:
+            if args.batch:
+                self.batch_mode = True
+                self.batch_args = args
+                self.batch_command = cmds[0]
+                it(GlobalLogger).logger.info("Entering batch mode. Enter one or more URLs per line (space-separated), type 'exit' to quit")
+        except:
+            pass
+    
+    async def batch_mode_parser(self, cmds: str):
+        args=self.batch_args
+        args.url=copy.deepcopy(cmds)
+        if cmds[0]!="exit":
+            cmds[0] = self.batch_command
+        return cmds,args
+
     async def command_parser(self, cmd: str):
         if not cmd.strip():
             return
         cmds = cmd.split(" ")
-        if self.batch_download_mode:
-            if cmds[0]=="exit":
-                self.batch_download_mode=False
-                it(GlobalLogger).logger.info("Batch mode exited. Returning to normal command mode.")
+        if self.batch_mode:
+            cmds, args = await self.batch_mode_parser(cmds)
+        else:
+            try:
+                args = self.parser.parse_args(cmds)
+            except (argparse.ArgumentError, argparse.ArgumentTypeError, SystemExit):
+                it(GlobalLogger).logger.warning(f"Unknown command: {cmd}")
                 return
-            args=self.batch_download_args
-            await self.do_download(cmds, args.codec, args.force, args.language, args.include)
-            return
-        try:
-            args = self.parser.parse_args(cmds)
-        except (argparse.ArgumentError, argparse.ArgumentTypeError, SystemExit):
-            it(GlobalLogger).logger.warning(f"Unknown command: {cmd}")
-            return
+            await self.handle_batch_mode(args, cmds)
         match cmds[0]:
             case "download" | "dl":
-                if args.batch:
-                    self.batch_download_mode = True
-                    self.batch_download_args = args
-                    it(GlobalLogger).logger.info("Entering batch mode. Enter one or more URLs per line (space-separated), type 'exit' to quit")
-                    return
-                
-                await self.do_download(args.url, args.codec, args.force, args.language, args.include)
+                safely_create_task(self.do_download(args.url, args.codec, args.force, args.language, args.include))
             case "status":
                 await self.show_status()
             case "exit":
-                self.handle_exit()
+                if self.batch_mode:
+                    self.batch_mode=False
+                    it(GlobalLogger).logger.info("Batch mode exited. Returning to normal command mode.")
+                else:
+                    self.handle_exit()
+            case "quality" | "qa":
+                safely_create_task(self.do_quality(args.url, args)) 
+
 
     async def do_download(self, raw_urls: list[str], codec: str, force_download: bool, language: str, include: bool = False):
         for raw_url in raw_urls:
@@ -135,6 +163,34 @@ class InteractiveShell:
                     safely_create_task(rip_playlist(url, codec, Flags(force_save=force_download, language=language)))
                 case _:
                     it(GlobalLogger).logger.error(f"Unsupported URLType - {raw_url}")
+                    continue        
+    
+    async def do_quality(self, raw_urls: list[str], args):
+        all_fields = list(key_to_Headers.keys())
+        show_fields = []
+        for field in all_fields:
+            if args.invert:
+                show_fields = [f for f in key_to_Headers if not getattr(args, f)]
+            else:
+                show_fields = [f for f in key_to_Headers if getattr(args, f)]
+
+        for raw_url in raw_urls:
+            url = AppleMusicURL.parse_url(raw_url)
+            if not url:
+                real_url = await it(WebAPI).get_real_url(raw_url)
+                url = AppleMusicURL.parse_url(real_url)
+                if not url:
+                    it(GlobalLogger).logger.error(f"Illegal URL! - {raw_url}")
+                    continue
+            match url.type:
+                case URLType.Song:
+                    safely_create_task(print_song_quality(url, show_fields))
+                case URLType.Album:
+                    safely_create_task(print_album_quality(url, show_fields))
+                case URLType.Playlist:
+                    safely_create_task(print_playlist_quality(url, show_fields))
+                case _:
+                    it(GlobalLogger).logger.error(f"Unsupported URLType - {raw_url}")
                     continue
 
     def bottom_toolbar(self):
@@ -143,6 +199,7 @@ class InteractiveShell:
     def completer(self):
         mycompleter = {
             "dl": {
+                "--batch": None,
                 "--codec": {
                     "ec3": None,
                     "aac": None,
@@ -163,6 +220,17 @@ class InteractiveShell:
                     "ko": None
                 },
                 "--include-participate-songs": None
+            },
+            "qa": {
+                "--invert": None,
+                "--codec-id": None,
+                "--codec": None,
+                "--bitrate": None,
+                "--average-bitrate": None,
+                "--channels": None,
+                "--sample-rate": None,
+                "--bit-depth": None,
+                "--batch": None
             },
             "status": None,
             "login": None,

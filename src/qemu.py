@@ -41,7 +41,7 @@ class QGAClient:
     writer: asyncio.StreamWriter
 
     @retry(retry=retry_if_exception_type((asyncio.TimeoutError)),
-           wait=wait_random_exponential(multiplier=1, max=60),
+           wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
            stop=stop_after_attempt(8), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def init(self):
         self.reader, self.writer = await asyncio.open_connection("127.0.0.1", 32766)
