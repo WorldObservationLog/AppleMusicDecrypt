@@ -5,7 +5,7 @@ from creart import exists_module
 from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
-CONFIG_VERSION = "0.0.9"
+CONFIG_VERSION = "0.0.10"
 
 
 class Instance(BaseModel):
@@ -51,6 +51,8 @@ class Download(BaseModel):
     maxSampleRate: int = 192000
     maxBitDepth: int = 24
     afterDownloaded: str = ""
+    retryTime: int = 8
+    maxWaitTime: int = 30
 
 
 class Metadata(BaseModel):
