@@ -1,8 +1,8 @@
 import argparse
 import asyncio
 import copy
-import sys
 import os
+import sys
 
 import grpc.aio
 from creart import it
@@ -17,12 +17,10 @@ from src.grpc.manager import WrapperManager, WrapperManagerException
 from src.logger import GlobalLogger
 from src.measurer import Measurer
 from src.qemu import QemuInstance
-from src.measurer import Measurer
-from src.qemu import QemuInstance
+from src.quality import print_song_quality, print_album_quality, print_playlist_quality, key_to_Headers
 from src.rip import Ripper
 from src.url import AppleMusicURL, URLType
 from src.utils import check_dep, run_sync, safely_create_task, config_outdated
-from src.quality import print_song_quality, print_album_quality, print_playlist_quality, key_to_Headers
 
 
 class InteractiveShell:
@@ -54,7 +52,8 @@ class InteractiveShell:
                 loop.run_until_complete(asyncio.sleep(3))
         else:
             loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
-        safely_create_task(it(WrapperManager).decrypt_init(on_success=self.ripper.on_decrypt_success, on_failure=self.ripper.on_decrypt_failed))
+        safely_create_task(it(WrapperManager).decrypt_init(on_success=self.ripper.on_decrypt_success,
+                                                           on_failure=self.ripper.on_decrypt_failed))
         try:
             loop.run_until_complete(self.show_status())
         except grpc.aio._call.AioRpcError:
@@ -62,13 +61,14 @@ class InteractiveShell:
             sys.exit()
 
         if config_outdated():
-            it(GlobalLogger).logger.warning("The configuration file is out of date. Please refer to config.example.toml to update it")
+            it(GlobalLogger).logger.warning(
+                "The configuration file is out of date. Please refer to config.example.toml to update it")
 
         self.parser = argparse.ArgumentParser(exit_on_error=False)
         subparser = self.parser.add_subparsers()
         download_parser = subparser.add_parser("download", aliases=["dl"])
         quality_parser = subparser.add_parser("quality", aliases=["qa"])
-        download_parser.add_argument("url",  nargs='*', type=str)
+        download_parser.add_argument("url", nargs='*', type=str)
         download_parser.add_argument("-c", "--codec",
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "aac-legacy", "ac3"],
                                      default="alac")
@@ -77,8 +77,8 @@ class InteractiveShell:
         download_parser.add_argument("-l", "--language", default=it(Config).region.language, action="store")
         download_parser.add_argument("--include-participate-songs", default=False, dest="include", action="store_true")
 
-        quality_parser.add_argument("url",  nargs='*', type=str)
-        quality_parser.add_argument("-i","--invert", default=False, action="store_true")
+        quality_parser.add_argument("url", nargs='*', type=str)
+        quality_parser.add_argument("-i", "--invert", default=False, action="store_true")
         quality_parser.add_argument("--codec-id", default=True, action="store_false")
         quality_parser.add_argument("--codec", default=True, action="store_false")
         quality_parser.add_argument("--bitrate", default=True, action="store_false")
@@ -99,7 +99,8 @@ class InteractiveShell:
         it(WrapperManager).status.cache_invalidate()
         st_resp = await it(WrapperManager).status()
         if not st_resp.regions:
-            it(GlobalLogger).logger.error("The currently used wrapper-manager instance has no available account. Please execute login command to log in.")
+            it(GlobalLogger).logger.error(
+                "The currently used wrapper-manager instance has no available account. Please execute login command to log in.")
         it(GlobalLogger).logger.info(f"Regions available on wrapper-manager instance: {', '.join(st_resp.regions)}")
 
     async def handle_batch_mode(self, args, cmds):
@@ -108,16 +109,17 @@ class InteractiveShell:
                 self.batch_mode = True
                 self.batch_args = args
                 self.batch_command = cmds[0]
-                it(GlobalLogger).logger.info("Entering batch mode. Enter one or more URLs per line (space-separated), type 'exit' to quit")
+                it(GlobalLogger).logger.info(
+                    "Entering batch mode. Enter one or more URLs per line (space-separated), type 'exit' to quit")
         except:
             pass
-    
+
     async def batch_mode_parser(self, cmds: str):
-        args=self.batch_args
-        args.url=copy.deepcopy(cmds)
-        if cmds[0]!="exit":
+        args = self.batch_args
+        args.url = copy.deepcopy(cmds)
+        if cmds[0] != "exit":
             cmds[0] = self.batch_command
-        return cmds,args
+        return cmds, args
 
     async def command_parser(self, cmd: str):
         if not cmd.strip():
@@ -139,15 +141,15 @@ class InteractiveShell:
                 await self.show_status()
             case "exit":
                 if self.batch_mode:
-                    self.batch_mode=False
+                    self.batch_mode = False
                     it(GlobalLogger).logger.info("Batch mode exited. Returning to normal command mode.")
                 else:
                     self.handle_exit()
             case "quality" | "qa":
-                safely_create_task(self.do_quality(args.url, args)) 
+                safely_create_task(self.do_quality(args.url, args))
 
-
-    async def do_download(self, raw_urls: list[str], codec: str, force_download: bool, language: str, include: bool = False):
+    async def do_download(self, raw_urls: list[str], codec: str, force_download: bool, language: str,
+                          include: bool = False):
         for raw_url in raw_urls:
             url = AppleMusicURL.parse_url(raw_url)
             if not url:
@@ -158,18 +160,22 @@ class InteractiveShell:
                     continue
             match url.type:
                 case URLType.Song:
-                    safely_create_task(self.ripper.rip_song(url, codec, Flags(force_save=force_download, language=language)))
+                    safely_create_task(
+                        self.ripper.rip_song(url, codec, Flags(force_save=force_download, language=language)))
                 case URLType.Album:
-                    safely_create_task(self.ripper.rip_album(url, codec, Flags(force_save=force_download, language=language)))
+                    safely_create_task(
+                        self.ripper.rip_album(url, codec, Flags(force_save=force_download, language=language)))
                 case URLType.Artist:
-                    safely_create_task(self.ripper.rip_artist(url, codec, Flags(force_save=force_download, language=language,
-                                                                    include_participate_in_works=include)))
+                    safely_create_task(
+                        self.ripper.rip_artist(url, codec, Flags(force_save=force_download, language=language,
+                                                                 include_participate_in_works=include)))
                 case URLType.Playlist:
-                    safely_create_task(self.ripper.rip_playlist(url, codec, Flags(force_save=force_download, language=language)))
+                    safely_create_task(
+                        self.ripper.rip_playlist(url, codec, Flags(force_save=force_download, language=language)))
                 case _:
                     it(GlobalLogger).logger.error(f"Unsupported URLType - {raw_url}")
-                    continue        
-    
+                    continue
+
     async def do_quality(self, raw_urls: list[str], args):
         all_fields = list(key_to_Headers.keys())
         show_fields = []
@@ -246,7 +252,8 @@ class InteractiveShell:
 
     def handle_exit(self):
         if it(Measurer).tasks_count() > 0:
-            it(GlobalLogger).logger.info("There is still {} tasks, do you really want to exit? (y/N)".format(it(Measurer).tasks_count()))
+            it(GlobalLogger).logger.info(
+                "There is still {} tasks, do you really want to exit? (y/N)".format(it(Measurer).tasks_count()))
             response = input().strip().lower()
             if response != 'y':
                 return
@@ -255,7 +262,8 @@ class InteractiveShell:
         os._exit(0)
 
     async def handle_command(self):
-        session = PromptSession("> ", bottom_toolbar=self.bottom_toolbar, completer=self.completer(), refresh_interval=1)
+        session = PromptSession("> ", bottom_toolbar=self.bottom_toolbar, completer=self.completer(),
+                                refresh_interval=1)
 
         while True:
             try:
@@ -300,7 +308,6 @@ class InteractiveShell:
             return
         it(GlobalLogger).logger.info("Logout Success!")
         it(WrapperManager).status.cache_invalidate()
-
 
     async def start(self):
         with patch_stdout():

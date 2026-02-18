@@ -14,12 +14,12 @@ from src.url import Song, Album, URLType, Playlist
 from src.grpc.manager import WrapperManager
 
 Headers = [
-    "Codec ID", 
-    "Codec", 
-    "Bitrate", 
-    "Average Bitrate", 
-    "Channels", 
-    "Sample Rate", 
+    "Codec ID",
+    "Codec",
+    "Bitrate",
+    "Average Bitrate",
+    "Channels",
+    "Sample Rate",
     "Bit Depth"
 ]
 
@@ -32,6 +32,7 @@ key_to_Headers = {
     "sample_rate": "Sample Rate",
     "bit_depth": "Bit Depth"
 }
+
 
 async def get_available_audio_quality(m3u8_url: str):
     parsed_m3u8 = m3u8.loads(await it(WebAPI).download_m3u8(m3u8_url), uri=m3u8_url)
@@ -46,6 +47,7 @@ async def get_available_audio_quality(m3u8_url: str):
                                        sample_rate=playlist.media[0].extras.get("sample_rate", None),
                                        bit_depth=playlist.media[0].extras.get("bit_depth", None)))
     return result
+
 
 async def print_song_quality(url: Song, show_fields: list[str]):
     raw_metadata = await it(WebAPI).get_song_info(url.id, url.storefront, it(Config).region.language)
@@ -62,12 +64,14 @@ async def print_song_quality(url: Song, show_fields: list[str]):
     print_formatted_text(f"Available audio qualities for song: {metadata.artist} - {metadata.title}")
     print_formatted_text(tabulate(filtered_data, headers=filtered_headers, tablefmt="grid"))
 
+
 async def print_playlist_quality(url: Playlist, show_fields: list[str]):
     playlist_info = await it(WebAPI).get_playlist_info_and_tracks(url.id, url.storefront, it(Config).region.language)
     playlist_info = playlist_write_song_index(playlist_info)
     for track in playlist_info.data[0].relationships.tracks.data:
         song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
         safely_create_task(print_song_quality(song, show_fields))
+
 
 async def print_album_quality(url: Album, show_fields: list[str]):
     album_info = await it(WebAPI).get_album_info(url.id, url.storefront, it(Config).region.language)

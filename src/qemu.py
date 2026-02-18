@@ -40,7 +40,7 @@ class QGAClient:
     reader: asyncio.StreamReader
     writer: asyncio.StreamWriter
 
-    @retry(retry=retry_if_exception_type((asyncio.TimeoutError)),
+    @retry(retry=retry_if_exception_type(asyncio.TimeoutError),
            wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
            stop=stop_after_attempt(8), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def init(self):
@@ -66,7 +66,8 @@ class QGAClient:
 
     async def write_file(self, path: str, content: str):
         fp = await self.send_cmd("guest-file-open", {"path": path, "mode": "w"})
-        await self.send_cmd("guest-file-write", {"handle": fp, "buf-b64": base64.standard_b64encode(content.encode()).decode()})
+        await self.send_cmd("guest-file-write",
+                            {"handle": fp, "buf-b64": base64.standard_b64encode(content.encode()).decode()})
         await self.send_cmd("guest-file-close", {"handle": fp})
 
     async def execute(self, path: str, args: list[str]):

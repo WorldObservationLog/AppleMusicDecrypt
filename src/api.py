@@ -74,14 +74,16 @@ class WebAPI:
 
     @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
            wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
-           stop=stop_after_attempt(it(Config).download.retryTime), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+           stop=stop_after_attempt(it(Config).download.retryTime),
+           before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def _request(self, *args, **kwargs):
         async with self.request_lock:
             return await self.client.request(*args, **kwargs)
 
     @retry(retry=retry_if_exception_type((httpx.HTTPError, SSLError, FileNotFoundError)),
            wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
-           stop=stop_after_attempt(it(Config).download.retryTime), before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
+           stop=stop_after_attempt(it(Config).download.retryTime),
+           before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"))
     async def download_song(self, url: str) -> bytes:
         async with self.download_lock:
             result = BytesIO()
@@ -110,7 +112,8 @@ class WebAPI:
         return album_info_obj
 
     async def get_album_tracks(self, album_id: str, storefront: str, lang: str, offset: int = 0):
-        req = await self._request("GET", f"https://amp-api.music.apple.com/v1/catalog/{storefront}/albums/{album_id}/tracks?offset={offset}")
+        req = await self._request("GET",
+                                  f"https://amp-api.music.apple.com/v1/catalog/{storefront}/albums/{album_id}/tracks?offset={offset}")
         album_info_obj = AlbumTracks.model_validate(req.json())
         tracks = album_info_obj.data
         if album_info_obj.next:

@@ -1,9 +1,7 @@
 from typing import Optional, Dict, List
 
-from creart import it
 from mutagen.mp4 import MP4Cover
 from pydantic import BaseModel
-
 
 from src.models import AlbumMeta
 from src.models.song_data import Datum
@@ -166,7 +164,6 @@ class SongMetadata(BaseModel):
 
     def set_lyrics(self, lyrics: str):
         self.lyrics = lyrics
-
 
     def set_playlist_index(self, index: int):
         self.playlist_index = index

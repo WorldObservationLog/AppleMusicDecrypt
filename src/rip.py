@@ -1,6 +1,6 @@
 import asyncio
 import subprocess
-from typing import Dict, Optional, List
+from typing import Dict, Optional
 
 from creart import it
 from tenacity import retry, stop_after_attempt, wait_fixed
@@ -10,6 +10,9 @@ from src.config import Config
 from src.exceptions import CodecNotFoundException
 from src.flags import Flags
 from src.grpc.manager import WrapperManager
+from src.legacy.decrypt import WidevineDecrypt
+from src.legacy.mp4 import decrypt as legacy_decrypt
+from src.legacy.mp4 import extract_media as legacy_extract_media
 from src.logger import RipLogger
 from src.measurer import Measurer
 from src.metadata import SongMetadata
@@ -22,9 +25,6 @@ from src.types import Codec, ParentDoneHandler
 from src.url import Song, Album, URLType, Playlist
 from src.utils import get_codec_from_codec_id, check_song_existence, check_song_exists, if_raw_atmos, \
     check_album_existence, playlist_write_song_index, run_sync, safely_create_task, language_exist, query_language
-from src.legacy.mp4 import extract_media as legacy_extract_media
-from src.legacy.mp4 import decrypt as legacy_decrypt
-from src.legacy.decrypt import WidevineDecrypt
 
 
 class DownloadManager:
@@ -61,24 +61,24 @@ class Ripper:
             return
 
         task = Task(adamId=url.id, parentDone=parent_done, playlist=playlist)
-        
+
         # Initialize Logger
         task.logger = RipLogger(URLType.Song, task.adamId)
 
         try:
             await self.download_manager.register_task(task)
-            
+
             # Fetch Metadata
             raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, flags.language)
             album_data = await it(WebAPI).get_album_info(raw_metadata.relationships.albums.data[0].id, url.storefront,
                                                          flags.language)
             task.metadata = SongMetadata.parse_from_song_data(raw_metadata)
             task.metadata.parse_from_album_data(album_data)
-            
+
             # Update Logger with metadata
             task.logger.set_fullname(task.metadata.artist, task.metadata.title)
             task.logger.create()
-            
+
             # Check Language
             if it(Config).region.languageNotExistWarning and not language_exist(url.storefront, flags.language):
                 default_language, _ = query_language(url.storefront)
@@ -91,13 +91,13 @@ class Ripper:
                 return
 
             # Get Cover and Lyrics
-            task.metadata.cover = await it(WebAPI).get_cover(task.metadata.cover_url, 
-                                                             it(Config).download.coverFormat, 
+            task.metadata.cover = await it(WebAPI).get_cover(task.metadata.cover_url,
+                                                             it(Config).download.coverFormat,
                                                              it(Config).download.coverSize)
-            
+
             if raw_metadata.attributes.hasTimeSyncedLyrics:
                 task.metadata.lyrics = await it(WrapperManager).lyrics(task.adamId, flags.language, url.storefront)
-            
+
             if playlist:
                 task.metadata.set_playlist_index(playlist.songIdIndexMapping.get(url.id))
 
@@ -112,10 +112,12 @@ class Ripper:
             if not m3u8_url:
                 task.update_status(Status.FAILED)
                 return
-            
-            if codec == Codec.AAC_LEGACY or (it(Config).download.codecAlternative and not raw_metadata.attributes.extendedAssetUrls.enhancedHls and Codec.AAC_LEGACY in it(Config).download.codecPriority):
-                 await self._rip_song_legacy(task)
-                 return
+
+            if codec == Codec.AAC_LEGACY or (
+                    it(Config).download.codecAlternative and not raw_metadata.attributes.extendedAssetUrls.enhancedHls and Codec.AAC_LEGACY in it(
+                    Config).download.codecPriority):
+                await self._rip_song_legacy(task)
+                return
 
             try:
                 task.m3u8Info = await extract_media(m3u8_url, codec, task)
@@ -141,7 +143,7 @@ class Ripper:
             # Decrypt
             task.logger.decrypting()
             task.update_status(Status.DECRYPTING)
-            
+
             task.info = await run_sync(extract_song, raw_song, get_codec_from_codec_id(task.m3u8Info.codec_id))
             # Initialize futures for each sample
             for i in range(len(task.info.samples)):
@@ -151,13 +153,14 @@ class Ripper:
             decryption_tasks = []
             for sampleIndex, sample in enumerate(task.info.samples):
                 decryption_tasks.append(
-                    self.decrypt_sample_with_retry(task.adamId, task.m3u8Info.keys[sample.descIndex], sample.data, sampleIndex)
+                    self.decrypt_sample_with_retry(task.adamId, task.m3u8Info.keys[sample.descIndex], sample.data,
+                                                   sampleIndex)
                 )
 
             # Wait for all decryption tasks to complete.
             # If any decrypt_sample_with_retry fails (raises exception after retries), we catch it.
             await asyncio.gather(*decryption_tasks)
-            
+
             # Encapsulate and Save
             # Collect results from futures in order
             decrypted_samples = []
@@ -168,12 +171,12 @@ class Ripper:
             codec = get_codec_from_codec_id(task.m3u8Info.codec_id)
 
             song = await run_sync(encapsulate, task.info, bytes().join(decrypted_samples),
-                                it(Config).download.atmosConventToM4a)
+                                  it(Config).download.atmosConventToM4a)
             if not if_raw_atmos(codec, it(Config).download.atmosConventToM4a):
                 if codec != Codec.EC3 and codec != Codec.AC3:
                     song = await run_sync(fix_encapsulate, song)
                 song = await run_sync(write_metadata, song, task.metadata, it(Config).metadata.embedMetadata,
-                                    it(Config).download.coverFormat, task.info.params)
+                                      it(Config).download.coverFormat, task.info.params)
                 if codec == Codec.AAC or codec == Codec.AAC_DOWNMIX or codec == Codec.AAC_BINAURAL:
                     song = await run_sync(fix_esds_box, task.info.raw, song)
 
@@ -194,26 +197,26 @@ class Ripper:
                 subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         except Exception as e:
-            task.logger.error(f"Error processing song: {e}")
+            task.logger.logger.error(f"Error processing song: {e}")
             task.update_status(Status.FAILED)
         finally:
             await self.download_manager.unregister_task(task)
-            task.update_status(task.status) # Ensure status is set
+            task.update_status(task.status)  # Ensure status is set
             if task.parentDone:
                 await task.parentDone.try_done()
-    
+
     async def _get_m3u8_url(self, task: Task, codec: str, raw_metadata) -> Optional[str]:
         if not raw_metadata.attributes.extendedAssetUrls:
             task.logger.audio_not_exist()
             return None
-        
+
         m3u8_url = None
         if codec == Codec.ALAC and raw_metadata.attributes.extendedAssetUrls.enhancedHls:
             m3u8_url = await it(WrapperManager).m3u8(task.adamId)
         else:
-             if codec != Codec.AAC_LEGACY:
-                 m3u8_url = raw_metadata.attributes.extendedAssetUrls.enhancedHls
-        
+            if codec != Codec.AAC_LEGACY:
+                m3u8_url = raw_metadata.attributes.extendedAssetUrls.enhancedHls
+
         return m3u8_url
 
     async def _rip_song_legacy(self, task: Task):
@@ -239,22 +242,19 @@ class Ripper:
                                   it(Config).download.coverFormat, task.info.params)
 
             if not await run_sync(check_song_integrity, song):
-                task.logger.failed_integrity()
+                task.logger.failed_integrity(True)
 
             filename = await run_sync(save, song, Codec.AAC_LEGACY, task.metadata, task.playlist)
             task.logger.saved()
-            task.update_status(Status.DONE) # Set status explicitly for finally block? 
-            # Wait, implementing try...finally in main rip_song handles cleanup.
-            # But legacy logic is linear, it doesn't use callbacks for decryption.
-            # So we can just run it.
+            task.update_status(Status.DONE)
 
             if it(Config).download.afterDownloaded:
                 command = it(Config).download.afterDownloaded.format(filename=filename)
                 subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as e:
-            task.logger.error(f"Legacy rip failed: {e}")
+            task.logger.logger.error(f"Legacy rip failed: {e}")
             task.update_status(Status.FAILED)
-            raise e # re-raise to catch in main loop or handle here? Main loop handles it.
+            raise e
 
     async def rip_album(self, url: Album, codec: str, flags: Flags = Flags(), parent_done: ParentDoneHandler = None):
         album_info = await it(WebAPI).get_album_info(url.id, url.storefront, flags.language)
@@ -315,24 +315,21 @@ class Ripper:
             song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
             safely_create_task(self.rip_song(song, codec, flags, done_handler, playlist=playlist_info))
 
-
-
-
     @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
     async def decrypt_sample_with_retry(self, adam_id: str, key: str, sample: bytes, sample_index: int):
         task = self.download_manager.get_task(adam_id)
         if not task:
             raise Exception("Task cancelled or not found")
-        
+
         # Reset future if it is already done (e.g. from previous failed attempt)
         if task.decrypted_samples_futures[sample_index].done():
-             task.decrypted_samples_futures[sample_index] = asyncio.get_running_loop().create_future()
+            task.decrypted_samples_futures[sample_index] = asyncio.get_running_loop().create_future()
 
         future = task.decrypted_samples_futures[sample_index]
-        
+
         # We need to send the command to wrapper manager
         await it(WrapperManager).decrypt(adam_id, key, sample, sample_index)
-        
+
         # Wait for the future to be resolved by the callback
         return await future
 
@@ -350,5 +347,3 @@ class Ripper:
                 task.decrypted_samples_futures[sample_index].set_exception(Exception("Decryption failed callback"))
 
     # Removed recv_decrypted_sample and on_decrypt_done as they are replaced by linear flow in rip_song
-
-

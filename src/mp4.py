@@ -203,7 +203,7 @@ def encapsulate(song_info: SongInfo, decrypted_media: bytes, atmos_convent: bool
 
 
 def write_metadata(song: bytes, metadata: SongMetadata, embed_metadata: list[str],
-                         cover_format: str, params: dict[str, Any]) -> bytes:
+                   cover_format: str, params: dict[str, Any]) -> bytes:
     tmp_dir = TemporaryDirectory()
     name = uuid.uuid4().hex
     song_name = Path(tmp_dir.name) / Path(f"{name}.m4a")

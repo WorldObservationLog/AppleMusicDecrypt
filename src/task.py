@@ -28,7 +28,6 @@ class Task:
     m3u8Info: Optional[M3U8Info] = None
     metadata: Optional[SongMetadata] = None
     logger: Optional[RipLogger] = None
-    logger: Optional[RipLogger] = None
     decrypted_samples_futures: dict[int, asyncio.Future] = field(default_factory=dict)
 
     def update_status(self, status: Status):

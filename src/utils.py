@@ -2,14 +2,13 @@ import asyncio
 import concurrent.futures
 import json
 import subprocess
-import sys
 import time
 from asyncio import AbstractEventLoop
 from copy import deepcopy
 from datetime import datetime, timedelta
+from distutils.version import LooseVersion
 from itertools import islice
 from pathlib import Path
-from distutils.version import LooseVersion
 
 import m3u8
 import regex
@@ -18,11 +17,9 @@ from creart import it
 from pydantic import ValidationError
 
 from src.config import Config, CONFIG_VERSION
-from src.exceptions import NotTimeSyncedLyricsException
 from src.logger import GlobalLogger
 from src.models import PlaylistInfo
 from src.models.album_meta import Tracks
-from src.qemu import QemuInstance
 from src.types import *
 
 executor_pool = concurrent.futures.ThreadPoolExecutor()
