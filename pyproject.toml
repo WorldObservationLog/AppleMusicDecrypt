@@ -29,6 +29,15 @@ hishel = "^0.1.5"
 async-lru = "^2.0.5"
 tabulate = "^0.9.0"
 
+
+[tool.poetry.group.server.dependencies]
+fastapi = "^0.109.0"
+uvicorn = "^0.27.0"
+
+
+[tool.poetry.group.telegram_bot.dependencies]
+python-telegram-bot = "^22.6"
+
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"

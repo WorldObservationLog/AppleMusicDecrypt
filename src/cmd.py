@@ -17,7 +17,9 @@ from src.grpc.manager import WrapperManager, WrapperManagerException
 from src.logger import GlobalLogger
 from src.measurer import Measurer
 from src.qemu import QemuInstance
-from src.rip import on_decrypt_success, on_decrypt_failed, rip_song, rip_album, rip_artist, rip_playlist
+from src.measurer import Measurer
+from src.qemu import QemuInstance
+from src.rip import Ripper
 from src.url import AppleMusicURL, URLType
 from src.utils import check_dep, run_sync, safely_create_task, config_outdated
 from src.quality import print_song_quality, print_album_quality, print_playlist_quality, key_to_Headers
@@ -26,9 +28,12 @@ from src.quality import print_song_quality, print_album_quality, print_playlist_
 class InteractiveShell:
     loop: asyncio.AbstractEventLoop
     parser: argparse.ArgumentParser
+    parser: argparse.ArgumentParser
     localInstance: QemuInstance = QemuInstance()
+    ripper: Ripper
 
     def __init__(self, loop: asyncio.AbstractEventLoop):
+        self.ripper = Ripper()
         dep_installed, missing_dep = check_dep()
         if not dep_installed:
             it(GlobalLogger).logger.error(f"Dependence {missing_dep} was not installed!")
@@ -49,7 +54,7 @@ class InteractiveShell:
                 loop.run_until_complete(asyncio.sleep(3))
         else:
             loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
-        safely_create_task(it(WrapperManager).decrypt_init(on_success=on_decrypt_success, on_failure=on_decrypt_failed))
+        safely_create_task(it(WrapperManager).decrypt_init(on_success=self.ripper.on_decrypt_success, on_failure=self.ripper.on_decrypt_failed))
         try:
             loop.run_until_complete(self.show_status())
         except grpc.aio._call.AioRpcError:
@@ -153,14 +158,14 @@ class InteractiveShell:
                     continue
             match url.type:
                 case URLType.Song:
-                    safely_create_task(rip_song(url, codec, Flags(force_save=force_download, language=language)))
+                    safely_create_task(self.ripper.rip_song(url, codec, Flags(force_save=force_download, language=language)))
                 case URLType.Album:
-                    safely_create_task(rip_album(url, codec, Flags(force_save=force_download, language=language)))
+                    safely_create_task(self.ripper.rip_album(url, codec, Flags(force_save=force_download, language=language)))
                 case URLType.Artist:
-                    safely_create_task(rip_artist(url, codec, Flags(force_save=force_download, language=language,
+                    safely_create_task(self.ripper.rip_artist(url, codec, Flags(force_save=force_download, language=language,
                                                                     include_participate_in_works=include)))
                 case URLType.Playlist:
-                    safely_create_task(rip_playlist(url, codec, Flags(force_save=force_download, language=language)))
+                    safely_create_task(self.ripper.rip_playlist(url, codec, Flags(force_save=force_download, language=language)))
                 case _:
                     it(GlobalLogger).logger.error(f"Unsupported URLType - {raw_url}")
                     continue        

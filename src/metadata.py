@@ -4,7 +4,7 @@ from creart import it
 from mutagen.mp4 import MP4Cover
 from pydantic import BaseModel
 
-from src.api import WebAPI
+
 from src.models import AlbumMeta
 from src.models.song_data import Datum
 from src.utils import ttml_convent, count_total_track_and_disc
@@ -167,8 +167,6 @@ class SongMetadata(BaseModel):
     def set_lyrics(self, lyrics: str):
         self.lyrics = lyrics
 
-    async def get_cover(self, cover_format: str, cover_size: str):
-        self.cover = await it(WebAPI).get_cover(self.cover_url, cover_format, cover_size)
 
     def set_playlist_index(self, index: int):
         self.playlist_index = index
