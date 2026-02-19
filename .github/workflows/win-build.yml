@@ -60,7 +60,7 @@ jobs:
           rm wrapper-manager-image.zip
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: AppleMusicDecrypt-Windows
           path: .
