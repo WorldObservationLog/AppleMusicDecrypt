@@ -25,7 +25,7 @@ grpcio-tools = "^1.75.1"
 pywidevine = {git = "https://github.com/WorldObservationLog/pywidevine"}
 creart = "^0.3.0"
 mutagen = "^1.47.0"
-hishel = "^0.1.5"
+hishel = "^1.1.9"
 async-lru = "^2.0.5"
 tabulate = "^0.9.0"
 
