@@ -37,6 +37,7 @@ uvicorn = "^0.27.0"
 
 [tool.poetry.group.telegram_bot.dependencies]
 python-telegram-bot = "^22.6"
+pillow = "^12.1.1"
 
 [build-system]
 requires = ["poetry-core"]
