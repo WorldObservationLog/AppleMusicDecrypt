@@ -344,10 +344,20 @@ async def dl_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                 new_val = f"[{track_id[-4:]}] Error"
                         else:
                             title = t.metadata.title if t.metadata else 'Unknown'
-                            new_val = f"[{track_id[-4:]}] {title[:20]} : {t.status.value}"
+                            new_val = f"[{track_id[-4:]}] {title} : {t.status.value}"
                         
                         if state["tasks"].get(track_id) != new_val:
                             state["tasks"][track_id] = new_val
+                    else:
+                        # Task is unrecorded (likely unregistered from the queue after finishing download)
+                        # We should not display stale status like DECRYPTING
+                        current_status = state["tasks"].get(track_id, "")
+                        if "QUEUED" not in current_status:
+                            parts = current_status.rsplit(":", 1)
+                            prefix = parts[0].strip() if len(parts) > 1 else f"[{track_id[-4:]}] Unknown"
+                            new_val = f"{prefix} : Pending Upload \u23F3"
+                            if state["tasks"].get(track_id) != new_val:
+                                state["tasks"][track_id] = new_val
                             
                 text = "Active Tasks:\n" + "\n".join(state["tasks"].values())
                 if text != state["last_text"]:
