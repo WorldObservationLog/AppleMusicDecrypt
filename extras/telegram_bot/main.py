@@ -51,6 +51,10 @@ from extras.telegram_bot.src.upload import UploadWorker
 
 
 async def post_init(app):
+    from creart import add_instance
+    import asyncio
+    add_instance(asyncio.get_running_loop(), asyncio.AbstractEventLoop)
+
     await run_sync(it(WebAPI).init)
     await user_db.load_initial()
 
