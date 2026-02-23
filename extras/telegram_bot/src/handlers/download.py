@@ -330,12 +330,11 @@ async def dl_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     continue
 
                 # Update statuses cleanly
-                changed = False
                 for track_id in list(state["tasks"].keys()):
                     if "\u2728" in state["tasks"][track_id] or "\u26A1" in state["tasks"][track_id] or "\u2B06" in \
                             state["tasks"][track_id] or "\u274C" in state["tasks"][track_id] or "Finished" in state["tasks"][track_id] or "Error" in state["tasks"][track_id]:
                         continue
-
+                        
                     t = ripper.download_manager.get_task(track_id)
                     if t:
                         if t.status == Status.FAILED:
@@ -349,12 +348,7 @@ async def dl_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         
                         if state["tasks"].get(track_id) != new_val:
                             state["tasks"][track_id] = new_val
-                            changed = True
                             
-                # Debounce logic limits unnecessary API calls
-                if not changed:
-                    continue
-
                 text = "Active Tasks:\n" + "\n".join(state["tasks"].values())
                 if text != state["last_text"]:
                     try:
