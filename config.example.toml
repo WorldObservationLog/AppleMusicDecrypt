@@ -117,5 +117,5 @@ maxWaitTime = 30
 # record_company, upc, isrc, copyright,
 # lyrics, cover, ratings(rtng), song_id, album_id, artist_id
 embedMetadata = ["title", "artist", "album", "album_artist", "composer", "album_created",
-    "genre", "created", "track", "tracknum", "disk", "lyrics", "cover", "copyright",
+    "genre", "created", "tracknum", "disk", "lyrics", "cover", "copyright",
     "record_company", "upc", "isrc", "rtng", "song_id", "album_id", "artist_id"]
