@@ -87,19 +87,18 @@ class UploadWorker:
                 except Exception as e:
                     print(f"Async thumbnail resize failed: {e}")
 
-            with open(task.filename, 'rb') as f:
-                # Use large timeout for big files
-                return await self.bot.send_audio(
-                    chat_id=task.chat_id,
-                    audio=f,
-                    title=task.title,
-                    performer=task.performer,
-                    duration=duration,
-                    thumbnail=thumb_bytes,
-                    write_timeout=300,
-                    read_timeout=300,
-                    reply_to_message_id=task.message_id
-                )
+            # Use large timeout for big files
+            return await self.bot.send_audio(
+                chat_id=task.chat_id,
+                audio=task.filename,
+                title=task.title,
+                performer=task.performer,
+                duration=duration,
+                thumbnail=thumb_bytes,
+                write_timeout=300,
+                read_timeout=300,
+                reply_to_message_id=task.message_id
+            )
         except Exception as e:
             await self.bot.send_message(chat_id=task.chat_id,
                                         text=f"Upload Error for {os.path.basename(task.filename)}: {e}",
