@@ -340,7 +340,7 @@ class Ripper:
         await it(WrapperManager).decrypt(adam_id, key, sample, sample_index)
 
         # Wait for the future to be resolved by the callback
-        return await asyncio.wait_for(future, timeout=10)
+        return await future
 
     async def on_decrypt_success(self, adam_id: str, key: str, sample: bytes, sample_index: int):
         it(Measurer).record_decrypt(len(sample))
