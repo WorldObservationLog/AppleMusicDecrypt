@@ -29,6 +29,7 @@ class Task:
     metadata: Optional[SongMetadata] = None
     logger: Optional[RipLogger] = None
     decrypted_samples_futures: dict[int, asyncio.Future] = field(default_factory=dict)
+    error: Optional[Exception] = None
 
     def update_status(self, status: Status):
         self.status = status

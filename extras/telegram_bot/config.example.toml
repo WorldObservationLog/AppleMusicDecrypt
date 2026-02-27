@@ -1,0 +1,24 @@
+[bot]
+token = ""
+# You must deploy the [telegram-bot-api](https://github.com/tdlib/telegram-bot-api) to provide support for uploading big files
+base_url = "http://127.0.0.1:8081/bot"
+
+[system]
+# Delete files from local server after upload to Telegram?
+keep_file = false
+# Only matches the AdamID and codec, not metadata language, etc.
+loose_cache = true
+whitelist_mode = true
+admin_ids = []
+
+[limits]
+max_tasks_per_user = 8
+max_tasks_global = 128
+allowed_types = ["song", "album", "playlist"]
+max_tracks = 20
+max_song_duration_sec = 900
+max_total_duration_sec = 18000
+
+[user_default]
+language = "follow-user"
+default_codec = "alac"

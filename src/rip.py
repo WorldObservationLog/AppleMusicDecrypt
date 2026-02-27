@@ -7,7 +7,7 @@ from tenacity import retry, stop_after_attempt, wait_fixed
 
 from src.api import WebAPI
 from src.config import Config
-from src.exceptions import CodecNotFoundException
+from src.exceptions import CodecNotFoundException, SongNotPassIntegrityCheckException
 from src.flags import Flags
 from src.grpc.manager import WrapperManager
 from src.legacy.decrypt import WidevineDecrypt
@@ -88,6 +88,7 @@ class Ripper:
             if not await check_song_existence(url.id, url.storefront):
                 task.logger.not_exist()
                 task.update_status(Status.FAILED)
+                task.error = Exception("Song not found on Apple Music")
                 return
 
             # Get Cover and Lyrics
@@ -109,9 +110,6 @@ class Ripper:
 
             # Get M3U8
             m3u8_url = await self._get_m3u8_url(task, codec, raw_metadata)
-            if not m3u8_url:
-                task.update_status(Status.FAILED)
-                return
 
             if codec == Codec.AAC_LEGACY or (
                     it(Config).download.codecAlternative and not raw_metadata.attributes.extendedAssetUrls.enhancedHls and Codec.AAC_LEGACY in it(
@@ -119,11 +117,17 @@ class Ripper:
                 await self._rip_song_legacy(task)
                 return
 
+            if not m3u8_url:
+                task.update_status(Status.FAILED)
+                task.error = Exception("Failed to fetch M3U8 URL")
+                return
+
             try:
                 task.m3u8Info = await extract_media(m3u8_url, codec, task)
             except CodecNotFoundException:
                 task.logger.audio_not_exist()
                 task.update_status(Status.FAILED)
+                task.error = CodecNotFoundException(f"Audio codec '{codec}' not found")
                 return
 
             task.logger.selected_codec(task.m3u8Info.codec_id)
@@ -156,6 +160,8 @@ class Ripper:
                     self.decrypt_sample_with_retry(task.adamId, task.m3u8Info.keys[sample.descIndex], sample.data,
                                                    sampleIndex)
                 )
+                if sampleIndex % 100 == 0:
+                    await asyncio.sleep(0)
 
             # Wait for all decryption tasks to complete.
             # If any decrypt_sample_with_retry fails (raises exception after retries), we catch it.
@@ -184,9 +190,10 @@ class Ripper:
                 if it(Config).download.failedSongNotPassIntegrityCheck:
                     task.logger.failed_integrity(True)
                     task.update_status(Status.FAILED)
-                    raise Exception("Integrity Check Failed")
+                    raise SongNotPassIntegrityCheckException("Integrity Check Failed")
                 else:
                     task.logger.failed_integrity(False)
+                    task.error = SongNotPassIntegrityCheckException("Integrity Check Warning")
 
             filename = await run_sync(save, song, codec, task.metadata, task.playlist)
             task.logger.saved()
@@ -197,8 +204,9 @@ class Ripper:
                 subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
         except Exception as e:
-            task.logger.logger.error(f"Error processing song: {e}")
+            task.logger.logger.exception(f"Error processing song: {e}")
             task.update_status(Status.FAILED)
+            task.error = e
         finally:
             await self.download_manager.unregister_task(task)
             task.update_status(task.status)  # Ensure status is set
@@ -252,8 +260,9 @@ class Ripper:
                 command = it(Config).download.afterDownloaded.format(filename=filename)
                 subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as e:
-            task.logger.logger.error(f"Legacy rip failed: {e}")
+            task.logger.logger.exception(f"Legacy rip failed: {e}")
             task.update_status(Status.FAILED)
+            task.error = e
             raise e
 
     async def rip_album(self, url: Album, codec: str, flags: Flags = Flags(), parent_done: ParentDoneHandler = None):
