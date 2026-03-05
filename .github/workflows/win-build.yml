@@ -9,7 +9,7 @@ jobs:
     name: Build Windows
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Create venv
         run: |
           Invoke-WebRequest -Uri "https://github.com/winpython/winpython/releases/download/16.6.20250620/Winpython64-3.12.10.1dotrc.zip" -OutFile winpy.zip
@@ -60,7 +60,7 @@ jobs:
           rm wrapper-manager-image.zip
 
       - name: Upload CLI artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: AppleMusicDecrypt-Windows
           path: .
