@@ -52,7 +52,8 @@ class Ripper:
         self.download_manager = DownloadManager()
 
     async def rip_song(self, url: Song, codec: str, flags: Flags = Flags(),
-                       parent_done: ParentDoneHandler = None, playlist: PlaylistInfo = None):
+                       parent_done: ParentDoneHandler = None, playlist: PlaylistInfo = None,
+                       timeout_sec: int = 0):
         if self.download_manager.get_task(url.id):
             if parent_done:
                 # If task already exists, we must notify the parent that this "sub-task" is considered handled/skipped
