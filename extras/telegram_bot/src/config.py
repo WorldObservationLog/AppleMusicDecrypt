@@ -26,6 +26,7 @@ class LimitsSettings(BaseModel):
     max_tracks: int = 100
     max_song_duration_sec: int = 1200
     max_total_duration_sec: int = 18000
+    task_timeout_sec: int = 480
 
 
 class UserDefaultSettings(BaseModel):

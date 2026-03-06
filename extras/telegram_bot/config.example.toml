@@ -18,6 +18,7 @@ allowed_types = ["song", "album", "playlist"]
 max_tracks = 20
 max_song_duration_sec = 900
 max_total_duration_sec = 18000
+task_timeout_sec = 480
 
 [user_default]
 language = "follow-user"

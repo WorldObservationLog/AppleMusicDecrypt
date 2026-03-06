@@ -207,6 +207,11 @@ class Ripper:
             task.logger.logger.exception(f"Error processing song: {e}")
             task.update_status(Status.FAILED)
             task.error = e
+        except asyncio.CancelledError:
+            task.logger.logger.warning("Task processing timed out or was cancelled")
+            task.update_status(Status.FAILED)
+            task.error = Exception("Task execution timed out")
+            raise
         finally:
             await self.download_manager.unregister_task(task)
             task.update_status(task.status)  # Ensure status is set

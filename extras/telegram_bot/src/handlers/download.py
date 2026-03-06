@@ -452,8 +452,18 @@ async def dl_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Spawn Rip Tasks
     if actual_songs_to_rip:
+        async def rip_with_timeout(s_obj, cd, fl, pd, pl):
+            import asyncio
+            try:
+                await asyncio.wait_for(
+                    ripper.rip_song(s_obj, cd, fl, parent_done=pd, playlist=pl),
+                    timeout=bot_config.limits.task_timeout_sec
+                )
+            except asyncio.TimeoutError:
+                pass
+                
         for song_obj, p_index in actual_songs_to_rip:
-            safely_create_task(ripper.rip_song(song_obj, codec, flags, parent_done=parent_done, playlist=p_index))
+            safely_create_task(rip_with_timeout(song_obj, codec, flags, parent_done, p_index))
     else:
         # Everything was cached
         completed_event.set()
