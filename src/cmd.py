@@ -6,9 +6,11 @@ import sys
 
 import grpc.aio
 from creart import it
+from tabulate import tabulate
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import NestedCompleter
 from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit import print_formatted_text
 
 from src.api import WebAPI
 from src.config import Config
@@ -18,7 +20,7 @@ from src.logger import GlobalLogger
 from src.measurer import Measurer
 from src.qemu import QemuInstance
 from src.quality import print_song_quality, print_album_quality, print_playlist_quality, key_to_Headers
-from src.rip import Ripper
+from src.rip import DownloadManager, Ripper
 from src.url import AppleMusicURL, URLType
 from src.utils import check_dep, run_sync, safely_create_task, config_outdated
 
@@ -68,6 +70,11 @@ class InteractiveShell:
         subparser = self.parser.add_subparsers()
         download_parser = subparser.add_parser("download", aliases=["dl"])
         quality_parser = subparser.add_parser("quality", aliases=["qa"])
+        tasks_parser = subparser.add_parser("tasks", aliases=["ts","ps"])
+
+        tasks_parser.add_argument("adam_id", nargs='*', type=str)
+        tasks_parser.add_argument("-b", "--batch", default=False, action="store_true")
+
         download_parser.add_argument("url", nargs='*', type=str)
         download_parser.add_argument("-c", "--codec",
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "aac-legacy", "ac3"],
@@ -147,6 +154,8 @@ class InteractiveShell:
                     self.handle_exit()
             case "quality" | "qa":
                 safely_create_task(self.do_quality(args.url, args))
+            case "tasks"| "ps" | "ts":
+                safely_create_task(self.do_task_status(args.adam_id))
 
     async def do_download(self, raw_urls: list[str], codec: str, force_download: bool, language: str,
                           include: bool = False):
@@ -203,7 +212,12 @@ class InteractiveShell:
                 case _:
                     it(GlobalLogger).logger.error(f"Unsupported URLType - {raw_url}")
                     continue
-
+    
+    async def do_task_status(self, adam_ids: list[str]):
+        table_header = ["Adam ID", "Title", "Album", "Status"]
+        task_list = self.ripper.download_manager.list_tasks(adam_ids)
+        print_formatted_text(tabulate(task_list, headers=table_header, tablefmt="grid"))
+    
     def bottom_toolbar(self):
         return f"Download Speed: {it(Measurer).download_speed()}, Decrypt Speed: {it(Measurer).decrypt_speed()}, Tasks: {it(Measurer).tasks_count()}"
 

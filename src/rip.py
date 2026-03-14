@@ -2,7 +2,7 @@ import asyncio
 import subprocess
 from typing import Dict, Optional
 
-from creart import it
+from creart import it, CreateTargetInfo, AbstractCreator, exists_module
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from src.api import WebAPI
@@ -46,6 +46,11 @@ class DownloadManager:
     def get_task(self, adam_id: str) -> Optional[Task]:
         return self.adam_id_task_mapping.get(adam_id)
 
+    def list_tasks(self, adam_ids: list[str]) -> list[Task]:
+        if adam_ids == []:
+            return [(task.adamId, task.metadata.title, task.metadata.album, task.status) for task in list(self.adam_id_task_mapping.values())]
+        else:
+            return [(task_info.adamId, task_info.metadata.title, task_info.metadata.album, task_info.status) if (task_info := self.get_task(task)) else (task, "Not Found") for task in adam_ids]
 
 class Ripper:
     def __init__(self):
@@ -55,14 +60,11 @@ class Ripper:
                        parent_done: ParentDoneHandler = None, playlist: PlaylistInfo = None):
         if self.download_manager.get_task(url.id):
             if parent_done:
-                # If task already exists, we must notify the parent that this "sub-task" is considered handled/skipped
-                # to prevent the parent from waiting indefinitely.
                 await parent_done.try_done()
             return
 
         task = Task(adamId=url.id, parentDone=parent_done, playlist=playlist)
 
-        # Initialize Logger
         task.logger = RipLogger(URLType.Song, task.adamId)
 
         try:
