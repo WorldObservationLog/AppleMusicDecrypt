@@ -290,6 +290,8 @@ def safely_create_task(coro):
 
     def done_callback(*args):
         background_tasks.remove(task)
+        if task.cancelled():
+            return
         if task.exception():
             try:
                 raise task.exception()

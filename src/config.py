@@ -5,7 +5,7 @@ from creart import exists_module
 from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
-CONFIG_VERSION = "0.0.10"
+CONFIG_VERSION = "0.0.11"
 
 
 class Instance(BaseModel):
@@ -26,6 +26,7 @@ class LocalInstance(BaseModel):
 class Region(BaseModel):
     language: str = "zh-Hant-HK"
     languageNotExistWarning: bool = True
+    autoStorefont: bool = False
 
 
 class Download(BaseModel):

@@ -27,6 +27,9 @@ startArgs = "-host 0.0.0.0 -port 32767 -debug"
 language = "zh-Hant-HK"
 # Pring warning when selected language does not exist on songs' region
 languageNotExistWarning = true
+# Rewrite your storefont automatically
+# Fallback to the Storefront in the URL if there is no wrapper instance matching the language
+autoStorefont = false
 
 [download]
 # Send request to Apple Music through proxy. Only support http and https protocol

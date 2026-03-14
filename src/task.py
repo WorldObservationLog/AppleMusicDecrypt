@@ -16,6 +16,7 @@ class Status(StrEnum):
     DECRYPTING = "DECRYPTING"
     DONE = "DONE"
     FAILED = "FAILED"
+    KILLED = "KILLED"
 
 
 @dataclass
@@ -30,6 +31,7 @@ class Task:
     logger: Optional[RipLogger] = None
     decrypted_samples_futures: dict[int, asyncio.Future] = field(default_factory=dict)
     error: Optional[Exception] = None
+    coro: Optional[asyncio.Task] = None
 
     def update_status(self, status: Status):
         self.status = status

@@ -29,6 +29,7 @@ https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 https://music.apple.com/jp/album/nameless-name-single/1688539265
 # Download multiple songs in one line
 dl https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp https://music.apple.com/jp/album/nameless-name-single/1688539265
+
 # Check the available quality of the song
 quality https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 # Or a shorter command
@@ -37,6 +38,16 @@ qa https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 qa --codec-id https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 # When you add --invert, it works the opposite way, showing the column for whichever option you enable.
 qa --invert --codec-id https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
+
+# List current running tasks
+ps
+# Specify adam id
+ps 1844527894
+
+# Kill a task
+kill 1844527894
+# Kill all tasks
+killall
 ```
 
 # Support Codec

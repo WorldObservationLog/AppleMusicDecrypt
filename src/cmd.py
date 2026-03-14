@@ -6,9 +6,11 @@ import sys
 
 import grpc.aio
 from creart import it
+from tabulate import tabulate
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import NestedCompleter
 from prompt_toolkit.patch_stdout import patch_stdout
+from prompt_toolkit import print_formatted_text
 
 from src.api import WebAPI
 from src.config import Config
@@ -18,7 +20,8 @@ from src.logger import GlobalLogger
 from src.measurer import Measurer
 from src.qemu import QemuInstance
 from src.quality import print_song_quality, print_album_quality, print_playlist_quality, key_to_Headers
-from src.rip import Ripper
+from src.rip import DownloadManager, Ripper
+from src.task import Status
 from src.url import AppleMusicURL, URLType
 from src.utils import check_dep, run_sync, safely_create_task, config_outdated
 
@@ -68,6 +71,14 @@ class InteractiveShell:
         subparser = self.parser.add_subparsers()
         download_parser = subparser.add_parser("download", aliases=["dl"])
         quality_parser = subparser.add_parser("quality", aliases=["qa"])
+        tasks_parser = subparser.add_parser("tasks", aliases=["ts","ps"])
+        kill_parser = subparser.add_parser("kill")
+
+        kill_parser.add_argument("adam_id", nargs='+', type=str)
+
+        tasks_parser.add_argument("adam_id", nargs='*', type=str)
+        tasks_parser.add_argument("-b", "--batch", default=False, action="store_true")
+
         download_parser.add_argument("url", nargs='*', type=str)
         download_parser.add_argument("-c", "--codec",
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "aac-legacy", "ac3"],
@@ -88,12 +99,14 @@ class InteractiveShell:
         quality_parser.add_argument("--bit-depth", default=True, action="store_false")
         quality_parser.add_argument("-b", "--batch", default=False, action="store_true")
 
+        subparser.add_parser("killall")
         subparser.add_parser("status")
         subparser.add_parser("login")
         subparser.add_parser("logout")
         subparser.add_parser("exit")
 
         self.batch_mode = False
+        self.kill_confirm = False
 
     async def show_status(self):
         it(WrapperManager).status.cache_invalidate()
@@ -127,6 +140,9 @@ class InteractiveShell:
         cmds = cmd.split(" ")
         if self.batch_mode:
             cmds, args = await self.batch_mode_parser(cmds)
+        if cmds[0] != "killall" and self.kill_confirm:
+            self.kill_confirm=False
+            it(GlobalLogger).logger.info("Killall cancelled.")
         else:
             try:
                 args = self.parser.parse_args(cmds)
@@ -147,6 +163,12 @@ class InteractiveShell:
                     self.handle_exit()
             case "quality" | "qa":
                 safely_create_task(self.do_quality(args.url, args))
+            case "tasks"| "ps" | "ts":
+                safely_create_task(self.do_task_status(args.adam_id))
+            case "kill":
+                safely_create_task(self.do_kill(args.adam_id))
+            case "killall":
+                safely_create_task(self.do_kill_all())
 
     async def do_download(self, raw_urls: list[str], codec: str, force_download: bool, language: str,
                           include: bool = False):
@@ -203,6 +225,30 @@ class InteractiveShell:
                 case _:
                     it(GlobalLogger).logger.error(f"Unsupported URLType - {raw_url}")
                     continue
+    
+    async def do_task_status(self, adam_ids: list[str]):
+        table_header = ["Adam ID", "Title", "Album", "Status"]
+        task_list = self.ripper.download_manager.list_tasks(adam_ids)
+        print_formatted_text(tabulate(task_list, headers=table_header, tablefmt="grid"))
+    
+    async def do_kill(self, adam_id: list[str]):
+        for id in adam_id:
+            task = self.ripper.download_manager.get_task(id)
+            if task:
+                task.coro.cancel()
+                task.update_status(Status.KILLED)
+                it(GlobalLogger).logger.info(f"Task {id} killed.")
+
+    async def do_kill_all(self):
+        if not self.kill_confirm:
+            it(GlobalLogger).logger.warning("This will kill all running tasks. Enter 'killall' again to confirm.")
+            self.kill_confirm = True
+            return
+        for task in self.ripper.download_manager.adam_id_task_mapping.values():
+            task.coro.cancel()
+            task.update_status(Status.KILLED)
+        self.kill_confirm = False
+        it(GlobalLogger).logger.info("All tasks killed.")
 
     def bottom_toolbar(self):
         return f"Download Speed: {it(Measurer).download_speed()}, Decrypt Speed: {it(Measurer).decrypt_speed()}, Tasks: {it(Measurer).tasks_count()}"
@@ -243,10 +289,15 @@ class InteractiveShell:
                 "--bit-depth": None,
                 "--batch": None
             },
+            "ps": {
+                "--batch": None
+            },
             "status": None,
             "login": None,
             "logout": None,
-            "exit": None
+            "exit": None,
+            "kill": None,
+            "killall": None
         }
         return NestedCompleter.from_nested_dict(mycompleter)
 
