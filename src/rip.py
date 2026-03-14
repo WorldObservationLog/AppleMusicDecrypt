@@ -63,7 +63,7 @@ class Ripper:
                 await parent_done.try_done()
             return
 
-        task = Task(adamId=url.id, parentDone=parent_done, playlist=playlist)
+        task = Task(adamId=url.id, parentDone=parent_done, playlist=playlist, coro=asyncio.current_task())
 
         task.logger = RipLogger(URLType.Song, task.adamId)
 
