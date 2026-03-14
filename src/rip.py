@@ -1,5 +1,6 @@
 import asyncio
 import subprocess
+import json
 from typing import Dict, Optional
 
 from creart import it, CreateTargetInfo, AbstractCreator, exists_module
@@ -55,6 +56,8 @@ class DownloadManager:
 class Ripper:
     def __init__(self):
         self.download_manager = DownloadManager()
+        if it(Config).region.autoStorefont:
+            self.storefont_mapping = asyncio.run(self.parse_storefont())
 
     async def rip_song(self, url: Song, codec: str, flags: Flags = Flags(),
                        parent_done: ParentDoneHandler = None, playlist: PlaylistInfo = None):
@@ -69,6 +72,16 @@ class Ripper:
 
         try:
             await self.download_manager.register_task(task)
+
+            if it(Config).region.autoStorefont:
+                regions = self.storefont_mapping[flags.language]
+                available_instances = [instance.lower() for instance in (await it(WrapperManager).status()).regions]
+                available_storefonts = [instance for instance in available_instances if instance in regions]
+                if available_storefonts:
+                    for storefonts in available_storefonts:
+                        if await check_song_existence(url.id, storefonts):
+                            url.storefront = storefonts
+                            break
 
             # Fetch Metadata
             raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, flags.language)
@@ -358,3 +371,16 @@ class Ripper:
                 task.decrypted_samples_futures[sample_index].set_exception(Exception("Decryption failed callback"))
 
     # Removed recv_decrypted_sample and on_decrypt_done as they are replaced by linear flow in rip_song
+
+    async def parse_storefont(self) -> Dict[str, list[str]]:
+        try:
+            storefont = json.load(open("assets/storefronts.json", "r", encoding="utf-8"))
+        except Exception as e:
+            raise Exception("Failed to load storefronts.json for auto storefont. Please ensure the file exists and is valid JSON.") from e
+        languages = {}
+        for region in storefont["data"]:
+            for language in region["attributes"]["supportedLanguageTags"]:
+                if language not in languages:
+                    languages[language] = []
+                languages[language].append(region["id"])
+        return languages
