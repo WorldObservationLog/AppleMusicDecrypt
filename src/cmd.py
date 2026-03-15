@@ -87,6 +87,7 @@ class InteractiveShell:
         download_parser.add_argument("-b", "--batch", default=False, action="store_true")
         download_parser.add_argument("-l", "--language", default=it(Config).region.language, action="store")
         download_parser.add_argument("--include-participate-songs", default=False, dest="include", action="store_true")
+        download_parser.add_argument("-F", "--file", default=False, action="store_true")
 
         quality_parser.add_argument("url", nargs='*', type=str)
         quality_parser.add_argument("-i", "--invert", default=False, action="store_true")
@@ -98,6 +99,7 @@ class InteractiveShell:
         quality_parser.add_argument("--sample-rate", default=True, action="store_false")
         quality_parser.add_argument("--bit-depth", default=True, action="store_false")
         quality_parser.add_argument("-b", "--batch", default=False, action="store_true")
+        quality_parser.add_argument("-F", "--file", default=False, action="store_true")
 
         subparser.add_parser("killall")
         subparser.add_parser("status")
@@ -134,6 +136,17 @@ class InteractiveShell:
             cmds[0] = self.batch_command
         return cmds, args
 
+    async def handle_file_mode(self, args):
+        urls = []
+        for url in args.url:
+            if not os.path.isfile(url):
+                it(GlobalLogger).logger.error(f"File {url} does not exist!")
+                return
+            with open(url, "r") as f:
+                urls.extend([url.strip() for url in f.readlines() if url.strip()])
+        args.url = urls
+        return args
+
     async def command_parser(self, cmd: str):
         if not cmd.strip():
             return
@@ -150,6 +163,11 @@ class InteractiveShell:
                 it(GlobalLogger).logger.warning(f"Unknown command: {cmd}")
                 return
             await self.handle_batch_mode(args, cmds)
+        try:
+            if args.file:
+                args = await self.handle_file_mode(args)
+        except:
+            pass
         match cmds[0]:
             case "download" | "dl":
                 safely_create_task(self.do_download(args.url, args.codec, args.force, args.language, args.include))
@@ -276,7 +294,8 @@ class InteractiveShell:
                     "ja": None,
                     "ko": None
                 },
-                "--include-participate-songs": None
+                "--include-participate-songs": None,
+                "--file": None
             },
             "qa": {
                 "--invert": None,
@@ -287,7 +306,8 @@ class InteractiveShell:
                 "--channels": None,
                 "--sample-rate": None,
                 "--bit-depth": None,
-                "--batch": None
+                "--batch": None,
+                "--file": None
             },
             "ps": {
                 "--batch": None

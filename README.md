@@ -29,6 +29,8 @@ https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 https://music.apple.com/jp/album/nameless-name-single/1688539265
 # Download multiple songs in one line
 dl https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp https://music.apple.com/jp/album/nameless-name-single/1688539265
+# Download songs from file
+dl -F songs.txt
 
 # Check the available quality of the song
 quality https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
