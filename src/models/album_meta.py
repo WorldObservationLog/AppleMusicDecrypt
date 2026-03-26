@@ -28,7 +28,7 @@ class Attributes(BaseModel):
     releaseDate: Optional[str] = None
     upc: Optional[str] = None
     isMasteredForItunes: Optional[bool] = None
-    artwork: Optional[Artwork]
+    artwork: Optional[Artwork] = None
     url: Optional[str] = None
     playParams: Optional[PlayParams] = None
     recordLabel: Optional[str] = None
@@ -85,7 +85,7 @@ class Attributes1(BaseModel):
     hasLyrics: Optional[bool] = None
     audioTraits: List[Optional[str]] = None
     name: Optional[str] = None
-    previews: List[Preview]
+    previews: Optional[List[Preview]] = None
     artistName: Optional[str] = None
 
 
@@ -113,14 +113,14 @@ class Datum1(BaseModel):
     id: Optional[str] = None
     type: Optional[str] = None
     href: Optional[str] = None
-    attributes: Optional[Attributes1]
+    attributes: Optional[Attributes1] = None
     relationships: Optional[Relationships1] = None
 
 
 class Tracks(BaseModel):
     href: Optional[str] = None
     next: Optional[str] = None
-    data: List[Datum1] = None
+    data: Optional[List[Datum1]] = None
 
 
 class Attributes3(BaseModel):
@@ -136,7 +136,7 @@ class Datum3(BaseModel):
 
 class Artists1(BaseModel):
     href: Optional[str] = None
-    data: List[Datum3] = None
+    data: Optional[List[Datum3]] = None
 
 
 class RecordLabels(BaseModel):

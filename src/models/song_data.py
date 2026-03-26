@@ -44,7 +44,7 @@ class Attributes(BaseModel):
     isVocalAttenuationAllowed: Optional[bool] = None
     isMasteredForItunes: Optional[bool] = None
     isrc: Optional[str] = None
-    artwork: Artwork
+    artwork: Optional[Artwork] = None
     composerName: Optional[str] = None
     audioLocale: Optional[str] = None
     url: Optional[str] = None
@@ -55,7 +55,7 @@ class Attributes(BaseModel):
     hasLyrics: Optional[bool] = None
     audioTraits: List[Optional[str]] = None
     name: Optional[str] = None
-    previews: List[Preview]
+    previews: Optional[List[Preview]] = None
     artistName: Optional[str] = None
     extendedAssetUrls: Optional[ExtendedAssetUrls] = None
     contentRating: Optional[str] = None
@@ -84,7 +84,7 @@ class Attributes1(BaseModel):
     releaseDate: Optional[str] = None
     isMasteredForItunes: Optional[bool] = None
     upc: Optional[str] = None
-    artwork: Artwork1
+    artwork: Optional[Artwork1] = None
     url: Optional[str] = None
     playParams: Optional[PlayParams1] = None
     recordLabel: Optional[str] = None
@@ -107,7 +107,7 @@ class Datum1(BaseModel):
 
 class Albums(BaseModel):
     href: Optional[str] = None
-    data: List[Datum1]
+    data: Optional[List[Datum1]] = None
 
 
 class Datum2(BaseModel):
@@ -118,7 +118,7 @@ class Datum2(BaseModel):
 
 class Artists(BaseModel):
     href: Optional[str] = None
-    data: List[Datum2]
+    data: Optional[List[Datum2]] = None
 
 
 class Relationships(BaseModel):

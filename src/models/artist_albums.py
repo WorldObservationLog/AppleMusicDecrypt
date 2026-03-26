@@ -30,18 +30,18 @@ class EditorialNotes(BaseModel):
 
 class Attributes(BaseModel):
     copyright: Optional[str] = None
-    genreNames: List[str]
+    genreNames: Optional[List[str]] = None
     releaseDate: Optional[str] = None
     isMasteredForItunes: Optional[bool] = None
     upc: Optional[str] = None
-    artwork: Artwork
+    artwork: Optional[Artwork] = None
     url: Optional[str] = None
     playParams: Optional[PlayParams] = None
     recordLabel: Optional[str] = None
     trackCount: Optional[int] = None
     isCompilation: Optional[bool] = None
     isPrerelease: Optional[bool] = None
-    audioTraits: List[str]
+    audioTraits: Optional[List[str]] = None
     isSingle: Optional[bool] = None
     name: Optional[str] = None
     artistName: Optional[str] = None
@@ -55,7 +55,7 @@ class ContentVersion(BaseModel):
 
 
 class Meta(BaseModel):
-    contentVersion: ContentVersion
+    contentVersion: Optional[ContentVersion] = None
 
 
 class Datum(BaseModel):
