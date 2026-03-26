@@ -119,8 +119,9 @@ class Ripper:
                 return
 
             if not m3u8_url:
+                task.logger.logger.error("Lossless audio does not exist")
                 task.update_status(Status.FAILED)
-                task.error = Exception("Failed to fetch M3U8 URL")
+                task.error = Exception("Lossless audio does not exist")
                 return
 
             try:
@@ -252,7 +253,6 @@ class Ripper:
         try:
             task.m3u8Info = await legacy_extract_media(await it(WrapperManager).webPlayback(task.adamId))
 
-            task.logger.logger.info("Waiting for available download streams...")
             async with it(WebAPI).download_lock:
                 async def _phase2():
                     task.logger.downloading()
