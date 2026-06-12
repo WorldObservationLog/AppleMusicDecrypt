@@ -66,7 +66,7 @@ class WebAPI:
             resp = client.get("https://music.apple.com", follow_redirects=True)
             index_js_uri = regex.findall(r"/assets/index~[^/]+\.js", resp.text)[0]
             js_resp = client.get("https://music.apple.com" + index_js_uri)
-            self.token = regex.search(r'eyJh([^"]*)', js_resp.text)[0]
+            self.token = regex.search(r'(eyJ[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+\.[A-Za-z0-9-_=]+)', js_resp.text)[0]
 
     # DO NOT REMOVE IT
     def init(self):
