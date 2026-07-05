@@ -6,8 +6,7 @@ from typing import Type
 import httpx
 import regex
 from creart import AbstractCreator, CreateTargetInfo, exists_module, it
-from httpx import Request, Response, AsyncHTTPTransport
-from hishel.httpx import AsyncCacheClient
+from httpx import Request, Response, AsyncHTTPTransport, AsyncClient
 from tenacity import retry, retry_if_exception_type, wait_random_exponential, stop_after_attempt, before_sleep_log
 
 from src.config import Config
@@ -51,10 +50,10 @@ class WebAPI:
 
     def __init__(self, proxy: str, parallel_num: int):
         self._set_token()
-        self.client = AsyncCacheClient(headers={"Authorization": f"Bearer {self.token}",
-                                                       "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-                                                       "Origin": "https://music.apple.com"},
-                                              proxy=proxy if proxy else None)
+        self.client = AsyncClient(headers={"Authorization": f"Bearer {self.token}",
+                                           "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
+                                           "Origin": "https://music.apple.com"},
+                                  proxy=proxy if proxy else None)
         self.download_lock = asyncio.Semaphore(parallel_num)
         self.request_lock = asyncio.Semaphore(256)
 
