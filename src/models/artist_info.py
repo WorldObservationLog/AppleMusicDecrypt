@@ -20,7 +20,7 @@ class Artwork(BaseModel):
 class Attributes(BaseModel):
     genreNames: List[Optional[str]] = None
     name: Optional[str] = None
-    artwork: Artwork
+    artwork: Optional[Artwork] = None
     classicalUrl: Optional[str] = None
     url: Optional[str] = None
 
@@ -34,11 +34,11 @@ class Datum1(BaseModel):
 class Albums(BaseModel):
     href: Optional[str] = None
     next: Optional[str] = None
-    data: List[Datum1]
+    data: Optional[List[Datum1]] = None
 
 
 class Relationships(BaseModel):
-    albums: Albums
+    albums: Optional[Albums] = None
 
 
 class Datum(BaseModel):

@@ -12,7 +12,7 @@ class PlayParams(BaseModel):
 
 class Attributes(BaseModel):
     ttml: Optional[str] = None
-    playParams: PlayParams
+    playParams: Optional[PlayParams] = None
 
 
 class Datum(BaseModel):
