@@ -29,25 +29,25 @@ class Preview(BaseModel):
 class Attributes(BaseModel):
     albumName: Optional[str] = None
     hasTimeSyncedLyrics: Optional[bool] = None
-    genreNames: List[str]
+    genreNames: Optional[List[str]] = None
     trackNumber: Optional[int] = None
     releaseDate: Optional[str] = None
     durationInMillis: Optional[int] = None
     isVocalAttenuationAllowed: Optional[bool] = None
     isMasteredForItunes: Optional[bool] = None
     isrc: Optional[str] = None
-    artwork: Artwork
+    artwork: Optional[Artwork] = None
     audioLocale: Optional[str] = None
     composerName: Optional[str] = None
     url: Optional[str] = None
-    playParams: PlayParams
+    playParams: Optional[PlayParams] = None
     discNumber: Optional[int] = None
     hasCredits: Optional[bool] = None
     isAppleDigitalMaster: Optional[bool] = None
     hasLyrics: Optional[bool] = None
-    audioTraits: List[str]
+    audioTraits: Optional[List[str]] = None
     name: Optional[str] = None
-    previews: List[Preview]
+    previews: Optional[List[Preview]] = None
     artistName: Optional[str] = None
 
 
@@ -70,4 +70,4 @@ class Datum(BaseModel):
 
 class PlaylistTracks(BaseModel):
     next: Optional[str] = None
-    data: List[Datum]
+    data: Optional[List[Datum]] = None

@@ -36,18 +36,18 @@ class Attributes(BaseModel):
     isVocalAttenuationAllowed: Optional[bool] = None
     isMasteredForItunes: Optional[bool] = None
     isrc: Optional[str] = None
-    artwork: Artwork
+    artwork: Optional[Artwork] = None
     composerName: Optional[str] = None
     audioLocale: Optional[str] = None
     url: Optional[str] = None
-    playParams: PlayParams
+    playParams: Optional[PlayParams] = None
     discNumber: Optional[int] = None
     hasCredits: Optional[bool] = None
     isAppleDigitalMaster: Optional[bool] = None
     hasLyrics: Optional[bool] = None
     audioTraits: Optional[str] = None
     name: Optional[str] = None
-    previews: List[Preview]
+    previews: Optional[List[Preview]] = None
     artistName: Optional[str] = None
 
 
@@ -60,4 +60,4 @@ class Datum(BaseModel):
 
 class TracksMeta(BaseModel):
     next: Optional[str] = None
-    data: List[Datum]
+    data: Optional[List[Datum]] = None

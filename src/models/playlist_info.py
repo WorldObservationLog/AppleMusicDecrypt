@@ -26,14 +26,14 @@ class Attributes(BaseModel):
     hasCollaboration: Optional[bool] = None
     curatorName: Optional[str] = None
     lastModifiedDate: Optional[str] = None
-    audioTraits: List
+    audioTraits: Optional[List] = None
     name: Optional[str] = None
     isChart: Optional[bool] = None
     supportsSing: Optional[bool] = None
     playlistType: Optional[str] = None
     description: Optional[Description] = None
     artwork: Optional[Artwork] = None
-    playParams: PlayParams
+    playParams: Optional[PlayParams] = None
     url: Optional[str] = None
 
 
@@ -45,7 +45,7 @@ class Datum1(BaseModel):
 
 class Curator(BaseModel):
     href: Optional[str] = None
-    data: List[Datum1]
+    data: Optional[List[Datum1]] = None
 
 
 class Artwork1(BaseModel):
@@ -72,25 +72,25 @@ class Preview(BaseModel):
 class Attributes1(BaseModel):
     albumName: Optional[str] = None
     hasTimeSyncedLyrics: Optional[bool] = None
-    genreNames: List[str]
+    genreNames: Optional[List[str]] = None
     trackNumber: Optional[int] = None
     releaseDate: Optional[str] = None
     durationInMillis: Optional[int] = None
     isVocalAttenuationAllowed: Optional[bool] = None
     isMasteredForItunes: Optional[bool] = None
     isrc: Optional[str] = None
-    artwork: Artwork1
+    artwork: Optional[Artwork1] = None
     composerName: Optional[str] = None
     audioLocale: Optional[str] = None
     url: Optional[str] = None
-    playParams: PlayParams1
+    playParams: Optional[PlayParams1] = None
     discNumber: Optional[int] = None
     hasCredits: Optional[bool] = None
     isAppleDigitalMaster: Optional[bool] = None
     hasLyrics: Optional[bool] = None
-    audioTraits: List[str]
+    audioTraits: Optional[List[str]] = None
     name: Optional[str] = None
-    previews: List[Preview]
+    previews: Optional[List[Preview]] = None
     artistName: Optional[str] = None
 
 
@@ -114,11 +114,11 @@ class Datum2(BaseModel):
 class Tracks(BaseModel):
     href: Optional[str] = None
     next: Optional[str] = None
-    data: List[Datum2]
+    data: Optional[List[Datum2]] = None
 
 
 class Relationships(BaseModel):
-    curator: Curator
+    curator: Optional[Curator] = None
     tracks: Tracks
 
 
