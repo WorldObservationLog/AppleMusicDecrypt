@@ -72,6 +72,8 @@ class InteractiveShell:
         download_parser.add_argument("-c", "--codec",
                                      choices=["alac", "ec3", "aac", "aac-binaural", "aac-downmix", "aac-legacy", "ac3"],
                                      default="alac")
+        download_parser.add_argument("--flac", default=False, action="store_true",
+                                     help="Convert ALAC to FLAC")
         download_parser.add_argument("-f", "--force", default=False, action="store_true")
         download_parser.add_argument("-b", "--batch", default=False, action="store_true")
         download_parser.add_argument("-l", "--language", default=it(Config).region.language, action="store")
@@ -136,7 +138,7 @@ class InteractiveShell:
             await self.handle_batch_mode(args, cmds)
         match cmds[0]:
             case "download" | "dl":
-                safely_create_task(self.do_download(args.url, args.codec, args.force, args.language, args.include))
+                safely_create_task(self.do_download(args.url, args.codec, args.flac, args.force, args.language, args.include))
             case "status":
                 await self.show_status()
             case "exit":
@@ -148,7 +150,7 @@ class InteractiveShell:
             case "quality" | "qa":
                 safely_create_task(self.do_quality(args.url, args))
 
-    async def do_download(self, raw_urls: list[str], codec: str, force_download: bool, language: str,
+    async def do_download(self, raw_urls: list[str], codec: str, convert_to_flac: bool, force_download: bool, language: str,
                           include: bool = False):
         for raw_url in raw_urls:
             url = AppleMusicURL.parse_url(raw_url)
@@ -161,17 +163,17 @@ class InteractiveShell:
             match url.type:
                 case URLType.Song:
                     safely_create_task(
-                        self.ripper.rip_song(url, codec, Flags(force_save=force_download, language=language)))
+                        self.ripper.rip_song(url, codec, Flags(force_save=force_download, language=language, convert_to_flac=convert_to_flac)))
                 case URLType.Album:
                     safely_create_task(
-                        self.ripper.rip_album(url, codec, Flags(force_save=force_download, language=language)))
+                        self.ripper.rip_album(url, codec, Flags(force_save=force_download, language=language, convert_to_flac=convert_to_flac)))
                 case URLType.Artist:
                     safely_create_task(
                         self.ripper.rip_artist(url, codec, Flags(force_save=force_download, language=language,
-                                                                 include_participate_in_works=include)))
+                                                                 include_participate_in_works=include, convert_to_flac=convert_to_flac)))
                 case URLType.Playlist:
                     safely_create_task(
-                        self.ripper.rip_playlist(url, codec, Flags(force_save=force_download, language=language)))
+                        self.ripper.rip_playlist(url, codec, Flags(force_save=force_download, language=language, convert_to_flac=convert_to_flac)))
                 case _:
                     it(GlobalLogger).logger.error(f"Unsupported URLType - {raw_url}")
                     continue
@@ -220,6 +222,7 @@ class InteractiveShell:
                     "aac-legacy": None,
                     "ac3": None
                 },
+                "--flac": None,
                 "--force": None,
                 "--language": {
                     "en-US": None,

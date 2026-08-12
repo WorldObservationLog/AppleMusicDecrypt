@@ -10,3 +10,4 @@ class Flags:
     force_save: bool = False
     include_participate_in_works: bool = False
     language: str = it(Config).region.language
+    convert_to_flac: bool = False
