@@ -1,8 +1,11 @@
 import asyncio
+import os
 import subprocess
 from typing import Dict, Optional
 
 from creart import it
+from mutagen.mp4 import MP4
+from mutagen.flac import FLAC
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from src.api import WebAPI
@@ -25,6 +28,132 @@ from src.types import Codec, ParentDoneHandler
 from src.url import Song, Album, URLType, Playlist
 from src.utils import get_codec_from_codec_id, check_song_existence, check_song_exists, if_raw_atmos, \
     check_album_existence, playlist_write_song_index, run_sync, safely_create_task, language_exist, query_language
+
+
+async def convert_alac_to_flac(file_path: str, logger: RipLogger) -> bool:
+    """Convert ALAC m4a file to FLAC using ffmpeg and migrate metadata using mutagen"""
+    flac_path = os.path.splitext(file_path)[0] + ".flac"
+    try:
+        # First, read metadata from the original M4A file using mutagen
+        logger.logger.debug(f"Reading metadata from {file_path}...")
+        m4a_file = MP4(file_path)
+        original_metadata = dict(m4a_file.tags) if m4a_file.tags else {}
+
+        # Run ffmpeg to convert ALAC to FLAC (without metadata preservation)
+        cmd = [
+            "ffmpeg",
+            "-i",
+            file_path,
+            "-c:a",
+            "flac",
+            "-compression_level",
+            "8",
+            "-y",  # Overwrite output file
+            flac_path,
+        ]
+
+        logger.logger.debug(f"Converting {file_path} to FLAC...")
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await process.communicate()
+
+        if process.returncode != 0:
+            logger.logger.error(f"ffmpeg conversion failed: {stderr.decode('utf-8', errors='ignore')}")
+            return False
+
+        # Now apply metadata to the FLAC file using mutagen
+        logger.logger.debug("Migrating metadata to FLAC file...")
+        flac_file = FLAC(flac_path)
+
+        # Metadata mapping from MP4 tags to FLAC tags
+        metadata_mapping = {
+            "cnID": "CATALOGNUMBER",  # iTunes Catalog ID
+            "©nam": "TITLE",  # Title
+            "©ART": "ARTIST",  # Artist
+            "plID": "ALBUMID",  # iTunes Album ID
+            "aART": "ALBUMARTIST",  # Album Artist
+            "©alb": "ALBUM",  # Album
+            "©day": "DATE",  # Album Date
+            "©wrt": "COMPOSER",  # Composer
+            "©gen": "GENRE",  # Genre
+            "purd": "PURCHASE_DATE",  # Purchase Date
+            "trkn": "TRACKNUMBER",  # Track Number
+            "disk": "DISCNUMBER",  # Disc Number
+            "©lyr": "LYRICS",  # Lyrics
+            "cprt": "COPYRIGHT",  # Copyright
+            "©pub": "PUBLISHER",  # Publisher/Record Company
+            "----:com.apple.iTunes:BARCODE": "BARCODE",  # UPC
+            "----:com.apple.iTunes:ISRC": "ISRC",  # ISRC
+            "rtng": "RATING",  # Rating
+        }
+
+        # Apply metadata first (before adding pictures)
+        for mp4_tag, flac_tag in metadata_mapping.items():
+            if mp4_tag in original_metadata:
+                value = original_metadata[mp4_tag]
+
+                if mp4_tag in ["trkn", "disk"]:  # Track/Disc number special handling
+                    if isinstance(value, list) and len(value) > 0 and isinstance(value[0], tuple):
+                        current, total = value[0]
+                        if mp4_tag == "trkn":
+                            flac_file[flac_tag] = str(current)
+                            if total > 0:
+                                flac_file["TRACKTOTAL"] = str(total)
+                        elif mp4_tag == "disk":
+                            flac_file[flac_tag] = str(current)
+                            if total > 0:
+                                flac_file["DISCTOTAL"] = str(total)
+                elif mp4_tag == "©gen":  # Genre special handling
+                    if isinstance(value, list):
+                        flac_file[flac_tag] = value
+                    else:
+                        flac_file[flac_tag] = [str(value)]
+                elif mp4_tag == "rtng":  # Rating special handling
+                    if isinstance(value, list) and len(value) > 0:
+                        flac_file[flac_tag] = str(value[0])
+                elif mp4_tag in [
+                    "----:com.apple.iTunes:BARCODE",
+                    "----:com.apple.iTunes:ISRC",
+                ]:  # UPC/ISRC special handling
+                    if isinstance(value, list) and len(value) > 0:
+                        # These are stored as bytes in MP4, need to decode
+                        try:
+                            decoded_value = value[0].decode("utf-8") if isinstance(value[0], bytes) else str(value[0])
+                            flac_file[flac_tag] = [decoded_value]
+                        except (UnicodeDecodeError, AttributeError):
+                            flac_file[flac_tag] = [str(value[0])]
+                else:  # String values
+                    if isinstance(value, list):
+                        flac_file[flac_tag] = [str(v) for v in value]
+                    else:
+                        flac_file[flac_tag] = [str(value)]
+
+        # Remove unwanted tags that might be added by ffmpeg
+        unwanted_tags = ["ENCODER", "MAJOR_BRAND", "MINOR_VERSION", "COMPATIBLE_BRANDS"]
+        for tag in unwanted_tags:
+            if tag in flac_file:
+                del flac_file[tag]
+
+        flac_file.save()
+
+        # Delete the original file
+        os.remove(file_path)
+
+        return True
+
+    except Exception as e:
+        logger.logger.error(f"Error converting ALAC to FLAC: {e}")
+        # Clean up FLAC file if it was created but something went wrong
+        if os.path.exists(flac_path):
+            try:
+                os.remove(flac_path)
+                logger.logger.debug(f"Cleaned up incomplete FLAC file: {flac_path}")
+            except OSError as cleanup_error:
+                logger.logger.warning(f"Failed to clean up FLAC file {flac_path}: {cleanup_error}")
+        return False
 
 
 class DownloadManager:
@@ -202,6 +331,15 @@ class Ripper:
                             task.error = SongNotPassIntegrityCheckException("Integrity Check Warning")
         
                     local_filename = await run_sync(save, song_bytes, local_codec, task.metadata, task.playlist)
+
+                    # Convert ALAC to FLAC if --flac flag is set
+                    if flags.convert_to_flac and local_codec == Codec.ALAC and str(local_filename).endswith(".m4a"):
+                        conversion_success = await convert_alac_to_flac(str(local_filename), task.logger)
+                        if conversion_success:
+                            task.logger.logger.info("Successfully converted ALAC to FLAC")
+                        else:
+                            task.logger.logger.warning("Failed to convert ALAC to FLAC")
+
                     task.logger.saved()
                     task.update_status(Status.DONE)
         
