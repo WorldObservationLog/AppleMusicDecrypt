@@ -11,7 +11,7 @@ from src.config import Config
 from src.metadata import SongMetadata
 from src.utils import get_codec_from_codec_id, safely_create_task, playlist_write_song_index
 from src.url import Song, Album, URLType, Playlist
-from src.grpc.manager import WrapperManager
+from src.wrapper import WrapperClient
 
 Headers = [
     "Codec ID",
@@ -52,7 +52,7 @@ async def get_available_audio_quality(m3u8_url: str):
 async def print_song_quality(url: Song, show_fields: list[str]):
     raw_metadata = await it(WebAPI).get_song_info(url.id, url.storefront, it(Config).region.language)
     metadata = SongMetadata.parse_from_song_data(raw_metadata)
-    m3u8_url = await it(WrapperManager).m3u8(url.id)
+    m3u8_url = await it(WrapperClient).m3u8(url.id)
     audio_qualities = await get_available_audio_quality(m3u8_url)
 
     filtered_data = [

@@ -12,14 +12,20 @@ from tenacity import retry, retry_if_exception_type, wait_random_exponential, st
 from src.config import Config
 from src.logger import GlobalLogger
 
+# wrapper-lite runs inside the Android rootfs image, exposed on the host port
+# 32767 (forwarded to the guest's configured port, default 8080).
 ARGUMENTS = ["qemu-system-x86_64", "-machine q35", f"-cpu {it(Config).localInstance.cpuModel}",
-             f"-m {it(Config).localInstance.memorySize}", "-hda assets/wrapper-manager.qcow2",
+             f"-m {it(Config).localInstance.memorySize}", "-hda assets/wrapper-lite.qcow2",
              "-device virtio-net-pci,netdev=net0",
              "-chardev socket,id=qga0,host=127.0.0.1,port=32766,server=on,wait=off",
              "-device virtio-serial-pci",
              "-device virtserialport,chardev=qga0,name=org.qemu.guest_agent.0",
-             "-netdev user,id=net0,hostfwd=tcp:127.0.0.1:32767-:32767"]
+             "-netdev user,id=net0,hostfwd=tcp:127.0.0.1:32767-:8080"]
 HWACCEL = f"-accel {it(Config).localInstance.hardwareAccelerator}"
+
+# The wrapper-lite qemu image is not published yet; override the URL if you have one.
+IMAGE_URL = it(Config).localInstance.imageUrl if hasattr(it(Config).localInstance, "imageUrl") \
+    else "https://nightly.link/WorldObservationLog/wrapper/workflows/build-lite/main/wrapper-lite-image.zip"
 
 
 class QGAException(Exception):
@@ -81,22 +87,24 @@ class QemuInstance:
     async def launch_instance(self, loop: asyncio.AbstractEventLoop):
         if not self.image_available():
             await self.get_instance_image()
-        if it(Config).localInstance.enableHardwareAcceleration:
+        if it(Config).localInstance.enableHardwareAcceleration and it(Config).localInstance.hardwareAccelerator:
             ARGUMENTS.insert(3, HWACCEL)
         if not it(Config).localInstance.showWindow:
             ARGUMENTS.insert(5, "-display none")
         self.proc = loop.create_task(
             asyncio.create_subprocess_shell(" ".join(ARGUMENTS), stdout=asyncio.subprocess.PIPE,
                                             stderr=asyncio.subprocess.PIPE))
-        it(GlobalLogger).logger.info("Waiting for wrapper-manager to start...")
+        it(GlobalLogger).logger.info("Waiting for wrapper-lite to start...")
         try:
             await self.client.init()
             await self.client.ping()
-        except ConnectionError:
+        except (ConnectionError, OSError):
             stdout, stderr = await self.proc.result().communicate()
             raise QemuCrashedException(stdout.decode(), stderr.decode())
-        await self.client.write_file("/etc/wm-args", it(Config).localInstance.startArgs)
-        await self.client.execute("/sbin/rc-service", ["wrapper-manager", "start"])
+        # Write the lite startup arguments and launch the lite binary.
+        await self.client.write_file("/data/lite-args", it(Config).localInstance.startArgs)
+        await self.client.execute("/system/bin/lite", ["-host", "0.0.0.0", "-port", "8080",
+                                                       "-base-dir", "/data"])
         while True:
             if await self.instance_running():
                 break
@@ -110,24 +118,29 @@ class QemuInstance:
 
     async def instance_running(self):
         try:
-            await self.client.read_file("/var/run/wrapper-manager/wrapper-manager.pid")
+            await self.client.read_file("/data/lite.pid")
             return True
         except QGAException:
             return False
 
     async def terminate(self):
-        await self.client.execute("/sbin/poweroff", [])
+        try:
+            await self.client.execute("/sbin/poweroff", [])
+        except QGAException:
+            pass
 
     async def logs(self):
-        return await self.client.read_file("/var/run/wrapper-manager/wrapper-manager.log")
+        try:
+            return await self.client.read_file("/data/lite.log")
+        except QGAException:
+            return ""
 
     async def get_instance_image(self):
-        it(GlobalLogger).logger.warning("The wrapper-manager image does not exist. Downloading...")
-        async with httpx.AsyncClient(follow_redirects=True) as client:
-            resp = await client.get(
-                "https://nightly.link/WorldObservationLog/wrapper-manager/workflows/wrapper-manager-image/main/wrapper-manager-image.zip")
+        it(GlobalLogger).logger.warning("The wrapper-lite image does not exist. Downloading...")
+        async with httpx.AsyncClient(follow_redirects=True, timeout=120) as client:
+            resp = await client.get(IMAGE_URL)
             with zipfile.ZipFile(BytesIO(resp.content), "r") as f:
                 f.extractall("assets/")
 
     def image_available(self):
-        return Path("assets/wrapper-manager.qcow2").exists()
+        return Path("assets/wrapper-lite.qcow2").exists()

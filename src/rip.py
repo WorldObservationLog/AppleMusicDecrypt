@@ -1,35 +1,52 @@
-import asyncio
-import subprocess
-from typing import Dict, Optional
+"""Ripping pipeline for v3.
 
+Default mode is 边下边解 (stream-decrypt): the encrypted media file is
+streamed from the Apple CDN and samples are decrypted locally with Temari as
+they arrive (StreamDecryptor), so download / decrypt / write overlap and memory
+stays bounded to a fragment.
+
+Fallback batch mode (config ``streamDecrypt=false``) downloads the whole file
+first, then decrypts per fragment with ``temari.decrypt_par``.
+
+Legacy AAC (aac-legacy) uses pywidevine for the license and pure-Python
+AES-CBC for sample decryption — no external binaries anywhere.
+"""
+
+import asyncio
+import collections
+import os
+import ssl
+import subprocess
+from typing import Optional
+
+import httpx
 from creart import it
-from tenacity import retry, stop_after_attempt, wait_fixed
 
 from src.api import WebAPI
 from src.config import Config
+from src.decrypt import Decryptor, PREFETCH_KEY
 from src.exceptions import CodecNotFoundException, SongNotPassIntegrityCheckException
 from src.flags import Flags
-from src.grpc.manager import WrapperManager
-from src.legacy.decrypt import WidevineDecrypt
-from src.legacy.mp4 import decrypt as legacy_decrypt
-from src.legacy.mp4 import extract_media as legacy_extract_media
+from src.hls import extract_media
 from src.logger import RipLogger
 from src.measurer import Measurer
 from src.metadata import SongMetadata
 from src.models import PlaylistInfo
-from src.mp4 import extract_media, extract_song, encapsulate, write_metadata, fix_encapsulate, fix_esds_box, \
-    check_song_integrity
-from src.save import save
+from src.mp4 import (StreamingMP4Parser, patch_mvhd_times, mac_epoch_to_datetime,
+                     MP4ParseError, parse_init, parse_next_fragment, rebuild_fragment_bytes)
+from src.save import prepare_paths, finalize
 from src.task import Task, Status
 from src.types import Codec, ParentDoneHandler
 from src.url import Song, Album, URLType, Playlist
-from src.utils import get_codec_from_codec_id, check_song_existence, check_song_exists, if_raw_atmos, \
-    check_album_existence, playlist_write_song_index, run_sync, safely_create_task, language_exist, query_language
+from src.wrapper import WrapperClient
+from src.utils import (get_codec_from_codec_id, check_song_existence, check_song_exists,
+                       if_raw_atmos, check_album_existence, playlist_write_song_index, run_sync,
+                       safely_create_task, language_exist, query_language)
 
 
 class DownloadManager:
     def __init__(self):
-        self.adam_id_task_mapping: Dict[str, Task] = {}
+        self.adam_id_task_mapping = {}
         self.task_lock = asyncio.Semaphore(it(Config).download.maxRunningTasks)
 
     async def register_task(self, task: Task):
@@ -51,75 +68,69 @@ class Ripper:
     def __init__(self):
         self.download_manager = DownloadManager()
 
+    # ------------------------------------------------------------------ #
+    # Public entry points
+    # ------------------------------------------------------------------ #
     async def rip_song(self, url: Song, codec: str, flags: Flags = Flags(),
                        parent_done: ParentDoneHandler = None, playlist: PlaylistInfo = None,
                        timeout_sec: int = 0):
         if self.download_manager.get_task(url.id):
             if parent_done:
-                # If task already exists, we must notify the parent that this "sub-task" is considered handled/skipped
-                # to prevent the parent from waiting indefinitely.
+                # Already being processed: notify the parent so it does not wait.
                 await parent_done.try_done()
             return
 
         task = Task(adamId=url.id, parentDone=parent_done, playlist=playlist)
-
-        # Initialize Logger
         task.logger = RipLogger(URLType.Song, task.adamId)
 
         try:
             await self.download_manager.register_task(task)
 
-            # Fetch Metadata
+            # Fetch metadata
             raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, flags.language)
-            album_data = await it(WebAPI).get_album_info(raw_metadata.relationships.albums.data[0].id, url.storefront,
-                                                         flags.language)
+            album_data = await it(WebAPI).get_album_info(
+                raw_metadata.relationships.albums.data[0].id, url.storefront, flags.language)
             task.metadata = SongMetadata.parse_from_song_data(raw_metadata)
             task.metadata.parse_from_album_data(album_data)
 
-            # Update Logger with metadata
             task.logger.set_fullname(task.metadata.artist, task.metadata.title)
             task.logger.create()
 
-            # Check Language
             if it(Config).region.languageNotExistWarning and not language_exist(url.storefront, flags.language):
                 default_language, _ = query_language(url.storefront)
                 task.logger.language_not_exist(url.storefront, flags.language, default_language)
 
-            # Check Existence on Apple Music
             if not await check_song_existence(url.id, url.storefront):
                 task.logger.not_exist()
                 task.update_status(Status.FAILED)
                 task.error = Exception("Song not found on Apple Music")
                 return
 
-            # Get Cover and Lyrics
             task.metadata.cover = await it(WebAPI).get_cover(task.metadata.cover_url,
                                                              it(Config).download.coverFormat,
                                                              it(Config).download.coverSize)
 
             if raw_metadata.attributes.hasTimeSyncedLyrics:
-                task.metadata.lyrics = await it(WrapperManager).lyrics(task.adamId, flags.language, url.storefront)
+                task.metadata.lyrics = await it(WrapperClient).lyrics(task.adamId, flags.language, url.storefront)
 
             if playlist:
                 task.metadata.set_playlist_index(playlist.songIdIndexMapping.get(url.id))
 
-            # Check Local Existence
             if not flags.force_save and check_song_exists(task.metadata, codec, playlist):
                 task.logger.already_exist()
                 task.update_status(Status.DONE)
                 return
 
-            # Get M3U8
             m3u8_url = await self._get_m3u8_url(task, codec, raw_metadata)
 
             if codec == Codec.AAC_LEGACY or (
-                    it(Config).download.codecAlternative and not raw_metadata.attributes.extendedAssetUrls.enhancedHls and Codec.AAC_LEGACY in it(
-                    Config).download.codecPriority):
+                    it(Config).download.codecAlternative and not raw_metadata.attributes.extendedAssetUrls.enhancedHls
+                    and Codec.AAC_LEGACY in it(Config).download.codecPriority):
                 await self._rip_song_legacy(task, timeout_sec)
                 return
 
             if not m3u8_url:
-                task.logger.logger.error("Lossless audio does not exist")
+                task.logger.lossless_audio_not_exist()
                 task.update_status(Status.FAILED)
                 task.error = Exception("Lossless audio does not exist")
                 return
@@ -135,102 +146,33 @@ class Ripper:
             task.logger.selected_codec(task.m3u8Info.codec_id)
             if all([bool(task.m3u8Info.bit_depth), bool(task.m3u8Info.sample_rate)]):
                 task.metadata.set_bit_depth_and_sample_rate(task.m3u8Info.bit_depth, task.m3u8Info.sample_rate)
-                # Check existence again with precise metadata
                 if not flags.force_save and check_song_exists(task.metadata, codec, playlist):
                     task.logger.already_exist()
                     task.update_status(Status.DONE)
                     return
 
-            # Wait in queue
             task.logger.logger.info("Waiting for available download streams...")
-            async with it(WebAPI).download_lock:
-                async def _phase2():
-                    # Download
-                    task.logger.downloading()
-                    task.update_status(Status.DOWNLOADING)
-                    raw_song = await it(WebAPI)._download_song_internal(task.m3u8Info.uri)
-        
-                    # Decrypt
-                    task.logger.decrypting()
-                    task.update_status(Status.DECRYPTING)
-        
-                    task.info = await run_sync(extract_song, raw_song, get_codec_from_codec_id(task.m3u8Info.codec_id))
-                    # Initialize futures for each sample
-                    for i in range(len(task.info.samples)):
-                        task.decrypted_samples_futures[i] = asyncio.get_running_loop().create_future()
-        
-                    # Launch decryption for all samples with tenacity
-                    decryption_tasks = []
-                    for sampleIndex, sample in enumerate(task.info.samples):
-                        decryption_tasks.append(
-                            self.decrypt_sample_with_retry(task.adamId, task.m3u8Info.keys[sample.descIndex], sample.data,
-                                                           sampleIndex)
-                        )
-                        if sampleIndex % 100 == 0:
-                            await asyncio.sleep(0)
-        
-                    # Wait for all decryption tasks to complete.
-                    # If any decrypt_sample_with_retry fails (raises exception after retries), we catch it.
-                    await asyncio.gather(*decryption_tasks)
-        
-                    # Encapsulate and Save
-                    # Collect results from futures in order
-                    decrypted_samples = []
-                    for i in range(len(task.info.samples)):
-                        # At this point all futures should have result because gather completed successfully
-                        decrypted_samples.append(task.decrypted_samples_futures[i].result())
-        
-                    local_codec = get_codec_from_codec_id(task.m3u8Info.codec_id)
-        
-                    song_bytes = await run_sync(encapsulate, task.info, bytes().join(decrypted_samples),
-                                          it(Config).download.atmosConventToM4a)
-                    if not if_raw_atmos(local_codec, it(Config).download.atmosConventToM4a):
-                        if local_codec != Codec.EC3 and local_codec != Codec.AC3:
-                            song_bytes = await run_sync(fix_encapsulate, song_bytes)
-                        song_bytes = await run_sync(write_metadata, song_bytes, task.metadata, it(Config).metadata.embedMetadata,
-                                              it(Config).download.coverFormat, task.info.params)
-                        if local_codec == Codec.AAC or local_codec == Codec.AAC_DOWNMIX or local_codec == Codec.AAC_BINAURAL:
-                            song_bytes = await run_sync(fix_esds_box, task.info.raw, song_bytes)
-        
-                    if not await run_sync(check_song_integrity, song_bytes):
-                        if it(Config).download.failedSongNotPassIntegrityCheck:
-                            task.logger.failed_integrity(True)
-                            task.update_status(Status.FAILED)
-                            raise SongNotPassIntegrityCheckException("Integrity Check Failed")
-                        else:
-                            task.logger.failed_integrity(False)
-                            task.error = SongNotPassIntegrityCheckException("Integrity Check Warning")
-        
-                    local_filename = await run_sync(save, song_bytes, local_codec, task.metadata, task.playlist)
-                    task.logger.saved()
-                    task.update_status(Status.DONE)
-        
-                    if it(Config).download.afterDownloaded:
-                        command = it(Config).download.afterDownloaded.format(filename=local_filename)
-                        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                
-                if timeout_sec > 0:
-                    await asyncio.wait_for(_phase2(), timeout=timeout_sec)
-                else:
-                    await _phase2()
+            if it(Config).download.streamDecrypt:
+                await self._rip_song_stream(task, timeout_sec)
+            else:
+                await self._rip_song_batch(task, timeout_sec)
 
         except asyncio.TimeoutError:
             task.logger.logger.warning("Task processing timed out after waiting in queue")
             task.update_status(Status.FAILED)
             task.error = Exception("Task execution timed out")
-
         except Exception as e:
             task.logger.logger.exception(f"Error processing song: {e}")
             task.update_status(Status.FAILED)
             task.error = e
         except asyncio.CancelledError:
-            task.logger.logger.warning("Task processing timed out or was cancelled")
+            task.logger.logger.warning("Task processing was cancelled")
             task.update_status(Status.FAILED)
-            task.error = Exception("Task execution timed out")
+            task.error = Exception("Task execution cancelled")
             raise
         finally:
             await self.download_manager.unregister_task(task)
-            task.update_status(task.status)  # Ensure status is set
+            task.update_status(task.status)
             if task.parentDone:
                 await task.parentDone.try_done()
 
@@ -238,71 +180,337 @@ class Ripper:
         if not raw_metadata.attributes.extendedAssetUrls:
             task.logger.audio_not_exist()
             return None
-
-        m3u8_url = None
         if codec == Codec.ALAC and raw_metadata.attributes.extendedAssetUrls.enhancedHls:
-            m3u8_url = await it(WrapperManager).m3u8(task.adamId)
-        else:
-            if codec != Codec.AAC_LEGACY:
-                m3u8_url = raw_metadata.attributes.extendedAssetUrls.enhancedHls
+            return await it(WrapperClient).m3u8(task.adamId)
+        if codec != Codec.AAC_LEGACY:
+            return raw_metadata.attributes.extendedAssetUrls.enhancedHls
+        return None
 
-        return m3u8_url
+    # ------------------------------------------------------------------ #
+    # Streaming (边下边解) pipeline
+    # ------------------------------------------------------------------ #
+    async def _rip_song_stream(self, task: Task, timeout_sec: int = 0):
+        local_codec = get_codec_from_codec_id(task.m3u8Info.codec_id)
+        raw_atmos = if_raw_atmos(local_codec, it(Config).download.atmosConventToM4a)
+        key_uri = task.m3u8Info.keys[0] if task.m3u8Info.keys else PREFETCH_KEY
 
-    async def _rip_song_legacy(self, task: Task, timeout_sec: int = 0):
-        # Simplified legacy ripping integrated into the flow
-        try:
-            task.m3u8Info = await legacy_extract_media(await it(WrapperManager).webPlayback(task.adamId))
+        final_path, part_path = prepare_paths(task.m3u8Info.codec_id, task.metadata, task.playlist)
 
-            async with it(WebAPI).download_lock:
-                async def _phase2():
-                    task.logger.downloading()
-                    task.update_status(Status.DOWNLOADING)
-                    raw_song = await it(WebAPI)._download_song_internal(task.m3u8Info.uri)
-                    task.info = await run_sync(extract_song, raw_song, Codec.AAC_LEGACY)
-                    
-                    task.logger.decrypting()
-                    task.update_status(Status.DECRYPTING)
-                    wvDecrypt = WidevineDecrypt()
-                    challenge = wvDecrypt.generate_challenge(task.m3u8Info.keys[0].split(",")[1])
-                    wvLicense = await it(WrapperManager).license(adam_id=task.adamId, challenge=challenge,
-                                                                 kid=task.m3u8Info.keys[0])
-                    keys = wvDecrypt.generate_key(wvLicense)
-                    song_bytes = await run_sync(legacy_decrypt, raw_song, keys[1].kid.hex, keys[1].key.hex())
-        
-                    song_bytes = await run_sync(write_metadata, song_bytes, task.metadata, it(Config).metadata.embedMetadata,
-                                          it(Config).download.coverFormat, task.info.params)
-        
-                    if not await run_sync(check_song_integrity, song_bytes):
-                        task.logger.failed_integrity(True)
-        
-                    local_filename = await run_sync(save, song_bytes, Codec.AAC_LEGACY, task.metadata, task.playlist)
-                    task.logger.saved()
-                    task.update_status(Status.DONE)
-        
-                    if it(Config).download.afterDownloaded:
-                        command = it(Config).download.afterDownloaded.format(filename=local_filename)
-                        subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        async def _phase():
+            stream = await it(Decryptor).stream(task.adamId, key_uri)
+            out_file = open(part_path, "wb")
+            moofs = {}
+            pending = collections.deque()
+            sample_queue = asyncio.Queue(maxsize=2048)
+            spec_queue = asyncio.Queue()
+            init_written = False
 
-                if timeout_sec > 0:
-                    await asyncio.wait_for(_phase2(), timeout=timeout_sec)
+            async def submitter():
+                while True:
+                    item = await sample_queue.get()
+                    if item is None:
+                        break
+                    _, _, data = item
+                    await asyncio.to_thread(stream.submit, data)
+                    await spec_queue.put((item[0], item[1]))
+
+            def flush(seq: int, payload: bytes):
+                if raw_atmos:
+                    out_file.write(payload)
                 else:
-                    await _phase2()
+                    out_file.write(moofs[seq])
+                    out_file.write(payload)
 
-        except asyncio.TimeoutError:
-            task.logger.logger.warning("Task processing timed out after waiting in queue")
-            task.update_status(Status.FAILED)
-            task.error = Exception("Legacy Task execution timed out")
-        except Exception as e:
-            task.logger.logger.exception(f"Legacy rip failed: {e}")
-            task.update_status(Status.FAILED)
-            task.error = e
-            raise e
+            async def consumer():
+                current_seq = None
+                buf = bytearray()
+                try:
+                    async for plain in stream.aiter():
+                        seq, spec = await spec_queue.get()
+                        if current_seq is None:
+                            current_seq = seq
+                            buf = bytearray()
+                        if seq != current_seq:
+                            flush(current_seq, bytes(buf))
+                            current_seq = seq
+                            buf = bytearray()
+                        buf.extend(plain)
+                        it(Measurer).record_decrypt(len(plain))
+                        task.decrypted_bytes += len(plain)
+                    if current_seq is not None:
+                        flush(current_seq, bytes(buf))
+                except Exception:
+                    raise
 
+            def on_init(init):
+                nonlocal init_written
+                if raw_atmos:
+                    init_written = True
+                    return
+                creation = mac_epoch_to_datetime(init.creation_time) if init.creation_time is not None else None
+                modification = mac_epoch_to_datetime(init.modification_time) if init.modification_time is not None else None
+                out_file.write(patch_mvhd_times(init.output_init, creation, modification))
+                init_written = True
+
+            def on_fragment_moof(seq, rebuilt_moof):
+                moofs[seq] = rebuilt_moof
+
+            def on_sample(seq, spec, data):
+                pending.append((seq, spec, data))
+
+            parser = StreamingMP4Parser(on_init=on_init, on_fragment_moof=on_fragment_moof,
+                                        on_sample=on_sample)
+
+            submitter_task = asyncio.create_task(submitter())
+            consumer_task = asyncio.create_task(consumer())
+
+            async def drain_pending():
+                while pending:
+                    await sample_queue.put(pending.popleft())
+
+            try:
+                task.logger.downloading()
+                task.update_status(Status.DOWNLOADING)
+                url = task.m3u8Info.uri
+                attempts = 0
+                max_attempts = max(1, it(Config).download.retryTime)
+                resume_from = 0
+                while True:
+                    try:
+                        headers = {}
+                        if task.m3u8Info.range_start is not None:
+                            start = task.m3u8Info.range_start + resume_from
+                            end = task.m3u8Info.range_start + task.m3u8Info.range_length - 1
+                            headers["Range"] = f"bytes={start}-{end}" if resume_from == 0 else f"bytes={start}-"
+                        elif resume_from:
+                            headers["Range"] = f"bytes={resume_from}-"
+
+                        async for chunk in it(WebAPI).stream_song(url, resume_from=resume_from,
+                                                                  extra_headers=headers):
+                            parser.feed(chunk)
+                            await drain_pending()
+                        parser.finish()
+                        await drain_pending()
+                        break
+                    except (httpx.HTTPError, ssl.SSLError, MP4ParseError, asyncio.TimeoutError) as e:
+                        if not it(Config).download.resumeDownload or attempts >= max_attempts:
+                            raise
+                        attempts += 1
+                        resume_from = parser.next_box_offset
+                        task.logger.logger.warning(
+                            f"Download interrupted ({e.__class__.__name__}), resuming from offset {resume_from}")
+                        await asyncio.sleep(min(2 ** attempts, 30))
+
+                # Finish streaming
+                await sample_queue.put(None)
+                await submitter_task
+                await asyncio.to_thread(stream.finish)
+                await consumer_task
+                out_file.flush()
+                os.fsync(out_file.fileno())
+            finally:
+                # Ensure background tasks terminate even on failure paths.
+                try:
+                    sample_queue.put_nowait(None)
+                except (asyncio.QueueFull, RuntimeError):
+                    pass
+                for t in (submitter_task, consumer_task):
+                    if not t.done():
+                        t.cancel()
+                await asyncio.gather(submitter_task, consumer_task, return_exceptions=True)
+                out_file.close()
+                try:
+                    stream.close()
+                except Exception:
+                    pass
+
+            task.logger.decrypting()
+            task.update_status(Status.DECRYPTING)
+
+            if not raw_atmos:
+                await run_sync(finalize, str(part_path), str(final_path), task.metadata,
+                               it(Config).download.coverFormat)
+                ok = await run_sync(check_song_integrity, str(final_path), local_codec)
+            else:
+                os.replace(part_path, final_path)
+                ok = final_path.stat().st_size > 0
+
+            if not ok:
+                if it(Config).download.failedSongNotPassIntegrityCheck:
+                    task.logger.failed_integrity(True)
+                    task.update_status(Status.FAILED)
+                    raise SongNotPassIntegrityCheckException("Integrity Check Failed")
+                else:
+                    task.logger.failed_integrity(False)
+                    task.error = SongNotPassIntegrityCheckException("Integrity Check Warning")
+
+            task.logger.saved()
+            task.update_status(Status.DONE)
+            if it(Config).download.afterDownloaded:
+                command = it(Config).download.afterDownloaded.format(filename=str(final_path))
+                subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        if timeout_sec > 0:
+            await asyncio.wait_for(_phase(), timeout=timeout_sec)
+        else:
+            await _phase()
+
+    # ------------------------------------------------------------------ #
+    # Batch fallback pipeline
+    # ------------------------------------------------------------------ #
+    async def _rip_song_batch(self, task: Task, timeout_sec: int = 0):
+        local_codec = get_codec_from_codec_id(task.m3u8Info.codec_id)
+        raw_atmos = if_raw_atmos(local_codec, it(Config).download.atmosConventToM4a)
+        key_uri = task.m3u8Info.keys[0] if task.m3u8Info.keys else PREFETCH_KEY
+        final_path, part_path = prepare_paths(task.m3u8Info.codec_id, task.metadata, task.playlist)
+
+        async def _phase():
+            task.logger.downloading()
+            task.update_status(Status.DOWNLOADING)
+            headers = {}
+            if task.m3u8Info.range_start is not None:
+                headers["Range"] = (f"bytes={task.m3u8Info.range_start}-"
+                                    f"{task.m3u8Info.range_start + task.m3u8Info.range_length - 1}")
+            raw_song = bytearray()
+            async for chunk in it(WebAPI).stream_song(task.m3u8Info.uri, extra_headers=headers):
+                raw_song.extend(chunk)
+
+            task.logger.decrypting()
+            task.update_status(Status.DECRYPTING)
+            template = await it(Decryptor).get_template(task.adamId, key_uri)
+            init, off = parse_init(bytes(raw_song))
+            if init is None:
+                raise MP4ParseError("No init segment found")
+            creation = mac_epoch_to_datetime(init.creation_time) if init.creation_time is not None else None
+            modification = mac_epoch_to_datetime(init.modification_time) if init.modification_time is not None else None
+            out = bytearray()
+            if not raw_atmos:
+                out.extend(patch_mvhd_times(init.output_init, creation, modification))
+            seq = 0
+            while True:
+                frag, off = parse_next_fragment(bytes(raw_song), off, seq)
+                if frag is None:
+                    break
+                decrypted = []
+                for spec in frag.samples:
+                    payload = frag.mdat_payload[spec.offset:spec.offset + spec.length]
+                    decrypted.append(template.decrypt(payload))
+                    it(Measurer).record_decrypt(len(payload))
+                    task.decrypted_bytes += len(payload)
+                if raw_atmos:
+                    out.extend(b"".join(decrypted))
+                else:
+                    out.extend(rebuild_fragment_bytes(frag, b"".join(decrypted)))
+                seq += 1
+            del raw_song
+
+            with open(part_path, "wb") as f:
+                f.write(bytes(out))
+            del out
+
+            if not raw_atmos:
+                await run_sync(finalize, str(part_path), str(final_path), task.metadata,
+                               it(Config).download.coverFormat)
+                ok = await run_sync(check_song_integrity, str(final_path), local_codec)
+            else:
+                os.replace(part_path, final_path)
+                ok = final_path.stat().st_size > 0
+
+            if not ok:
+                if it(Config).download.failedSongNotPassIntegrityCheck:
+                    task.logger.failed_integrity(True)
+                    task.update_status(Status.FAILED)
+                    raise SongNotPassIntegrityCheckException("Integrity Check Failed")
+                else:
+                    task.logger.failed_integrity(False)
+                    task.error = SongNotPassIntegrityCheckException("Integrity Check Warning")
+
+            task.logger.saved()
+            task.update_status(Status.DONE)
+            if it(Config).download.afterDownloaded:
+                command = it(Config).download.afterDownloaded.format(filename=str(final_path))
+                subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        if timeout_sec > 0:
+            await asyncio.wait_for(_phase(), timeout=timeout_sec)
+        else:
+            await _phase()
+
+    # ------------------------------------------------------------------ #
+    # Legacy (Widevine / aac-legacy) pipeline — pure Python decryption
+    # ------------------------------------------------------------------ #
+    async def _rip_song_legacy(self, task: Task, timeout_sec: int = 0):
+        final_path, part_path = prepare_paths(Codec.AAC_LEGACY, task.metadata, task.playlist)
+
+        async def _phase():
+            task.m3u8Info = await extract_media(await it(WrapperClient).webPlayback(task.adamId),
+                                                Codec.AAC_LEGACY, task)
+            task.logger.downloading()
+            task.update_status(Status.DOWNLOADING)
+            headers = {}
+            if task.m3u8Info.range_start is not None:
+                headers["Range"] = (f"bytes={task.m3u8Info.range_start}-"
+                                    f"{task.m3u8Info.range_start + task.m3u8Info.range_length - 1}")
+            raw_song = bytearray()
+            async for chunk in it(WebAPI).stream_song(task.m3u8Info.uri, extra_headers=headers):
+                raw_song.extend(chunk)
+
+            task.logger.decrypting()
+            task.update_status(Status.DECRYPTING)
+            kid, key = await it(Decryptor).legacy_content_key(task.adamId, task.m3u8Info.keys[0])
+
+            init, off = parse_init(bytes(raw_song))
+            if init is None:
+                raise MP4ParseError("No init segment found")
+            creation = mac_epoch_to_datetime(init.creation_time) if init.creation_time is not None else None
+            modification = mac_epoch_to_datetime(init.modification_time) if init.modification_time is not None else None
+            out = bytearray()
+            out.extend(patch_mvhd_times(init.output_init, creation, modification))
+            seq = 0
+            while True:
+                frag, off = parse_next_fragment(bytes(raw_song), off, seq)
+                if frag is None:
+                    break
+                decrypted = b"".join(
+                    _decrypt_cbcs_sample(frag.mdat_payload[spec.offset:spec.offset + spec.length],
+                                         spec.iv, key, init.tracks.get(spec.desc_index))
+                    for spec in frag.samples
+                )
+                out.extend(rebuild_fragment_bytes(frag, decrypted))
+                it(Measurer).record_decrypt(len(decrypted))
+                seq += 1
+            del raw_song
+
+            with open(part_path, "wb") as f:
+                f.write(bytes(out))
+            del out
+
+            await run_sync(finalize, str(part_path), str(final_path), task.metadata,
+                           it(Config).download.coverFormat)
+            ok = await run_sync(check_song_integrity, str(final_path), Codec.AAC_LEGACY)
+            if not ok:
+                task.logger.failed_integrity(True)
+                task.update_status(Status.FAILED)
+                raise SongNotPassIntegrityCheckException("Integrity Check Failed")
+
+            task.logger.saved()
+            task.update_status(Status.DONE)
+            if it(Config).download.afterDownloaded:
+                command = it(Config).download.afterDownloaded.format(filename=str(final_path))
+                subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+        if timeout_sec > 0:
+            await asyncio.wait_for(_phase(), timeout=timeout_sec)
+        else:
+            await _phase()
+
+    # ------------------------------------------------------------------ #
+    # Containers (album / artist / playlist)
+    # ------------------------------------------------------------------ #
     async def rip_album(self, url: Album, codec: str, flags: Flags = Flags(), parent_done: ParentDoneHandler = None):
         album_info = await it(WebAPI).get_album_info(url.id, url.storefront, flags.language)
         logger = RipLogger(url.type, url.id)
         logger.set_fullname(album_info.data[0].attributes.artistName, album_info.data[0].attributes.name)
-
         logger.create()
         if not await check_album_existence(url.id, url.storefront):
             logger.not_exist()
@@ -314,7 +522,6 @@ class Ripper:
                 await parent_done.try_done()
 
         done_handler = ParentDoneHandler(len(album_info.data[0].relationships.tracks.data), on_children_done)
-
         for track in album_info.data[0].relationships.tracks.data:
             song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
             safely_create_task(self.rip_song(song, codec, flags, done_handler))
@@ -323,7 +530,6 @@ class Ripper:
         artist_info = await it(WebAPI).get_artist_info(url.id, url.storefront, flags.language)
         logger = RipLogger(url.type, url.id)
         logger.set_fullname(artist_info.data[0].attributes.name)
-
         logger.create()
 
         async def on_children_done():
@@ -345,47 +551,68 @@ class Ripper:
         playlist_info = playlist_write_song_index(playlist_info)
         logger = RipLogger(url.type, url.id)
         logger.set_fullname(playlist_info.data[0].attributes.curatorName, playlist_info.data[0].attributes.name)
-
         logger.create()
 
         async def on_children_done():
             logger.done()
 
         done_handler = ParentDoneHandler(len(playlist_info.data[0].relationships.tracks.data), on_children_done)
-
         for track in playlist_info.data[0].relationships.tracks.data:
             song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
             safely_create_task(self.rip_song(song, codec, flags, done_handler, playlist=playlist_info))
 
-    @retry(stop=stop_after_attempt(3), wait=wait_fixed(1))
-    async def decrypt_sample_with_retry(self, adam_id: str, key: str, sample: bytes, sample_index: int):
-        task = self.download_manager.get_task(adam_id)
-        if not task:
-            raise Exception("Task cancelled or not found")
 
-        # Reset future if it is already done (e.g. from previous failed attempt)
-        if task.decrypted_samples_futures[sample_index].done():
-            task.decrypted_samples_futures[sample_index] = asyncio.get_running_loop().create_future()
+# ---------------------------------------------------------------------- #
+# Helpers
+# ---------------------------------------------------------------------- #
+def _decrypt_cbcs_sample(sample: bytes, iv: Optional[bytes], key: bytes,
+                         track_info) -> bytes:
+    """Pure-Python CBCS sample decryption (legacy Widevine path).
 
-        future = task.decrypted_samples_futures[sample_index]
+    Apple legacy AAC files use full-sample encryption; sub-sample patterns are
+    carried by the sample specs and handled by the caller when present.
+    """
+    from Cryptodome.Cipher import AES
 
-        # We need to send the command to wrapper manager
-        await it(WrapperManager).decrypt(adam_id, key, sample, sample_index)
+    if not iv or not track_info or not track_info.protected:
+        return sample
+    cbb = track_info.crypt_byte_block or 1
+    sbb = track_info.skip_byte_block or 0
+    return _cbcs_decrypt_runs(sample, [(0, len(sample) & ~15)], key, iv, cbb, sbb)
 
-        # Wait for the future to be resolved by the callback
-        return await future
 
-    async def on_decrypt_success(self, adam_id: str, key: str, sample: bytes, sample_index: int):
-        it(Measurer).record_decrypt(len(sample))
-        task = self.download_manager.get_task(adam_id)
-        if task and sample_index in task.decrypted_samples_futures:
-            if not task.decrypted_samples_futures[sample_index].done():
-                task.decrypted_samples_futures[sample_index].set_result(sample)
+def _cbcs_decrypt_runs(data: bytes, patterns, key: bytes, iv: bytes, cbb: int, sbb: int) -> bytes:
+    from Cryptodome.Cipher import AES
 
-    async def on_decrypt_failed(self, adam_id: str, key: str, sample: bytes, sample_index: int):
-        task = self.download_manager.get_task(adam_id)
-        if task and sample_index in task.decrypted_samples_futures:
-            if not task.decrypted_samples_futures[sample_index].done():
-                task.decrypted_samples_futures[sample_index].set_exception(Exception("Decryption failed callback"))
+    out = bytearray(data)
+    for clear, protected in patterns:
+        run_end = protected & ~15
+        if run_end <= 0:
+            continue
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        dec = cipher.decrypt(bytes(out[clear:clear + run_end]))
+        out[clear:clear + run_end] = dec
+    return bytes(out)
 
-    # Removed recv_decrypted_sample and on_decrypt_done as they are replaced by linear flow in rip_song
+
+def check_song_integrity(path: str, codec: str) -> bool:
+    """Pure-Python structural integrity check: the output file must parse as a
+    valid fragmented MP4 (init + >=1 fragment)."""
+    try:
+        with open(path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return False
+    try:
+        init, off = parse_init(data)
+        if init is None:
+            return False
+        seq = 0
+        while True:
+            frag, off = parse_next_fragment(data, off, seq)
+            if frag is None:
+                break
+            seq += 1
+        return seq > 0
+    except MP4ParseError:
+        return False

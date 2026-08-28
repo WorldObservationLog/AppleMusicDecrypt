@@ -10,8 +10,8 @@ from src.config import ConfigCreator
 add_creator(ConfigCreator)
 from src.api import APICreator
 add_creator(APICreator)
-from src.grpc.manager import WMCreator
-add_creator(WMCreator)
+from src.wrapper import WrapperCreator
+add_creator(WrapperCreator)
 from src.measurer import MeasurerCreator
 add_creator(MeasurerCreator)
 

@@ -4,7 +4,6 @@ import copy
 import os
 import sys
 
-import grpc.aio
 from creart import it
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import NestedCompleter
@@ -13,7 +12,6 @@ from prompt_toolkit.patch_stdout import patch_stdout
 from src.api import WebAPI
 from src.config import Config
 from src.flags import Flags
-from src.grpc.manager import WrapperManager, WrapperManagerException
 from src.logger import GlobalLogger
 from src.measurer import Measurer
 from src.qemu import QemuInstance
@@ -21,11 +19,11 @@ from src.quality import print_song_quality, print_album_quality, print_playlist_
 from src.rip import Ripper
 from src.url import AppleMusicURL, URLType
 from src.utils import check_dep, run_sync, safely_create_task, config_outdated
+from src.wrapper import WrapperClient, WrapperManagerException
 
 
 class InteractiveShell:
     loop: asyncio.AbstractEventLoop
-    parser: argparse.ArgumentParser
     parser: argparse.ArgumentParser
     localInstance: QemuInstance = QemuInstance()
     ripper: Ripper
@@ -34,7 +32,7 @@ class InteractiveShell:
         self.ripper = Ripper()
         dep_installed, missing_dep = check_dep()
         if not dep_installed:
-            it(GlobalLogger).logger.error(f"Dependence {missing_dep} was not installed!")
+            it(GlobalLogger).logger.error(f"Dependency {missing_dep} was not installed!")
             loop.stop()
             sys.exit()
 
@@ -44,20 +42,20 @@ class InteractiveShell:
             loop.run_until_complete(self.localInstance.launch_instance(loop))
             it(Config).instance.url = "127.0.0.1:32767"
             it(Config).instance.secure = False
-            loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
+            # First access to WrapperClient reads the (mutated) config.
+            loop.run_until_complete(it(WrapperClient).init())
             while True:
-                it(WrapperManager).status.cache_invalidate()
-                if loop.run_until_complete(it(WrapperManager).status()).ready:
+                it(WrapperClient).status.cache_invalidate()
+                if loop.run_until_complete(it(WrapperClient).status()).get("regions"):
                     break
                 loop.run_until_complete(asyncio.sleep(3))
         else:
-            loop.run_until_complete(it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure))
-        safely_create_task(it(WrapperManager).decrypt_init(on_success=self.ripper.on_decrypt_success,
-                                                           on_failure=self.ripper.on_decrypt_failed))
+            loop.run_until_complete(it(WrapperClient).init())
+
         try:
             loop.run_until_complete(self.show_status())
-        except grpc.aio._call.AioRpcError:
-            it(GlobalLogger).logger.error("Unable to connect to the wrapper-manager")
+        except WrapperManagerException:
+            it(GlobalLogger).logger.error("Unable to connect to the wrapper-lite instance")
             sys.exit()
 
         if config_outdated():
@@ -91,17 +89,33 @@ class InteractiveShell:
         subparser.add_parser("status")
         subparser.add_parser("login")
         subparser.add_parser("logout")
+        subparser.add_parser("help")
         subparser.add_parser("exit")
 
         self.batch_mode = False
 
+    # ------------------------------------------------------------------ #
+    # Commands
+    # ------------------------------------------------------------------ #
     async def show_status(self):
-        it(WrapperManager).status.cache_invalidate()
-        st_resp = await it(WrapperManager).status()
-        if not st_resp.regions:
+        it(WrapperClient).status.cache_invalidate()
+        st_resp = await it(WrapperClient).status()
+        regions = st_resp.get("regions", []) if isinstance(st_resp, dict) else []
+        if not regions:
             it(GlobalLogger).logger.error(
-                "The currently used wrapper-manager instance has no available account. Please execute login command to log in.")
-        it(GlobalLogger).logger.info(f"Regions available on wrapper-manager instance: {', '.join(st_resp.regions)}")
+                "The current wrapper instance has no available account. Please log in on the wrapper side "
+                "(e.g. run `lite --login user:pass`).")
+        it(GlobalLogger).logger.info(f"Regions available on wrapper instance: {', '.join(regions)}")
+
+    async def login_flow(self):
+        it(GlobalLogger).logger.info(
+            "Login is handled by the wrapper-lite instance itself, not by this client.\n"
+            "For a local wrapper-lite run:  lite --login <user:pass>  (add --code-from-file for 2FA).\n"
+            "For a remote instance, ask its administrator to add your account.")
+
+    async def logout_flow(self):
+        it(GlobalLogger).logger.info(
+            "Logout is managed on the wrapper side. Restart the wrapper-lite instance to drop its session.")
 
     async def handle_batch_mode(self, args, cmds):
         try:
@@ -111,7 +125,7 @@ class InteractiveShell:
                 self.batch_command = cmds[0]
                 it(GlobalLogger).logger.info(
                     "Entering batch mode. Enter one or more URLs per line (space-separated), type 'exit' to quit")
-        except:
+        except Exception:
             pass
 
     async def batch_mode_parser(self, cmds: str):
@@ -139,14 +153,30 @@ class InteractiveShell:
                 safely_create_task(self.do_download(args.url, args.codec, args.force, args.language, args.include))
             case "status":
                 await self.show_status()
+            case "login":
+                await self.login_flow()
+            case "logout":
+                await self.logout_flow()
+            case "help":
+                self.print_help()
             case "exit":
                 if self.batch_mode:
                     self.batch_mode = False
                     it(GlobalLogger).logger.info("Batch mode exited. Returning to normal command mode.")
                 else:
-                    self.handle_exit()
+                    await self.confirm_and_exit()
             case "quality" | "qa":
                 safely_create_task(self.do_quality(args.url, args))
+
+    def print_help(self):
+        it(GlobalLogger).logger.info(
+            "Commands:\n"
+            "  dl <url...> [-c codec] [-f] [-b] [-l lang] [--include-participate-songs]  Download\n"
+            "  qa <url...> [--invert] [--codec-id] [--codec] [--bitrate] ...             Show quality\n"
+            "  status                                                                     Show wrapper status\n"
+            "  login / logout                                                             Hint about wrapper-side login\n"
+            "  help                                                                       This help\n"
+            "  exit                                                                       Quit")
 
     async def do_download(self, raw_urls: list[str], codec: str, force_download: bool, language: str,
                           include: bool = False):
@@ -204,6 +234,9 @@ class InteractiveShell:
                     it(GlobalLogger).logger.error(f"Unsupported URLType - {raw_url}")
                     continue
 
+    # ------------------------------------------------------------------ #
+    # UI plumbing
+    # ------------------------------------------------------------------ #
     def bottom_toolbar(self):
         return f"Download Speed: {it(Measurer).download_speed()}, Decrypt Speed: {it(Measurer).decrypt_speed()}, Tasks: {it(Measurer).tasks_count()}"
 
@@ -246,17 +279,22 @@ class InteractiveShell:
             "status": None,
             "login": None,
             "logout": None,
+            "help": None,
             "exit": None
         }
         return NestedCompleter.from_nested_dict(mycompleter)
 
-    def handle_exit(self):
+    async def confirm_and_exit(self):
         if it(Measurer).tasks_count() > 0:
             it(GlobalLogger).logger.info(
-                "There is still {} tasks, do you really want to exit? (y/N)".format(it(Measurer).tasks_count()))
-            response = input().strip().lower()
+                f"There is still {it(Measurer).tasks_count()} tasks, do you really want to exit? (y/N)")
+            session = PromptSession("> ")
+            response = (await session.prompt_async()).strip().lower()
             if response != 'y':
                 return
+        self.handle_exit()
+
+    def handle_exit(self):
         it(GlobalLogger).logger.info("Exit.")
         self.loop.stop()
         os._exit(0)
@@ -268,46 +306,11 @@ class InteractiveShell:
         while True:
             try:
                 command = await session.prompt_async()
-                if command.lower() == 'login':
-                    await self.login_flow()
-                if command.lower() == 'logout':
-                    await self.logout_flow()
-                elif command.strip() == '':
+                if command.strip() == '':
                     continue
-                else:
-                    await self.command_parser(command)
+                await self.command_parser(command)
             except (EOFError, KeyboardInterrupt):
                 self.handle_exit()
-
-    async def on_2fa(self, username: str, password: str):
-        session = PromptSession()
-        two_step_code = await session.prompt_async("2FA code: ")
-        return two_step_code
-
-    async def login_flow(self):
-        await it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure)
-        session = PromptSession()
-        username = await session.prompt_async("Username: ")
-        password = await session.prompt_async("Password: ", is_password=True)
-        try:
-            await it(WrapperManager).login(username, password, self.on_2fa)
-        except WrapperManagerException as e:
-            it(GlobalLogger).logger.error("Login Failed!")
-            return
-        it(GlobalLogger).logger.info("Login Success!")
-        it(WrapperManager).status.cache_invalidate()
-
-    async def logout_flow(self):
-        await it(WrapperManager).init(it(Config).instance.url, it(Config).instance.secure)
-        session = PromptSession()
-        username = await session.prompt_async("Username: ")
-        try:
-            await it(WrapperManager).logout(username)
-        except WrapperManagerException as e:
-            it(GlobalLogger).logger.error("Logout Failed!")
-            return
-        it(GlobalLogger).logger.info("Logout Success!")
-        it(WrapperManager).status.cache_invalidate()
 
     async def start(self):
         with patch_stdout():

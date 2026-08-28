@@ -1,13 +1,14 @@
 # DO NOT EDIT IT
-version = "0.0.10"
+version = "0.1.0"
 
 [instance]
+# wrapper-lite HTTP instance URL (scheme is decided by `secure`)
 url = "127.0.0.1:8080"
 secure = false
 
 [localInstance]
-# Use qemu to launch wrapper-manager
-# This setting will overwrite instance setting
+# Use qemu to launch wrapper-lite locally.
+# This setting will overwrite instance setting.
 enable = false
 # Use WHPX on Windows and KVM on Linux
 # For Windows users, run `Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform` to check if WHPX enabled
@@ -18,7 +19,9 @@ hardwareAccelerator = ""
 memorySize = "512M"
 cpuModel = "Cascadelake-Server-v5"
 showWindow = false
-startArgs = "-host 0.0.0.0 -port 32767 -debug"
+startArgs = "-host 0.0.0.0 -port 8080 -log-level info"
+# Optional: override where the wrapper-lite qemu image zip is downloaded from.
+imageUrl = ""
 
 [region]
 # The language of song metadata. Influence song title, author and other information.
@@ -40,6 +43,15 @@ maxRunningTasks = 128
 # Hongkong: 17.253.85.201-17.253.85.206, 17.253.87.195, 17.253.87.196, 17.253.87.201, 17.253.87.203
 # Japan: 17.253.69.200, 17.253.69.202, 17.253.75.201, 17.253.75.202
 appleCDNIP = ""
+# Decrypt samples while the media file is still downloading (边下边解).
+# Uses Temari's streaming decryptor; memory stays bounded to one fragment.
+streamDecrypt = true
+# Batch size used by Temari's streaming decryptor.
+decryptBatchSize = 256
+# Idle timeout (seconds) for the streaming CDN download; 0 disables the timeout.
+downloadTimeout = 60
+# Resume an interrupted download from the last complete box boundary (Range requests).
+resumeDownload = true
 # After enabling this feature, if the specified codec does not exist, the script will look for another codec to download
 codecAlternative = true
 # Priority to look for alternative codec
@@ -49,20 +61,12 @@ codecPriority = ["alac", "ec3", "ac3", "aac"]
 atmosConventToM4a = true
 # If the song integrity check fails, the task will fail and the song will not be saved.
 # Due to the possibility of source file corruption, open with caution.
-# See more: https://github.com/WorldObservationLog/AppleMusicDecrypt?tab=readme-ov-file#song-did-not-pass-the-integrity-check
 failedSongNotPassIntegrityCheck = false
 # Follow the Python Format (https://docs.python.org/3/library/string.html#formatstrings)
 # Write the audio information to the songNameFormat and playlistSongNameFormat
 # Only support alac codec
 # Available values: bit_depth, sample_rate, sample_rate_kHz, codec
 # This feature may slow down the speed of checking for existing songs
-# For example:
-# audioInfoFormat = " [{codec}][{bit_depth}bit][{sample_rate_kHz}kHz]"
-# songNameFormat = "{disk}-{tracknum:02d} {title}{audio_info}"
-# When ripping audio with alac codec, the ripped file name is:
-# 1-01 名もなき何もかも [ALAC][16bit][44.1kHz]
-# When ripping audio with other codecs, the ripped file name is:
-# 1-01 名もなき何もかも
 audioInfoFormat = ""
 # Available values:
 # title, artist, album, album_artist, composer,

@@ -1,4 +1,4 @@
-from typing import Optional, Any, Callable, Awaitable
+from typing import Any, Awaitable, Callable, Optional
 
 from pydantic import BaseModel
 
@@ -20,27 +20,16 @@ class ParentDoneHandler:
             await self.callback()
 
 
-class SampleInfo(BaseModel):
-    data: bytes
-    duration: int
-    descIndex: int
-
-
-class SongInfo(BaseModel):
-    codec: str
-    raw: bytes
-    samples: list[SampleInfo]
-    nhml: str
-    decoderParams: Optional[bytes] = None
-    params: dict[str, Any]
-
-
 class M3U8Info(BaseModel):
     uri: str
     keys: list[str]
     codec_id: str
     bit_depth: Optional[int] = None
     sample_rate: Optional[int] = None
+    # Byte-range media segment support (common for Apple Music ALAC):
+    # when present the media file is a sub-range of ``uri``.
+    range_start: Optional[int] = None
+    range_length: Optional[int] = None
 
 
 class Codec:

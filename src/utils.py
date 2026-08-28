@@ -6,7 +6,6 @@ import time
 from asyncio import AbstractEventLoop
 from copy import deepcopy
 from datetime import datetime, timedelta
-from distutils.version import LooseVersion
 from itertools import islice
 from pathlib import Path
 
@@ -241,22 +240,30 @@ def convent_mac_timestamp_to_datetime(timestamp: int):
 
 
 def check_dep():
-    deps = ["ffmpeg", "gpac", "MP4Box", "mp4edit", "mp4extract", "mp4decrypt"]
-    if it(Config).localInstance.enable:
-        deps.append("qemu-system-x86_64")
+    """Verify all required Python dependencies (and the bundled Temari cdylib)
+    are importable. No external binaries are needed in v3."""
+    import importlib
+
+    deps = ["httpx", "regex", "pydantic", "loguru", "m3u8", "tenacity", "prompt_toolkit",
+            "mutagen", "temari", "async_lru", "tabulate", "creart"]
     for dep in deps:
         try:
-            subprocess.run(dep, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except FileNotFoundError:
+            importlib.import_module(dep)
+        except ImportError:
             return False, dep
+    try:
+        import temari
+        temari.load()
+    except Exception as e:
+        return False, f"temari runtime ({e})"
     return True, None
 
 
 async def check_song_existence(adam_id: str, region: str):
-    from src.grpc.manager import WrapperManager
+    from src.wrapper import WrapperClient
     from src.api import WebAPI
     check = False
-    for m_region in (await it(WrapperManager).status()).regions:
+    for m_region in (await it(WrapperClient).status()).get("regions", []):
         try:
             check = await it(WebAPI).exist_on_storefront_by_song_id(adam_id, region, m_region)
             if check:
@@ -267,10 +274,10 @@ async def check_song_existence(adam_id: str, region: str):
 
 
 async def check_album_existence(album_id: str, region: str):
-    from src.grpc.manager import WrapperManager
+    from src.wrapper import WrapperClient
     from src.api import WebAPI
     check = False
-    for m_region in (await it(WrapperManager).status()).regions:
+    for m_region in (await it(WrapperClient).status()).get("regions", []):
         try:
             check = await it(WebAPI).exist_on_storefront_by_album_id(album_id, region, m_region)
             if check:
@@ -326,5 +333,13 @@ def language_exist(region: str, language: str):
     return language in languages
 
 
+def _version_tuple(version: str) -> tuple[int, ...]:
+    parts = []
+    for part in version.split("."):
+        digits = "".join(ch for ch in part if ch.isdigit())
+        parts.append(int(digits) if digits else 0)
+    return tuple(parts)
+
+
 def config_outdated():
-    return LooseVersion(it(Config).version) < LooseVersion(CONFIG_VERSION)
+    return _version_tuple(it(Config).version) < _version_tuple(CONFIG_VERSION)

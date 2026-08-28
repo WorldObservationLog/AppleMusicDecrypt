@@ -1,5 +1,6 @@
-# Deploy AppleMusicDecrypt on Android
-This deployment requires that you have an instance of wrapper-manager available.
+# Deploy AppleMusicDecrypt (v3) on Android
+This deployment requires that you have a wrapper-lite HTTP instance available
+(local, or a remote one you trust). Login is done on the wrapper side.
 ## Step 1: Install Termux and Debian
 Download and install [Termux](https://termux.dev/). Give it storage permissions(`termux-setup-storage`)
 
@@ -14,7 +15,7 @@ Enter the Debian environment(`pd login debian`)
 apt update && apt install pipx git -y && pipx install poetry && pipx ensurepath && source ~/.bashrc
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt
 cd AppleMusicDecrypt
-bash ./tools/install-deps.sh
+git checkout v3
 poetry env use /usr/bin/python3 && poetry install
 cp config.example.toml config.toml
 nano config.toml
@@ -23,8 +24,8 @@ nano config.toml
 For Android users, some configurations need to be modified.
 ```toml
 [instance]
-url = "wm.wol.moe" # Or use another wrapper-manager instance
-secure = true
+url = "127.0.0.1:8080" # Address of your wrapper-lite instance
+secure = false
 
 [download]
 parallelNum = 2 # The recommended value is half of maxRunningTasks

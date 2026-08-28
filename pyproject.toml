@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "applemusicdecrypt"
-version = "0.1.0"
+version = "0.2.0"
 description = ""
 authors = ["WorldObservationLog <wolc@duck.com>"]
 readme = "README.md"
@@ -12,30 +12,18 @@ httpx = "^0.28.1"
 regex = "^2026.2.28"
 pydantic = "^2.12.5"
 loguru = "^0.7.2"
-six = "^1.16.0"
 lxml = "^6.0.2"
 beautifulsoup4 = "^4.14.3"
 m3u8 = "^6.0.0"
 tenacity = "^9.1.4"
 prompt-toolkit = "^3.0.52"
-grpcio = "^1.78.0"
-grpcio-tools = "^1.78.0"
 pywidevine = {git = "https://github.com/WorldObservationLog/pywidevine"}
 creart = "^0.3.0"
 mutagen = "^1.47.0"
 async-lru = "^2.2.0"
 tabulate = "^0.10.0"
-anysqlite = "^0.0.5"
-
-
-[tool.poetry.group.server.dependencies]
-fastapi = "^0.109.0"
-uvicorn = "^0.27.0"
-
-
-[tool.poetry.group.telegram_bot.dependencies]
-python-telegram-bot = "^22.6"
-pillow = "^12.1.1"
+temari = "^0.1.0"
+pycryptodome = "^3.20.0"
 
 [build-system]
 requires = ["poetry-core"]

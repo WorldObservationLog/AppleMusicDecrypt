@@ -5,7 +5,7 @@ from creart import exists_module
 from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
-CONFIG_VERSION = "0.0.10"
+CONFIG_VERSION = "0.1.0"
 
 
 class Instance(BaseModel):
@@ -20,7 +20,9 @@ class LocalInstance(BaseModel):
     memorySize: str = "512M"
     cpuModel: str = "Cascadelake-Server-v5"
     showWindow: bool = False
-    startArgs: str = "-host 0.0.0.0 -port 32767 -debug"
+    startArgs: str = "-host 0.0.0.0 -port 8080 -log-level info"
+    # Optional: override where the wrapper-lite qemu image zip is downloaded from.
+    imageUrl: str = ""
 
 
 class Region(BaseModel):
@@ -33,6 +35,14 @@ class Download(BaseModel):
     parallelNum: int = 1
     maxRunningTasks: int = 128
     appleCDNIP: str = ""
+    # Decrypt samples while the media file is still being downloaded.
+    streamDecrypt: bool = True
+    # Batch size used by Temari's streaming decryptor.
+    decryptBatchSize: int = 256
+    # Idle timeout (seconds) for the streaming CDN download; 0 disables.
+    downloadTimeout: int = 60
+    # Resume an interrupted download from the last complete box boundary.
+    resumeDownload: bool = True
     codecAlternative: bool = True
     codecPriority: list[str] = ["alac", "ec3", "ac3", "aac"]
     atmosConventToM4a: bool = True
@@ -58,7 +68,7 @@ class Download(BaseModel):
 class Metadata(BaseModel):
     embedMetadata: list[str] = ["title", "artist", "album", "album_artist", "composer", "album_created",
                                 "genre", "created", "track", "tracknum", "disk", "lyrics", "cover", "copyright",
-                                "record_company", "upc", "isrc", "rtng"]
+                                "record_company", "upc", "isrc", "rtng", "song_id", "album_id", "artist_id"]
 
 
 class Config(BaseModel):

@@ -1,7 +1,7 @@
 import asyncio
 from io import BytesIO
 from ssl import SSLError
-from typing import Type
+from typing import AsyncIterator, Type
 
 import httpx
 import regex
@@ -100,6 +100,33 @@ class WebAPI:
     async def download_song(self, url: str) -> bytes:
         async with self.download_lock:
             return await self._download_song_internal(url)
+
+    async def stream_song(self, url: str, resume_from: int = 0,
+                          extra_headers: dict = None) -> AsyncIterator[bytes]:
+        """Stream the encrypted media file from the Apple CDN (边下边解).
+
+        Applies CDN IP pinning, holds the download semaphore for the whole
+        stream and yields bounded chunks. Transport / idle-timeout errors
+        propagate as httpx errors so the caller can resume from its parser's
+        last complete box boundary by passing ``resume_from`` (a byte offset).
+        ``extra_headers`` may carry an explicit ``Range`` (byte-range media
+        segments). A ``416`` on a resume request means the file is fully read.
+        """
+        async with self.download_lock:
+            timeout_sec = float(it(Config).download.downloadTimeout or 60.0)
+            timeout = httpx.Timeout(15.0, read=timeout_sec, connect=15.0, pool=20.0)
+            headers = dict(extra_headers or {})
+            if resume_from and "Range" not in headers:
+                headers["Range"] = f"bytes={resume_from}-"
+            async with httpx.AsyncClient(transport=AsyncCustomHost(NameSolver()),
+                                         timeout=timeout) as client:
+                async with client.stream("GET", url, headers=headers) as response:
+                    if response.status_code == 416 and (resume_from or "Range" in headers):
+                        return
+                    response.raise_for_status()
+                    async for chunk in response.aiter_bytes():
+                        it(Measurer).record_download(len(chunk))
+                        yield chunk
 
     async def get_album_info(self, album_id: str, storefront: str, lang: str):
         req = await self._request("GET",

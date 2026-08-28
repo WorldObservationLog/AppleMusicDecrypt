@@ -1,64 +1,32 @@
 on:
   push:
     branches:
-      - v2
+      - v3
   workflow_dispatch:
 
 jobs:
-  build_winodws:
+  build_windows:
     name: Build Windows
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Create venv
-        run: |
-          Invoke-WebRequest -Uri "https://github.com/winpython/winpython/releases/download/16.6.20250620/Winpython64-3.12.10.1dotrc.zip" -OutFile winpy.zip
-          $td="$env:TEMP";Expand-Archive .\winpy.zip $td;if(-not(Test-Path .\.venv)){New-Item -ItemType Directory .\.venv | Out-Null};Copy-Item "$td\WPy64-312101\python\*" .\.venv -Recurse -Force;Remove-Item "$td\WPy64-312101" -Recurse -Force;Remove-Item .\winpy.zip -Recurse -Force
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - name: Install dependencies
         run: |
-          .\.venv\python.exe -m pip install poetry
-          .\.venv\python.exe -m poetry install
+          python -m pip install --upgrade pip poetry
+          poetry install
       - name: Prepare environment and config
         run: |
           Copy-Item config.example.toml config.toml
-          (Get-Content config.toml) -replace 'url = "127.0.0.1:8080"','url = "wm.wol.moe"' -replace 'secure = false','secure = true' | Set-Content config.toml
-          (Get-Content config.toml) -replace 'enable = false','enable = true' | Set-Content config.toml
-          
           @'
-          $env:PATH="$(Split-Path -Parent $MyInvocation.MyCommand.Path)\deps;"
-          .\.venv\python.exe main.py
+          .\.venv\Scripts\python.exe main.py
           '@ | Out-File -FilePath start.ps1 -Encoding UTF8
-          
           @'
-          set PATH=%~dp0deps; && .venv\python.exe main.py
+          .\.venv\Scripts\python.exe main.py
           '@ | Out-File -FilePath start.bat -Encoding ASCII
-      - name: Prepare dependencies
-        run: |
-          mkdir deps
-          cd deps
-          Invoke-WebRequest -Uri https://www.7-zip.org/a/7zr.exe -OutFile 7z.exe
-          Invoke-WebRequest -Uri https://www.7-zip.org/a/7z2501-x64.exe -OutFile 7z-installer.exe
-          .\7z.exe x 7z-installer.exe -o7z
-          Invoke-WebRequest -Uri https://download.tsi.telecom-paristech.fr/gpac/new_builds/gpac_latest_head_win64.exe -OutFile gpac-installer.exe
-          .\7z\7z.exe x gpac-installer.exe -oGPAC
-          cp GPAC/*.exe, GPAC/*.dll .
-          Invoke-WebRequest -Uri https://www.gyan.dev/ffmpeg/builds/ffmpeg-git-essentials.7z -OutFile ffmpeg.7z
-          .\7z\7z.exe e .\ffmpeg.7z ffmpeg.exe -r "-o."
-          Invoke-WebRequest -Uri https://www.bok.net/Bento4/binaries/Bento4-SDK-1-6-0-641.x86_64-microsoft-win32.zip -OutFile Bento4-tools.zip
-          .\7z\7z.exe e .\Bento4-tools.zip mp4extract.exe mp4edit.exe mp4decrypt.exe -r "-o."
-          Invoke-WebRequest -Uri https://qemu.weilnetz.de/w64/2025/qemu-w64-setup-20251224.exe -OutFile qemu-installer.exe
-          .\7z\7z.exe x qemu-installer.exe -oqemu
-          cp qemu/qemu-system-x86_64.exe, qemu/*.dll .
-          mkdir share
-          cp qemu/share/vgabios-stdvga.bin, qemu/share/bios-256k.bin, qemu/share/efi-virtio.rom, qemu/share/kvmvapic.bin share
-          rm -Recurse Bento4-tools.zip, 7z, 7z.exe, 7z-installer.exe, ffmpeg.7z, gpac-installer.exe, GPAC, qemu-installer.exe, qemu
-
-      - name: Prepare assets
-        run: |
-          Invoke-WebRequest -Uri https://nightly.link/WorldObservationLog/wrapper-manager/workflows/wrapper-manager-image/main/wrapper-manager-image.zip -OutFile wrapper-manager-image.zip
-          Expand-Archive -Path wrapper-manager-image.zip -DestinationPath assets
-          rm wrapper-manager-image.zip
-
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4
         with:

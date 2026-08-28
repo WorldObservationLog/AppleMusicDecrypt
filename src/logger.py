@@ -1,4 +1,5 @@
 import copy
+import sys
 import urllib.parse
 from typing import Type
 
@@ -7,11 +8,21 @@ from loguru import logger
 from prompt_toolkit import print_formatted_text, ANSI
 
 
+def _safe_print(msg):
+    """Print a formatted log line; fall back to stderr when there is no
+    interactive console (headless / CI runs)."""
+    try:
+        print_formatted_text(ANSI(msg), end="")
+    except Exception:
+        sys.__stderr__.write(msg)
+        sys.__stderr__.flush()
+
+
 class GlobalLogger:
     def __init__(self):
         logger.remove()
         self.logger = copy.deepcopy(logger)
-        self.logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True,
+        self.logger.add(lambda msg: _safe_print(msg), colorize=True,
                         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
                                + " | <level>{level}</level>"
                                + " - <level>{message}</level>",
@@ -43,7 +54,7 @@ class RipLogger:
         self.item_id = urllib.parse.quote(item_id)
         logger.remove()
         self.logger = copy.deepcopy(logger)
-        self.logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True,
+        self.logger.add(lambda msg: _safe_print(msg), colorize=True,
                         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
                                + f" | <b>{self.item_type.upper()}</b>"
                                + f" | <b>{self.item_id}</b>"
@@ -61,7 +72,7 @@ class RipLogger:
             self.full_name = f"{artist} - {name}"
         self.full_name = self.full_name.replace("<", "\\<").replace(">", "\\>")
         self.logger.remove()
-        self.logger.add(lambda msg: print_formatted_text(ANSI(msg), end=""), colorize=True,
+        self.logger.add(lambda msg: _safe_print(msg), colorize=True,
                         format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
                                + f" | <b>{self.item_type.upper()}</b>"
                                + f" | <b>{self.full_name}</b>"
