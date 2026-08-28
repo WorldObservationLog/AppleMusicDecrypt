@@ -102,6 +102,7 @@ class TrackInfo:
     crypt_byte_block: int = 0        # tenc default_crypt_byte_block
     skip_byte_block: int = 0         # tenc default_skip_byte_block
     default_kid: bytes | None = None
+    constant_iv: bytes | None = None  # tenc default_constant_iv (cbcs without per-sample IVs)
     scheme_type: str | None = None   # 'cenc' | 'cbcs' | ... from sinf/schm
     protected: bool = False
 
@@ -139,6 +140,10 @@ _CODE_TO_ENTRY = {
     "aac": b"mp4a",
     "ec3": b"ec-3",
     "ac3": b"ac-3",
+    "avc1": b"avc1",
+    "hvc1": b"hvc1",
+    "hev1": b"hev1",
+    "vp09": b"vp09",
 }
 # sample entry type -> base codec string
 _CODEC_ENTRY_TYPES = {
@@ -146,6 +151,18 @@ _CODEC_ENTRY_TYPES = {
     b"mp4a": "aac",
     b"ec-3": "ec3",
     b"ac-3": "ac3",
+    b"avc1": "avc1",
+    b"hvc1": "hvc1",
+    b"hev1": "hev1",
+    b"vp09": "vp09",
+}
+# sample entry types with the 70-byte video header (children start after 78)
+_VIDEO_ENTRY_TYPES = {b"encv", b"avc1", b"hvc1", b"hev1", b"vp09", b"encv"}
+# video codec-config child box -> codec string
+_VIDEO_CONFIG_TYPES = {
+    b"avcC": "avc1",
+    b"hvcC": "hvc1",
+    b"vpcC": "vp09",
 }
 
 # Box types treated as containers when building transform / rebuild trees
@@ -332,10 +349,12 @@ class _SampleEntryParse:
     tenc_crypt_byte_block: int
     tenc_skip_byte_block: int
     tenc_default_kid: bytes | None
+    tenc_constant_iv: bytes | None
     protected: bool
     new_type: bytes | None          # target sample-entry type for the transform
     kept_children: list[bytes]      # child boxes to keep after removing encryption
     entry_header_size: int
+    entry_header_len: int           # 28 (audio) or 78 (video) fixed bytes before children
 
 
 def _find_child_box(raw: bytes, want: bytes) -> bytes | None:
@@ -387,6 +406,12 @@ def _parse_tenc_raw(raw: bytes) -> dict | None:
     p += 1
     kid = bytes(raw[p:p + 16])
     p += 16
+    constant_iv = None
+    if version > 0 and p < len(raw):
+        csize = raw[p]
+        p += 1
+        if csize > 0 and p + csize <= len(raw):
+            constant_iv = bytes(raw[p:p + csize])
     return {
         "version": version,
         "is_protected": is_protected,
@@ -394,6 +419,7 @@ def _parse_tenc_raw(raw: bytes) -> dict | None:
         "crypt_byte_block": crypt,
         "skip_byte_block": skip,
         "default_kid": kid,
+        "constant_iv": constant_iv,
     }
 
 
@@ -446,7 +472,7 @@ def _parse_sinf_raw(raw: bytes):
 
 
 def _parse_sample_entry_raw(raw: bytes) -> _SampleEntryParse | None:
-    """Analyse one raw sample entry box (enca/encv/alac/mp4a/ec-3/ac-3 ...)."""
+    """Analyse one raw sample entry box (enca/encv/alac/mp4a/avc1/ec-3/...)."""
     try:
         btype, size, header_size, _ = _box_header(raw, 0, len(raw))
     except MP4ParseError:
@@ -454,9 +480,11 @@ def _parse_sample_entry_raw(raw: bytes) -> _SampleEntryParse | None:
     if size > len(raw):
         return None
 
-    # children start after the 8-byte sample-entry header + 20 audio fields
+    # Audio entries carry 28 fixed bytes before their children, video 70.
+    is_video = btype in _VIDEO_ENTRY_TYPES
+    header_len = 78 if is_video else 28
     children: list[tuple[bytes, bytes]] = []
-    pos = header_size + 28
+    pos = header_size + header_len
     while pos + 8 <= len(raw):
         try:
             cb, csz, chdr, _ = _box_header(raw, pos, len(raw))
@@ -471,8 +499,8 @@ def _parse_sample_entry_raw(raw: bytes) -> _SampleEntryParse | None:
     scheme_type = None
     tenc = None
     has_sinf = False
-    codec_child = None       # 'alac' | 'aac'(esds) | 'dac3'
-    config_raw = None        # decoder-params box bytes (alac/esds/dac3)
+    codec_child = None       # 'alac' | 'aac'(esds) | 'dac3' | 'avc1'(avcC) | ...
+    config_raw = None        # decoder-params box bytes (alac/esds/dac3/avcC/...)
     nested = None            # (box_type, raw) for a nested codec sample entry
 
     for cb, cr in children:
@@ -488,7 +516,10 @@ def _parse_sample_entry_raw(raw: bytes) -> _SampleEntryParse | None:
         elif cb == b"dac3":
             codec_child = "dac3"
             config_raw = cr
-        elif cb in (b"mp4a", b"ec-3", b"ac-3"):
+        elif cb in _VIDEO_CONFIG_TYPES:
+            codec_child = _VIDEO_CONFIG_TYPES[cb]
+            config_raw = cr
+        elif cb in (b"mp4a", b"ec-3", b"ac-3") or cb in _VIDEO_ENTRY_TYPES:
             nested = (cb, cr)
 
     final_codec = "unknown"
@@ -504,6 +535,8 @@ def _parse_sample_entry_raw(raw: bytes) -> _SampleEntryParse | None:
             final_codec = "ac3"
         else:
             final_codec = "ec3"
+    elif codec_child in ("avc1", "hvc1", "vp09"):
+        final_codec = codec_child
     elif nested is not None:
         nt, nr = nested
         if nt == b"mp4a":
@@ -512,17 +545,19 @@ def _parse_sample_entry_raw(raw: bytes) -> _SampleEntryParse | None:
             if inner is not None:
                 config = inner
             used_nested = nr
-        elif nt == b"ec-3":
-            final_codec = "ec3"
+        elif nt in (b"ec-3", b"ac-3"):
+            final_codec = "ec3" if nt == b"ec-3" else "ac3"
             inner = _find_child_box(nr, b"dac3")
             if inner is not None:
                 config = inner
             used_nested = nr
-        elif nt == b"ac-3":
-            final_codec = "ac3"
-            inner = _find_child_box(nr, b"dac3")
-            if inner is not None:
-                config = inner
+        elif nt in (b"avc1", b"hvc1", b"hev1", b"vp09"):
+            final_codec = _CODEC_ENTRY_TYPES[nt]
+            for want in (b"avcC", b"hvcC", b"vpcC"):
+                inner = _find_child_box(nr, want)
+                if inner is not None:
+                    config = inner
+                    break
             used_nested = nr
     elif btype in _CODEC_ENTRY_TYPES:
         final_codec = _CODEC_ENTRY_TYPES[btype]
@@ -549,10 +584,12 @@ def _parse_sample_entry_raw(raw: bytes) -> _SampleEntryParse | None:
         tenc_crypt_byte_block=tenc["crypt_byte_block"] if tenc else 0,
         tenc_skip_byte_block=tenc["skip_byte_block"] if tenc else 0,
         tenc_default_kid=tenc["default_kid"] if tenc else None,
+        tenc_constant_iv=tenc["constant_iv"] if tenc else None,
         protected=has_sinf,
         new_type=new_type,
         kept_children=kept,
         entry_header_size=header_size,
+        entry_header_len=header_len,
     )
 
 
@@ -628,6 +665,7 @@ def _parse_trak_into(data, trak_box, tracks: dict):
             crypt_byte_block=p.tenc_crypt_byte_block,
             skip_byte_block=p.tenc_skip_byte_block,
             default_kid=p.tenc_default_kid,
+            constant_iv=p.tenc_constant_iv,
             scheme_type=p.scheme_type.decode("latin1") if p.scheme_type else None,
             protected=p.protected,
         )
@@ -693,7 +731,7 @@ def _transform_stsd(stsd: _Node):
         p = _parse_sample_entry_raw(entry.raw)
         if (p is not None and p.codec != "unknown" and p.new_type is not None
                 and entry.btype in (b"enca", b"encv")):
-            body = entry.raw[p.entry_header_size:p.entry_header_size + 28]
+            body = entry.raw[p.entry_header_size:p.entry_header_size + p.entry_header_len]
             kept = [_raw_node(b) for b in p.kept_children]
             node = _Node(p.new_type, raw=None, children=kept, prefix=body, parent=stsd)
             new_entries.append(node)
@@ -1474,3 +1512,162 @@ class StreamingMP4Parser:
             self._fragment = None
             return
         # emsg / prft / free / sidx / unknown: ignore
+
+
+# --------------------------------------------------------------------------
+# Muxing helpers (MV video+audio merge)
+# --------------------------------------------------------------------------
+
+def _find_child_boxes(data: bytes, start: int, end: int, want: bytes) -> list[tuple[bytes, int, int]]:
+    """Return [(raw_child, child_start, child_end)] of type *want* within [start, end)."""
+    out = []
+    for c in _iter_children(data, start, end):
+        if c.type == want:
+            out.append((bytes(data[c.start:c.end]), c.start, c.end))
+    return out
+
+
+def read_moof_track_ids(moof: bytes) -> list[int]:
+    """Return the traf track IDs present in one moof box."""
+    try:
+        _, size, header_size, _ = _box_header(moof, 0, len(moof))
+    except MP4ParseError:
+        return []
+    ids = []
+    for traf, _, _ in _find_child_boxes(moof, header_size, size, b"traf"):
+        for tfhd, _, te in _find_child_boxes(traf, 8, len(traf), b"tfhd"):
+            if len(tfhd) >= 16:
+                ids.append(_u32(tfhd, 12))
+    return ids
+
+
+def patch_moof_track_id(moof: bytes, old_id: int, new_id: int) -> bytes:
+    """Rewrite ``tfhd.track_ID`` in every traf of one moof (in place, same size)."""
+    try:
+        _, size, header_size, _ = _box_header(moof, 0, len(moof))
+    except MP4ParseError:
+        return moof
+    out = bytearray(moof)
+    for traf, tstart, tend in _find_child_boxes(moof, header_size, size, b"traf"):
+        for tfhd, ts, te in _find_child_boxes(out, tstart + 8, tend, b"tfhd"):
+            if len(tfhd) >= 16 and _u32(tfhd, 12) == old_id:
+                struct.pack_into(">I", out, ts + 12, new_id)
+    return bytes(out)
+
+
+def parse_fragment_timing(moof: bytes) -> tuple[int | None, int | None]:
+    """Return (track_id, tfdt decode_time) of the first traf in one moof."""
+    try:
+        _, size, header_size, _ = _box_header(moof, 0, len(moof))
+    except MP4ParseError:
+        return None, None
+    for traf, tstart, tend in _find_child_boxes(moof, header_size, size, b"traf"):
+        track_id = None
+        tfdt = None
+        for tfhd, _, _ in _find_child_boxes(moof, tstart + 8, tend, b"tfhd"):
+            if len(tfhd) >= 16:
+                track_id = _u32(tfhd, 12)
+        for tfdt_box, _, _ in _find_child_boxes(moof, tstart + 8, tend, b"tfdt"):
+            if len(tfdt_box) >= 12:
+                vaf = _u32(tfdt_box, 0)
+                version = vaf >> 24
+                if version == 0 and len(tfdt_box) >= 16:
+                    tfdt = _u32(tfdt_box, 4)
+                elif version == 1 and len(tfdt_box) >= 20:
+                    tfdt = _u64(tfdt_box, 4)
+        if track_id is not None:
+            return track_id, tfdt
+    return None, None
+
+
+def patch_tkhd_track_id(trak: bytes, new_id: int) -> bytes:
+    """Rewrite ``trak/tkhd.track_ID`` (v0/v1 aware)."""
+    out = bytearray(trak)
+    try:
+        _, tsize, theader, _ = _box_header(trak, 0, len(trak))
+    except MP4ParseError:
+        return trak
+    mdia = None
+    for child in _iter_children(trak, theader, tsize):
+        if child.type == b"tkhd":
+            vaf = _u32(trak, child.payload_start)
+            version = vaf >> 24
+            off = child.payload_start + 4 + (8 if version == 1 else 4) + 4 + (8 if version == 1 else 4) + 4
+            # tkhd payload: verflags(4) creation(4/8) modification(4/8) track_ID(4)
+            tkhd_off = child.start + 8 + 4 + (8 if version == 1 else 4) + (8 if version == 1 else 4)
+            struct.pack_into(">I", out, tkhd_off, new_id)
+            _ = off
+        elif child.type == b"mdia":
+            mdia = child
+    if mdia is not None:
+        # also patch tref (reference track ids) if present inside trak
+        pass
+    return bytes(out)
+
+
+def patch_trex_track_id(mvex: bytes, old_id: int, new_id: int) -> bytes:
+    """Rewrite ``mvex/trex.track_ID`` entries."""
+    out = bytearray(mvex)
+    try:
+        _, msize, mheader, _ = _box_header(mvex, 0, len(mvex))
+    except MP4ParseError:
+        return mvex
+    for trex, ts, _ in _find_child_boxes(mvex, mheader, msize, b"trex"):
+        if len(trex) >= 16 and _u32(trex, 12) == old_id:
+            struct.pack_into(">I", out, ts + 12, new_id)
+    return bytes(out)
+
+
+def patch_mvhd_duration(mvhd: bytes, duration: int) -> bytes:
+    """Rewrite the mvhd duration field (v0/v1 aware)."""
+    out = bytearray(mvhd)
+    try:
+        _, msize, mheader, _ = _box_header(mvhd, 0, len(mvhd))
+    except MP4ParseError:
+        return mvhd
+    vaf = _u32(mvhd, mheader)
+    version = vaf >> 24
+    if version == 1:
+        # creation(8) modification(8) timescale(4) duration(8)
+        struct.pack_into(">Q", out, mheader + 4 + 8 + 8 + 4, duration)
+    else:
+        struct.pack_into(">I", out, mheader + 4 + 4 + 4 + 4, duration)
+    return bytes(out)
+
+
+def read_mvhd_timescale_duration(mvhd: bytes) -> tuple[int, int]:
+    """Return (timescale, duration) of one mvhd box."""
+    try:
+        _, msize, mheader, _ = _box_header(mvhd, 0, len(mvhd))
+    except MP4ParseError:
+        return 0, 0
+    vaf = _u32(mvhd, mheader)
+    version = vaf >> 24
+    if version == 1:
+        timescale = _u32(mvhd, mheader + 4 + 8 + 8)
+        duration = _u64(mvhd, mheader + 4 + 8 + 8 + 4)
+    else:
+        timescale = _u32(mvhd, mheader + 4 + 4 + 4)
+        duration = _u32(mvhd, mheader + 4 + 4 + 4 + 4)
+    return timescale, duration
+
+
+def read_trak_timescale(trak: bytes) -> int | None:
+    """Read the mdia/mdhd timescale of one trak box."""
+    try:
+        _, tsize, theader, _ = _box_header(trak, 0, len(trak))
+    except MP4ParseError:
+        return None
+    for child in _iter_children(trak, theader, tsize):
+        if child.type != b"mdia":
+            continue
+        mdia = child
+        for gchild in _iter_children(trak, mdia.payload_start, mdia.payload_end):
+            if gchild.type != b"mdhd":
+                continue
+            vaf = _u32(trak, gchild.payload_start)
+            version = vaf >> 24
+            # verflags(4) creation(4/8) modification(4/8) timescale(4)
+            off = gchild.payload_start + 4 + (8 if version == 1 else 4) + (8 if version == 1 else 4)
+            return _u32(trak, off)
+    return None

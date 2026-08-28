@@ -22,6 +22,10 @@ local decryption library:
   module; tags are written with `mutagen`; integrity is verified structurally.
 - **Batch-friendly** — prefetch key template reuse, cached metadata, streaming
   download with byte-range resume, per-fragment pipelined decryption.
+- **Music videos** — `dl <music-video-url>` downloads the MV: video + audio
+  streams are fetched, decrypted with Widevine (pure-Python AES-CBC cbcs,
+  verified byte-for-byte against Bento4 mp4decrypt) and remuxed into one MP4
+  by the pure-Python muxer — no MP4Box/ffmpeg.
 - The interactive REPL (download / quality / status / batch mode) is kept and
   improved.
 
@@ -68,6 +72,8 @@ dl https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 dl -c aac -l en-US -b
 https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 https://music.apple.com/jp/album/nameless-name-single/1688539265
+# Download a music video
+dl https://music.apple.com/jp/music-video/1800449196
 # Check the available quality of the song
 quality https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 # Or a shorter command

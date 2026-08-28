@@ -14,6 +14,7 @@ from src.config import Config
 from src.flags import Flags
 from src.logger import GlobalLogger
 from src.measurer import Measurer
+from src.mv import MVRipper
 from src.qemu import QemuInstance
 from src.quality import print_song_quality, print_album_quality, print_playlist_quality, key_to_Headers
 from src.rip import Ripper
@@ -202,6 +203,8 @@ class InteractiveShell:
                 case URLType.Playlist:
                     safely_create_task(
                         self.ripper.rip_playlist(url, codec, Flags(force_save=force_download, language=language)))
+                case URLType.MusicVideo:
+                    safely_create_task(MVRipper().rip(url))
                 case _:
                     it(GlobalLogger).logger.error(f"Unsupported URLType - {raw_url}")
                     continue

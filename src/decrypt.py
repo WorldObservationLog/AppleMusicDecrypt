@@ -96,6 +96,44 @@ class Decryptor:
                 return k.kid, k.key
         raise RuntimeError(f"No content key found in license for {adam_id}")
 
+    async def mv_content_key(self, adam_id: str, key_uri: str) -> bytes:
+        """Acquire the Widevine content key for an MV stream.
+
+        MV HLS key URIs are ``data:text/plain;base64,<PSSH>`` boxes. The
+        wrapper returns a Widevine ``SignedMessage`` license whose content key
+        has a non-standard 56-byte KID that pywidevine's ``kid_to_uuid``
+        cannot parse, so we temporarily relax that conversion.
+        """
+        import base64 as _b64
+        import uuid
+        from pywidevine.key import Key
+
+        pssh_b64 = key_uri.split("base64,", 1)[1] if "base64," in key_uri else key_uri
+        wv = WidevineDecrypt()
+        challenge = wv.generate_challenge(pssh_b64)
+        license_text = await self._wrapper.license(adam_id, challenge, key_uri)
+
+        orig = Key.kid_to_uuid
+
+        def tolerant(kid):
+            try:
+                return orig(kid)
+            except ValueError:
+                k = _b64.b64decode(kid) if isinstance(kid, str) else kid
+                if not k:
+                    k = b"\x00" * 16
+                return uuid.UUID(bytes=(k + b"\x00" * 16)[:16])
+
+        Key.kid_to_uuid = staticmethod(tolerant)
+        try:
+            keys = wv.generate_key(license_text)
+        finally:
+            Key.kid_to_uuid = staticmethod(orig)
+        for k in keys:
+            if k.type == "CONTENT":
+                return k.key
+        raise RuntimeError(f"No content key found in MV license for {adam_id}")
+
     def close(self):
         for t in self._templates.values():
             try:

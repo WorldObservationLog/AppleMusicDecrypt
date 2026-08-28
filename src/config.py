@@ -71,6 +71,14 @@ class Metadata(BaseModel):
                                 "record_company", "upc", "isrc", "rtng", "song_id", "album_id", "artist_id"]
 
 
+class MV(BaseModel):
+    saveDir: str = "downloads/music-videos"
+    # Maximum video height to download (0 = best available).
+    maxHeight: int = 1080
+    # MV audio rendition: atmos | ac3 | aac
+    audioType: str = "atmos"
+
+
 class Config(BaseModel):
     version: str = "0.0.0"
     region: Region
@@ -78,6 +86,7 @@ class Config(BaseModel):
     localInstance: LocalInstance
     download: Download
     metadata: Metadata
+    mv: MV = MV()
 
     @classmethod
     def load_from_config(cls, config_file: str = "config.toml"):

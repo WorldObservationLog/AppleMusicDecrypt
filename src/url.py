@@ -9,6 +9,7 @@ class URLType:
     Album = "album"
     Playlist = "playlist"
     Artist = "artist"
+    MusicVideo = "music-video"
 
 
 class AppleMusicURL(BaseModel):
@@ -19,7 +20,7 @@ class AppleMusicURL(BaseModel):
 
     @classmethod
     def parse_url(cls, url: str):
-        if not regex.match(r"https://music.apple.com/(.{2})/(song|album|playlist|artist).*/(pl.*|\d*)", url):
+        if not regex.match(r"https://music.apple.com/(.{2})/(song|album|playlist|artist|music-video).*/(pl.*|\d*)", url):
             return None
         parsed_url = urlparse(url)
         paths = parsed_url.path.split("/")
@@ -47,6 +48,9 @@ class AppleMusicURL(BaseModel):
             case URLType.Playlist:
                 url_id = paths[-1]
                 return Playlist(url=url, storefront=storefront, id=url_id, type=URLType.Playlist)
+            case URLType.MusicVideo:
+                url_id = paths[-1]
+                return MusicVideo(url=url, storefront=storefront, id=url_id, type=URLType.MusicVideo)
         return None
 
 
@@ -63,4 +67,8 @@ class Playlist(AppleMusicURL):
 
 
 class Artist(AppleMusicURL):
+    ...
+
+
+class MusicVideo(AppleMusicURL):
     ...

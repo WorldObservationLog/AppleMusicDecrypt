@@ -634,33 +634,35 @@ def _decrypt_cenc_sample(sample: bytes, iv: bytes, key: bytes, patterns) -> byte
 
 
 def _cbcs_decrypt_runs(data: bytes, patterns, key: bytes, iv: bytes, cbb: int, sbb: int) -> bytes:
-    """AES-CBC (CBCS) decryption. One chained cipher across the sample's
-    protected runs; 16-byte-aligned prefixes are decrypted, tails pass."""
+    """AES-CBC (CBCS) decryption with the crypt/skip pattern.
+
+    The CBC chain restarts from the (per-sample or constant) IV at each
+    sub-sample (protected) run; within a run it carries across the encrypted
+    blocks only (skipped clear blocks do not advance it). The crypt/skip
+    pattern phase restarts at each run. Partial final blocks are left
+    untouched (matching Bento4 mp4decrypt).
+    """
     from Crypto.Cipher import AES
 
     out = bytearray(data)
-    cipher = AES.new(key, AES.MODE_CBC, iv)
     pos = 0
     for clear, protected in patterns:
         pos += clear
         if protected <= 0:
             continue
-        if cbb == 0 or sbb == 0:
-            aligned = protected & ~15
-            if aligned:
-                dec = cipher.decrypt(bytes(out[pos:pos + aligned]))
-                out[pos:pos + aligned] = dec
-        else:
-            block = pos
-            block_end = pos + protected
-            while block < block_end:
-                n = min(cbb * 16, block_end - block)
-                aligned = n & ~15
-                if aligned:
-                    dec = cipher.decrypt(bytes(out[block:block + aligned]))
-                    out[block:block + aligned] = dec
-                block += n
-                block += sbb * 16
+        cipher = AES.new(key, AES.MODE_CBC, iv)
+        nfull = protected // 16
+        phase = 0
+        for blk in range(nfull):
+            off = pos + blk * 16
+            if cbb == 0 or sbb == 0:
+                dec = cipher.decrypt(bytes(out[off:off + 16]))
+                out[off:off + 16] = dec
+            else:
+                if phase % (cbb + sbb) < cbb:
+                    dec = cipher.decrypt(bytes(out[off:off + 16]))
+                    out[off:off + 16] = dec
+                phase += 1
         pos += protected
     return bytes(out)
 

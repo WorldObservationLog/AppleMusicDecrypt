@@ -123,3 +123,11 @@ maxWaitTime = 30
 embedMetadata = ["title", "artist", "album", "album_artist", "composer", "album_created",
     "genre", "created", "tracknum", "disk", "lyrics", "cover", "copyright",
     "record_company", "upc", "isrc", "rtng", "song_id", "album_id", "artist_id"]
+
+[mv]
+# Directory where music videos are saved
+saveDir = "downloads/music-videos"
+# Maximum video height to download (0 = best available)
+maxHeight = 1080
+# MV audio rendition: atmos | ac3 | aac
+audioType = "atmos"
