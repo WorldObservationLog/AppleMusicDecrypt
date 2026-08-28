@@ -15,9 +15,9 @@ The prefetch key template is fetched once and reused for every song.
 
 import asyncio
 import base64
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Type
 
-from creart import it
+from creart import AbstractCreator, CreateTargetInfo, exists_module, it
 
 import temari
 
@@ -104,3 +104,19 @@ class Decryptor:
             except Exception:
                 pass
             self._prefetch = None
+
+
+class DecryptorCreator(AbstractCreator):
+    """creart creator for :class:`Decryptor` (built on the WrapperClient)."""
+
+    targets = (
+        CreateTargetInfo("src.decrypt", "Decryptor"),
+    )
+
+    @staticmethod
+    def available() -> bool:
+        return exists_module("src.decrypt")
+
+    @staticmethod
+    def create(create_type: Type[Decryptor]) -> Decryptor:
+        return create_type(it(WrapperClient))

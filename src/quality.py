@@ -2,12 +2,12 @@ from typing import Optional
 
 import m3u8
 from creart import it
-from prompt_toolkit import print_formatted_text
 from pydantic import BaseModel
 from tabulate import tabulate
 
 from src.api import WebAPI
 from src.config import Config
+from src.logger import _safe_print
 from src.metadata import SongMetadata
 from src.utils import get_codec_from_codec_id, safely_create_task, playlist_write_song_index
 from src.url import Song, Album, URLType, Playlist
@@ -61,8 +61,8 @@ async def print_song_quality(url: Song, show_fields: list[str]):
     ]
     filtered_headers = [key_to_Headers[field].strip() for field in show_fields]
 
-    print_formatted_text(f"Available audio qualities for song: {metadata.artist} - {metadata.title}")
-    print_formatted_text(tabulate(filtered_data, headers=filtered_headers, tablefmt="grid"))
+    _safe_print(f"Available audio qualities for song: {metadata.artist} - {metadata.title}")
+    _safe_print(tabulate(filtered_data, headers=filtered_headers, tablefmt="grid"))
 
 
 async def print_playlist_quality(url: Playlist, show_fields: list[str]):

@@ -12,6 +12,8 @@ from src.api import APICreator
 add_creator(APICreator)
 from src.wrapper import WrapperCreator
 add_creator(WrapperCreator)
+from src.decrypt import DecryptorCreator
+add_creator(DecryptorCreator)
 from src.measurer import MeasurerCreator
 add_creator(MeasurerCreator)
 

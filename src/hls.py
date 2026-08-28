@@ -57,24 +57,24 @@ async def extract_media(m3u8_url: str, codec: str, task: Task) -> M3U8Info:
         if key.endswith(key_suffix) or key.endswith(CodecKeySuffix.KeySuffixDefault):
             keys.append(key)
 
-    segment = stream.segment_map[0] if stream.segment_map else (stream.segments[0] if stream.segments else None)
-    if segment is None:
+    segments = stream.segments if stream.segments else []
+    if not segments:
         raise CodecNotFoundException("No media segment found in playlist")
+    segment = segments[0]
 
+    # Apple Music lossless HLS serves the whole song as ONE fMP4 file where
+    # each playlist segment is a byte-range of that file (segment[0] is only
+    # the init, the rest are audio fragments). In that case we must download
+    # the WHOLE file and parse every fragment — not just segment[0]'s range.
+    # A single non-range segment (also common) means the same whole-file case.
     range_start = range_length = None
-    byterange = getattr(segment, "byterange", None)
-    if byterange:
-        if isinstance(byterange, str) and "@" in byterange:
-            # m3u8 returns EXT-X-BYTERANGE as "length@offset"
-            try:
-                range_length, range_start = (int(x) for x in byterange.split("@", 1))
-            except ValueError:
-                range_start = range_length = None
-        else:
-            try:
-                range_length, range_start = byterange
-            except (TypeError, ValueError):
-                range_start = range_length = None
+    if any(getattr(s, "byterange", None) for s in segments):
+        # byte-range segments -> whole file; keep range fields None
+        pass
+    elif len(segments) > 1:
+        # Multiple non-range segment files are not supported; use the first
+        # file's URI (legacy/webPlayback may produce these).
+        pass
 
     sample_rate = bit_depth = None
     if codec == Codec.ALAC:
