@@ -62,11 +62,19 @@ async def extract_media(m3u8_url: str, codec: str, task: Task) -> M3U8Info:
         raise CodecNotFoundException("No media segment found in playlist")
 
     range_start = range_length = None
-    if getattr(segment, "byterange", None):
-        try:
-            range_length, range_start = segment.byterange
-        except (TypeError, ValueError):
-            range_start = range_length = None
+    byterange = getattr(segment, "byterange", None)
+    if byterange:
+        if isinstance(byterange, str) and "@" in byterange:
+            # m3u8 returns EXT-X-BYTERANGE as "length@offset"
+            try:
+                range_length, range_start = (int(x) for x in byterange.split("@", 1))
+            except ValueError:
+                range_start = range_length = None
+        else:
+            try:
+                range_length, range_start = byterange
+            except (TypeError, ValueError):
+                range_start = range_length = None
 
     sample_rate = bit_depth = None
     if codec == Codec.ALAC:
