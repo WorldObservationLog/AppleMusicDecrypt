@@ -85,3 +85,21 @@ async def extract_media(m3u8_url: str, codec: str, task: Task) -> M3U8Info:
     return M3U8Info(uri=segment.absolute_uri, keys=keys, codec_id=selected_codec,
                     bit_depth=bit_depth, sample_rate=sample_rate,
                     range_start=range_start, range_length=range_length)
+
+
+async def legacy_extract_media(m3u8_url: str) -> M3U8Info:
+    """Parse a webPlayback media playlist (AAC-legacy / Widevine CENC).
+
+    Unlike the lossless master playlists, this is already a *media* playlist
+    whose segments are byte-ranges of ONE .mp4 file (segments[0] is a
+    fragment; the init prefix is the bytes before its range). The key URI is a
+    Widevine ``data:;base64,<kid>`` URI (method ISO-23001-7). We download the
+    whole .mp4 and let the mp4 module parse init + every fragment.
+    """
+    parsed = m3u8.loads(await it(WebAPI).download_m3u8(m3u8_url), uri=m3u8_url)
+    segments = parsed.segments
+    if not segments:
+        raise CodecNotFoundException("No media segment found in legacy playlist")
+    seg = segments[0]
+    keys = [k.uri for k in parsed.keys if k.uri]
+    return M3U8Info(uri=seg.absolute_uri, keys=keys, codec_id=Codec.AAC_LEGACY)

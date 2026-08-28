@@ -78,10 +78,15 @@ class Decryptor:
     async def legacy_content_key(self, adam_id: str, key_uri: str) -> Tuple[bytes, bytes]:
         """Acquire the (kid, key) pair for a legacy Widevine-encrypted track.
 
-        ``key_uri`` is the EXT-X-KEY URI (e.g. ``skd://...;kid``). The KID is
-        the part after the last ';' when present, otherwise the whole URI.
+        ``key_uri`` is the EXT-X-KEY URI. Apple's webPlayback (AAC-legacy)
+        uses a Widevine ``data:;base64,<kid-b64>`` URI (method ISO-23001-7);
+        skd-style URIs (``skd://...;<kid>``) are also supported for
+        compatibility. ``generate_pssh`` expects the KID as base64 text.
         """
-        kid = key_uri.rsplit(";", 1)[-1]
+        if key_uri.startswith("data:"):
+            kid = key_uri.split("base64,", 1)[1] if "base64," in key_uri else key_uri.split(",", 1)[-1]
+        else:
+            kid = key_uri.rsplit(";", 1)[-1]
         wv = WidevineDecrypt()
         challenge = wv.generate_challenge(kid)
         license_text = await self._wrapper.license(adam_id, challenge, key_uri)

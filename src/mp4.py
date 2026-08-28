@@ -102,6 +102,7 @@ class TrackInfo:
     crypt_byte_block: int = 0        # tenc default_crypt_byte_block
     skip_byte_block: int = 0         # tenc default_skip_byte_block
     default_kid: bytes | None = None
+    scheme_type: str | None = None   # 'cenc' | 'cbcs' | ... from sinf/schm
     protected: bool = False
 
 
@@ -627,6 +628,7 @@ def _parse_trak_into(data, trak_box, tracks: dict):
             crypt_byte_block=p.tenc_crypt_byte_block,
             skip_byte_block=p.tenc_skip_byte_block,
             default_kid=p.tenc_default_kid,
+            scheme_type=p.scheme_type.decode("latin1") if p.scheme_type else None,
             protected=p.protected,
         )
         break

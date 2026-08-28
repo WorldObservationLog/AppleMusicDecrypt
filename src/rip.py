@@ -28,7 +28,7 @@ from src.config import Config
 from src.decrypt import Decryptor, PREFETCH_KEY
 from src.exceptions import CodecNotFoundException, SongNotPassIntegrityCheckException
 from src.flags import Flags
-from src.hls import extract_media
+from src.hls import extract_media, legacy_extract_media
 from src.logger import RipLogger
 from src.measurer import Measurer
 from src.metadata import SongMetadata
@@ -450,8 +450,7 @@ class Ripper:
         final_path, part_path = prepare_paths(Codec.AAC_LEGACY, task.metadata, task.playlist)
 
         async def _phase():
-            task.m3u8Info = await extract_media(await it(WrapperClient).webPlayback(task.adamId),
-                                                Codec.AAC_LEGACY, task)
+            task.m3u8Info = await legacy_extract_media(await it(WrapperClient).webplayback(task.adamId))
             task.logger.downloading()
             task.update_status(Status.DOWNLOADING)
             headers = {}
@@ -480,7 +479,9 @@ class Ripper:
                     break
                 decrypted = b"".join(
                     _decrypt_cbcs_sample(frag.mdat_payload[spec.offset:spec.offset + spec.length],
-                                         spec.iv, key, init.tracks.get(spec.desc_index))
+                                         spec.iv, key, init.tracks.get(spec.desc_index),
+                                         [(p.bytes_of_clear_data, p.bytes_of_protected_data)
+                                          for p in spec.sub_sample_patterns])
                     for spec in frag.samples
                 )
                 out.extend(rebuild_fragment_bytes(frag, decrypted))
@@ -573,32 +574,94 @@ class Ripper:
 # Helpers
 # ---------------------------------------------------------------------- #
 def _decrypt_cbcs_sample(sample: bytes, iv: Optional[bytes], key: bytes,
-                         track_info) -> bytes:
-    """Pure-Python CBCS sample decryption (legacy Widevine path).
+                         track_info, patterns=None) -> bytes:
+    """Pure-Python legacy (Widevine CENC/CBCS) sample decryption.
 
-    Apple legacy AAC files use full-sample encryption; sub-sample patterns are
-    carried by the sample specs and handled by the caller when present.
+    ``patterns`` are the per-sample sub-sample patterns from ``senc``
+    (list of (bytes_of_clear_data, bytes_of_protected_data)); an empty list
+    means full-sample encryption. Decryption mode is chosen by the track's
+    scheme: 'cbcs' uses AES-CBC (with pattern when crypt/skip are non-zero),
+    anything else (Apple legacy 'cenc', 8-byte IV) uses AES-CTR where the
+    sample IV is the high 64 bits of the counter block.
     """
-    from Cryptodome.Cipher import AES
-
     if not iv or not track_info or not track_info.protected:
         return sample
-    cbb = track_info.crypt_byte_block or 1
-    sbb = track_info.skip_byte_block or 0
-    return _cbcs_decrypt_runs(sample, [(0, len(sample) & ~15)], key, iv, cbb, sbb)
+    if not patterns:
+        patterns = [(0, len(sample))]
+    scheme = (track_info.scheme_type or "").lower()
+    if scheme == "cbcs":
+        return _cbcs_decrypt_runs(sample, patterns, key, iv,
+                                  track_info.crypt_byte_block or 1,
+                                  track_info.skip_byte_block or 0)
+    return _decrypt_cenc_sample(sample, iv, key, patterns)
+
+
+def _decrypt_cenc_sample(sample: bytes, iv: bytes, key: bytes, patterns) -> bytes:
+    """AES-CTR (CENC) sample decryption with an 8/16-byte per-sample IV.
+
+    Counter block: ``iv`` (high bytes) + 64-bit big-endian block counter that
+    increments per 16-byte block of protected data (starting at 0). Clear
+    bytes (sub-sample gaps) do not consume counter blocks. CTR is a stream
+    cipher: the whole protected length is decrypted, including the partial
+    final block.
+    """
+    from Crypto.Cipher import AES
+
+    if not patterns:
+        patterns = [(0, len(sample))]
+    if len(iv) < 16:
+        iv = iv.ljust(16, b"\x00")
+    aes = AES.new(key, AES.MODE_ECB)
+    out = bytearray(sample)
+    pos = 0
+    protected_done = 0
+    for clear, protected in patterns:
+        pos += clear
+        remaining = protected
+        block = 0
+        while remaining > 0:
+            n = min(16, remaining)
+            counter = iv[:8] + struct.pack(">Q", protected_done // 16 + block)
+            ks = aes.encrypt(counter)[:n]
+            off = pos + block * 16
+            val = int.from_bytes(out[off:off + n], "big") ^ int.from_bytes(ks, "big")
+            out[off:off + n] = val.to_bytes(n, "big")
+            remaining -= n
+            block += 1
+        pos += protected
+        protected_done += protected
+    return bytes(out)
 
 
 def _cbcs_decrypt_runs(data: bytes, patterns, key: bytes, iv: bytes, cbb: int, sbb: int) -> bytes:
-    from Cryptodome.Cipher import AES
+    """AES-CBC (CBCS) decryption. One chained cipher across the sample's
+    protected runs; 16-byte-aligned prefixes are decrypted, tails pass."""
+    from Crypto.Cipher import AES
 
     out = bytearray(data)
+    cipher = AES.new(key, AES.MODE_CBC, iv)
+    pos = 0
     for clear, protected in patterns:
-        run_end = protected & ~15
-        if run_end <= 0:
+        pos += clear
+        if protected <= 0:
             continue
-        cipher = AES.new(key, AES.MODE_CBC, iv)
-        dec = cipher.decrypt(bytes(out[clear:clear + run_end]))
-        out[clear:clear + run_end] = dec
+        if cbb == 0 or sbb == 0:
+            aligned = protected & ~15
+            if aligned:
+                dec = cipher.decrypt(bytes(out[pos:pos + aligned]))
+                out[pos:pos + aligned] = dec
+        else:
+            block = pos
+            block_end = pos + protected
+            while block < block_end:
+                n = min(cbb * 16, block_end - block)
+                aligned = n & ~15
+                if aligned:
+                    dec = cipher.decrypt(bytes(out[block:block + aligned]))
+                    out[block:block + aligned] = dec
+                block += n
+                block += sbb * 16
+        pos += protected
     return bytes(out)
 
 
