@@ -16,6 +16,7 @@ import asyncio
 import collections
 import os
 import ssl
+import struct
 import subprocess
 from typing import Optional
 
@@ -194,7 +195,7 @@ class Ripper:
         raw_atmos = if_raw_atmos(local_codec, it(Config).download.atmosConventToM4a)
         key_uri = task.m3u8Info.keys[0] if task.m3u8Info.keys else PREFETCH_KEY
 
-        final_path, part_path = prepare_paths(task.m3u8Info.codec_id, task.metadata, task.playlist)
+        final_path, part_path = prepare_paths(local_codec, task.metadata, task.playlist)
 
         async def _phase():
             stream = await it(Decryptor).stream(task.adamId, key_uri)
@@ -219,6 +220,12 @@ class Ripper:
                     out_file.write(payload)
                 else:
                     out_file.write(moofs[seq])
+                    # Re-emit the mdat box header (32-bit, or 64-bit when huge)
+                    # so the file stays a valid fragmented MP4.
+                    if len(payload) + 8 < 0xFFFFFFFF:
+                        out_file.write(struct.pack(">I4s", 8 + len(payload), b"mdat"))
+                    else:
+                        out_file.write(struct.pack(">I4sQ", 1, b"mdat", 16 + len(payload)))
                     out_file.write(payload)
 
             async def consumer():
@@ -362,7 +369,7 @@ class Ripper:
         local_codec = get_codec_from_codec_id(task.m3u8Info.codec_id)
         raw_atmos = if_raw_atmos(local_codec, it(Config).download.atmosConventToM4a)
         key_uri = task.m3u8Info.keys[0] if task.m3u8Info.keys else PREFETCH_KEY
-        final_path, part_path = prepare_paths(task.m3u8Info.codec_id, task.metadata, task.playlist)
+        final_path, part_path = prepare_paths(local_codec, task.metadata, task.playlist)
 
         async def _phase():
             task.logger.downloading()
