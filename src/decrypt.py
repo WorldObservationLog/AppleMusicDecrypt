@@ -15,6 +15,7 @@ The prefetch key template is fetched once and reused for every song.
 
 import asyncio
 import base64
+from pathlib import Path
 from typing import Optional, Tuple, Type
 
 from creart import AbstractCreator, CreateTargetInfo, exists_module, it
@@ -28,6 +29,11 @@ from src.wrapper import WrapperClient
 # Template for this key is content-independent: one fetch is reused for all songs.
 PREFETCH_KEY = "skd://itunes.apple.com/P000000000/s1/e1"
 
+# Offline-embedded preshare template (like zhaarey's static prefetch_template.go).
+# When present, the FPS sample decryption needs NO /key request at all; the
+# wrapper /key is only used as a fallback if this file is missing or corrupt.
+EMBEDDED_TEMPLATE_PATH = Path("assets/prefetch_template.json")
+
 
 class Decryptor:
     def __init__(self, wrapper: WrapperClient):
@@ -36,6 +42,23 @@ class Decryptor:
         self._prefetch: Optional[temari.Temari] = None
         self._prefetch_lock = asyncio.Lock()
         self._legacy: Optional[WidevineDecrypt] = None
+
+    @staticmethod
+    def _try_embedded_template() -> Optional[temari.Temari]:
+        if not EMBEDDED_TEMPLATE_PATH.exists():
+            return None
+        try:
+            return temari.Temari.from_json(EMBEDDED_TEMPLATE_PATH.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    async def _prefetch_template(self) -> temari.Temari:
+        """Return the preshare template, preferring the embedded offline copy."""
+        template = self._try_embedded_template()
+        if template is not None:
+            return template
+        # Fallback: fetch the preshare context from the wrapper.
+        return await self._load("0", PREFETCH_KEY)
 
     async def get_template(self, adam_id: str, uri: str) -> temari.Temari:
         """Return a cached Temari template handle for (adam_id, uri).
@@ -49,7 +72,7 @@ class Decryptor:
             if self._prefetch is None:
                 async with self._prefetch_lock:
                     if self._prefetch is None:
-                        self._prefetch = await self._load("0", uri)
+                        self._prefetch = await self._prefetch_template()
             return self._prefetch
 
         key = (adam_id, uri)
