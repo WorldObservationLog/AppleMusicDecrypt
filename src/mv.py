@@ -36,7 +36,12 @@ from src.mux import (FragmentStore, build_container, fragment_entry, mux_mv, mux
 from src.rip import _decrypt_cbcs_sample
 from src.url import URLType, MusicVideo
 from src.wrapper import WrapperClient
-from src.utils import get_valid_filename
+from src.utils import get_valid_filename, run_sync
+
+
+def _write_bytes(path, data: bytes):
+    with open(path, "wb") as f:
+        f.write(data)
 
 
 def _find_map_url(media_playlist_txt: str, base_url: str) -> str:
@@ -204,8 +209,7 @@ class MVRipper:
         if not v_frags:
             raise RuntimeError("No video fragments downloaded")
         out = mux_mv(v_init, a_init, v_frags, a_frags)
-        with open(part_path, "wb") as f:
-            f.write(out)
+        await run_sync(_write_bytes, part_path, out)
 
     async def _rip_low_memory(self, logger, v_init, a_init, v_media, a_media,
                               v_content, a_content, part_path):
@@ -272,7 +276,8 @@ class MVRipper:
 
         mp4 = mutagen.mp4.Open(str(part_path))
         mp4.update(tags)
-        mp4.save()
+        # mutagen rewrites the whole file (CPU+IO); run off the event loop.
+        await run_sync(mp4.save)
         os.replace(part_path, final_path)
         if cover:
             final_path.parent.joinpath(f"cover.{it(Config).download.coverFormat}").write_bytes(cover)

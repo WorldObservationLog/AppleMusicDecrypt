@@ -56,6 +56,14 @@ class Decryptor:
             self._templates[key] = template
         return template
 
+    async def warm_prefetch(self):
+        """Pre-warm the content-independent prefetch template.
+
+        The FairPlay prefetch template is the same for every song; warming it
+        once at batch start avoids the first song stalling on a ``/key`` RPC.
+        """
+        await self.get_template("0", PREFETCH_KEY)
+
     async def _load(self, adam_id: str, uri: str) -> temari.Temari:
         json_text = await self._wrapper.key_template_json(adam_id, uri)
         try:

@@ -106,6 +106,9 @@ lyricsExtra = ["translation", "pronunciation"]
 # Low-memory mode: all large files (MV segments, batch audio downloads) are
 # spilled to disk; the MV muxer streams straight to the .part file.
 lowMemory = false
+# fsync each finished file (durability vs throughput). Disable for large
+# batches to avoid blocking the event loop on synchronous fsync.
+fsync = true
 saveCover = true
 coverFormat = "jpg"
 coverSize = "5000x5000"

@@ -60,6 +60,9 @@ class Download(BaseModel):
     # Low-memory mode: all large files (MV segments, batch audio downloads) are
     # spilled to disk and the MV muxer streams from disk instead of RAM.
     lowMemory: bool = False
+    # fsync each finished file (durability vs throughput); disable for
+    # large batches to avoid blocking the event loop on synchronous fsync.
+    fsync: bool = True
     saveCover: bool = True
     coverFormat: str = "jpg"
     coverSize: str = "5000x5000"
