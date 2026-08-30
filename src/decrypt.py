@@ -40,13 +40,16 @@ class Decryptor:
     async def get_template(self, adam_id: str, uri: str) -> temari.Temari:
         """Return a cached Temari template handle for (adam_id, uri).
 
-        The prefetch key's template is fetched lazily once and reused globally.
+        The prefetch key's template is the content-independent preshare
+        context (the wrapper only uses the preshare path when ``adamId == "0"``,
+        so we always request it with adam_id ``"0"``). It is fetched once and
+        reused for every song and every fragment.
         """
         if uri == PREFETCH_KEY:
             if self._prefetch is None:
                 async with self._prefetch_lock:
                     if self._prefetch is None:
-                        self._prefetch = await self._load(adam_id, uri)
+                        self._prefetch = await self._load("0", uri)
             return self._prefetch
 
         key = (adam_id, uri)
