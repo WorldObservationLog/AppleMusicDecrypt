@@ -7,29 +7,22 @@ url = "127.0.0.1:8080"
 secure = false
 
 [localInstance]
-# Use qemu to launch wrapper-lite locally.
+# Launch wrapper-lite locally via the wrapper repo's wrapper-lite-qemu launcher.
 # This setting will overwrite instance setting.
 enable = false
-# qemu-system-x86_64 binary ("" = auto-detect from PATH)
-qemuBin = ""
-# Directory with vmlinuz-lite-qemu / lite-initramfs.cpio.gz / data.img.
-# Build them from the wrapper repo: `sudo ./qemu/build.sh`, then copy the three
-# files from wrapper/qemu/ into this directory.
-assetDir = "assets/wrapper-lite-qemu"
+# wrapper-lite-qemu launcher binary ("" = auto-detect from PATH).
+# Build it from the wrapper repo:
+#   c++ -std=c++11 -O2 -o wrapper-lite-qemu wrapper-lite-qemu.cpp
+# and keep its qemu/ asset dir next to the binary.
+launcherBin = ""
 # Host port forwarded to the guest's wrapper-lite HTTP port.
 hostPort = 32767
 guestPort = 8080
-# Use WHPX on Windows and KVM on Linux.
-# For Windows users, run `Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform` to check WHPX.
-# For Linux users, run `sudo kvm-ok` to check KVM.
-enableHardwareAcceleration = false
-# kvm | whpx | hvf | tcg ("" = auto-detect)
+# kvm | whpx | hvf | tcg ("" = auto-detect by the launcher).
+# For Windows WHPX, run `Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform` to check WHPX.
 hardwareAccelerator = ""
 memorySize = "512M"
-# "" = auto (host for kvm, qemu64-v1 for whpx, max for tcg)
-cpuModel = ""
 smp = 2
-showWindow = false
 # Args forwarded to wrapper-lite (one per line); "" = default boot
 # (--host 0.0.0.0 --port 8080 --base-dir /data). Example login:
 # startArgs = "--login user:pass\n--code-from-file"
