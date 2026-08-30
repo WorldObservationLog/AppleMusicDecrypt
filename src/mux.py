@@ -5,6 +5,11 @@ Both input streams are already-decrypted fragmented MP4s (init + moof/mdat
 fragments). The merged output keeps every fragment's moof/tfdt/trun intact
 (only the traf ``tfhd.track_ID`` is renumbered) and interleaves fragments by
 decode time, so no re-encoding is needed.
+
+Two entry points:
+- :func:`mux_mv` — in-memory (small MVs).
+- :func:`mux_mv_streamed` — low-memory mode: fragments live in a
+  :class:`FragmentStore` on disk and the output is written incrementally.
 """
 
 import struct
@@ -12,6 +17,40 @@ import struct
 from src.mp4 import (parse_init, _box_header, _iter_children, patch_moof_track_id,
                      parse_fragment_timing, patch_tkhd_track_id, patch_trex_track_id,
                      patch_mvhd_duration, read_mvhd_timescale_duration, read_trak_timescale)
+
+
+class FragmentStore:
+    """Disk-backed store of renumbered, decrypted MV fragments.
+
+    ``add(kind, fragment_bytes)`` appends the fragment to a temp file and
+    records (decode_time_sec, kind, offset, length). :meth:`iter_sorted`
+    yields the fragments in decode-time order (kind 0 = video first on ties).
+    """
+
+    def __init__(self, temp_path: str):
+        self._path = temp_path
+        self._f = open(temp_path, "w+b")
+        self._entries = []  # (time_sec, kind, offset, length)
+
+    def add(self, kind: int, fragment_bytes: bytes, time_sec: float):
+        off = self._f.tell()
+        self._f.write(fragment_bytes)
+        self._entries.append((time_sec, kind, off, len(fragment_bytes)))
+
+    def iter_sorted(self):
+        for time_sec, kind, off, ln in sorted(self._entries, key=lambda e: (e[0], e[1])):
+            self._f.seek(off)
+            yield time_sec, kind, self._f.read(ln)
+
+    def close(self):
+        self._f.flush()
+        self._f.close()
+
+    def __del__(self):
+        try:
+            self._f.close()
+        except Exception:
+            pass
 
 
 def _top_boxes(data: bytes) -> list[tuple[bytes, int, int]]:
@@ -41,7 +80,6 @@ def _read_tkhd_track_id(trak: bytes) -> int:
 
 
 def _split_moov(moov: bytes):
-    """Split one moov into (mvhd, traks, mvex, rest)."""
     mvhd = None
     traks = []
     mvex = None
@@ -67,41 +105,32 @@ def _box(btype: bytes, payload: bytes) -> bytes:
     return struct.pack(">I4s", 8 + len(payload), btype) + payload
 
 
-def mux_mv(video_init, audio_init,
-           video_frags: list[bytes], audio_frags: list[bytes],
-           video_track_id: int = 1, audio_track_id: int = 2) -> bytes:
-    """Merge decrypted MV video/audio init segments and fragments into one MP4.
-
-    ``video_init`` / ``audio_init`` are ``InitInfo`` from ``parse_init`` (their
-    ``output_init`` must already be transformed/decrypted). ``video_frags`` /
-    ``audio_frags`` are rebuilt fragment byte strings (moof + mdat).
-    """
+def build_container(video_init, audio_init,
+                    video_track_id: int = 1, audio_track_id: int = 2):
+    """Build the merged ftyp + moov and return the info needed to place
+    fragments: ``(ftyp, moov, v_old_id, a_old_id, v_ts_sec, a_ts_sec)``."""
     vtop = _top_boxes(video_init.output_init)
     atop = _top_boxes(audio_init.output_init)
     ftyp = bytes(video_init.output_init[0:vtop[0][2]]) if vtop else b""
-    # locate moov within output_init
     vmoov = next((bytes(video_init.output_init[s:s + sz]) for b, s, sz in vtop if b == b"moov"), b"")
     amoov = next((bytes(audio_init.output_init[s:s + sz]) for b, s, sz in atop if b == b"moov"), b"")
 
     v_mvhd, v_traks, v_mvex, v_rest = _split_moov(vmoov)
     a_mvhd, a_traks, a_mvex, _a_rest = _split_moov(amoov)
     if not v_traks or not a_traks or v_mvhd is None:
-        raise ValueError("mux_mv: need one trak per source and a video mvhd")
+        raise ValueError("mux: need one trak per source and a video mvhd")
 
     v_old_id = _read_tkhd_track_id(v_traks[0])
     a_old_id = _read_tkhd_track_id(a_traks[0])
 
-    # renumber tracks
     trak_v = patch_tkhd_track_id(v_traks[0], video_track_id)
     trak_a = patch_tkhd_track_id(a_traks[0], audio_track_id)
 
-    # mvex: keep video's (renumbered) and append audio's (renumbered)
     mvex = None
     if v_mvex is not None:
         mvex = patch_trex_track_id(v_mvex, v_old_id, video_track_id)
         if a_mvex is not None:
             am = patch_trex_track_id(a_mvex, a_old_id, audio_track_id)
-            # append the audio trex boxes (and any other mvex children) into video mvex
             try:
                 _, msize, mheader, _ = _box_header(am, 0, len(am))
                 children = [bytes(am[c.start:c.end]) for c in _iter_children(am, mheader, msize)]
@@ -111,7 +140,6 @@ def mux_mv(video_init, audio_init,
     elif a_mvex is not None:
         mvex = patch_trex_track_id(a_mvex, a_old_id, audio_track_id)
 
-    # mvhd duration: max of both sources, in the video mvhd timescale
     v_ts, v_dur = read_mvhd_timescale_duration(v_mvhd)
     a_ts, a_dur = read_mvhd_timescale_duration(a_mvhd)
     new_dur = v_dur
@@ -126,24 +154,43 @@ def mux_mv(video_init, audio_init,
         moov_payload += r
     moov = _box(b"moov", moov_payload)
 
-    # fragments: renumber + interleave by decode time
-    entries = []  # (time_sec, kind, fragment)
     v_ts_sec = read_trak_timescale(trak_v) or 90000
     a_ts_sec = read_trak_timescale(trak_a) or 48000
-    for frag in video_frags:
-        _, tfdt = parse_fragment_timing(frag)
-        frag = patch_moof_track_id(frag, v_old_id, video_track_id)
-        t = (tfdt or 0) / v_ts_sec
-        entries.append((t, 0, frag))
-    for frag in audio_frags:
-        _, tfdt = parse_fragment_timing(frag)
-        frag = patch_moof_track_id(frag, a_old_id, audio_track_id)
-        t = (tfdt or 0) / a_ts_sec
-        entries.append((t, 1, frag))
-    entries.sort(key=lambda e: (e[0], e[1]))
+    return ftyp, moov, v_old_id, a_old_id, v_ts_sec, a_ts_sec
 
+
+def fragment_entry(fragment_bytes: bytes, old_id: int, new_id: int,
+                   timescale: int, kind: int):
+    """Renumber a fragment's track ID and return (time_sec, kind, bytes)."""
+    _, tfdt = parse_fragment_timing(fragment_bytes)
+    frag = patch_moof_track_id(fragment_bytes, old_id, new_id)
+    return (tfdt or 0) / timescale, kind, frag
+
+
+def mux_mv(video_init, audio_init,
+           video_frags: list[bytes], audio_frags: list[bytes],
+           video_track_id: int = 1, audio_track_id: int = 2) -> bytes:
+    """In-memory merge (small MVs): returns the whole muxed MP4 as bytes."""
+    ftyp, moov, v_old, a_old, v_ts, a_ts = build_container(
+        video_init, audio_init, video_track_id, audio_track_id)
+    entries = [fragment_entry(f, v_old, video_track_id, v_ts, 0) for f in video_frags]
+    entries += [fragment_entry(f, a_old, audio_track_id, a_ts, 1) for f in audio_frags]
+    entries.sort(key=lambda e: (e[0], e[1]))
     out = bytearray(ftyp)
     out.extend(moov)
     for _, _, frag in entries:
         out.extend(frag)
     return bytes(out)
+
+
+def mux_mv_streamed(video_init, audio_init, store: FragmentStore,
+                    out_path: str, video_track_id: int = 1, audio_track_id: int = 2):
+    """Low-memory merge: read renumbered fragments from a disk ``store`` and
+    write the merged MP4 incrementally to ``out_path``."""
+    ftyp, moov, v_old, a_old, v_ts, a_ts = build_container(
+        video_init, audio_init, video_track_id, audio_track_id)
+    with open(out_path, "wb") as f:
+        f.write(ftyp)
+        f.write(moov)
+        for _, _, frag in store.iter_sorted():
+            f.write(frag)

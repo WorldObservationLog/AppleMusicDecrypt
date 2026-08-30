@@ -6,11 +6,17 @@ encrypted with Widevine ``cbcs``. We download both, decrypt with the Widevine
 content key from the wrapper's ``/license`` (pure-Python AES-CBC cbcs, matched
 byte-for-byte against Bento4 mp4decrypt), then remux them into one MP4 with
 the pure-Python muxer — no MP4Box/ffmpeg needed.
+
+Default keeps fragments in memory (fine for most MVs). With ``[download]
+lowMemory`` the fragments are spilled to a temp file and the muxer streams
+straight to the final ``.part`` file. Segments download concurrently
+(``[mv] segmentConcurrency``) with retries (``[mv] segmentRetries``).
 """
 
 import asyncio
 import os
 import re
+import tempfile
 from pathlib import Path
 from typing import Optional
 from urllib.parse import urljoin
@@ -26,7 +32,7 @@ from src.decrypt import Decryptor
 from src.logger import RipLogger
 from src.measurer import Measurer
 from src.mp4 import (MP4ParseError, parse_init, parse_next_fragment, rebuild_fragment_bytes)
-from src.mux import mux_mv
+from src.mux import (FragmentStore, build_container, fragment_entry, mux_mv, mux_mv_streamed)
 from src.rip import _decrypt_cbcs_sample
 from src.url import URLType, MusicVideo
 from src.wrapper import WrapperClient
@@ -71,7 +77,8 @@ def _select_audio_alternative(master, audio_type: str):
         for a in audio:
             if a.group_id == p:
                 return a
-    return max(audio, key=lambda a: int(re.search(r"(\d+)$", a.group_id or "").group(1)) if re.search(r"(\d+)$", a.group_id or "") else 0)
+    return max(audio, key=lambda a: int(re.search(r"(\d+)$", a.group_id or "").group(1))
+               if re.search(r"(\d+)$", a.group_id or "") else 0)
 
 
 class MVRipper:
@@ -80,51 +87,153 @@ class MVRipper:
         try:
             manifest = await self._fetch_manifest(url)
             attrs = manifest["data"][0]["attributes"]
-            rel = manifest["data"][0].get("relationships", {})
             artist_name = attrs.get("artistName") or ""
             mv_name = attrs.get("name") or url.id
             logger.set_fullname(artist_name, mv_name)
             logger.create()
 
             cfg = it(Config).mv
+            low_memory = it(Config).download.lowMemory
+
             master_url = await it(WrapperClient).webplayback(url.id)
-            master_txt = await it(WebAPI).download_m3u8(master_url)
-            master = m3u8.loads(master_txt, uri=master_url)
+            master = m3u8.loads(await it(WebAPI).download_m3u8(master_url), uri=master_url)
             vv = _select_video_variant(master, cfg.maxHeight)
-            logger.logger.info(f"Selected video: {vv.stream_info.resolution} "
-                               f"({vv.stream_info.bandwidth} bps)")
+            logger.logger.info(f"Selected video: {vv.stream_info.resolution} ({vv.stream_info.bandwidth} bps)")
             audio_alt = _select_audio_alternative(master, cfg.audioType)
             if audio_alt is not None:
                 logger.logger.info(f"Selected audio: {audio_alt.group_id}")
 
             logger.downloading()
-            v_init_data, v_segs, v_key = await self._download_stream(vv.absolute_uri, url.id, logger)
-            a_init_data = a_segs = a_key = None
-            if audio_alt is not None:
-                a_init_data, a_segs, a_key = await self._download_stream(audio_alt.absolute_uri, url.id, logger)
-                if a_key is None:
-                    raise RuntimeError("MV audio stream has no Widevine key")
+            v_txt = await it(WebAPI).download_m3u8(vv.absolute_uri)
+            v_media = m3u8.loads(v_txt, uri=vv.absolute_uri)
+            v_init_url = _find_map_url(v_txt, vv.absolute_uri)
+            v_key = _find_widevine_key(v_media)
             if v_key is None:
                 raise RuntimeError("MV video stream has no Widevine key")
-            if not v_segs:
-                raise RuntimeError("No video fragments downloaded")
+
+            a_media = a_init_url = a_key = None
+            if audio_alt is not None:
+                a_txt = await it(WebAPI).download_m3u8(audio_alt.absolute_uri)
+                a_media = m3u8.loads(a_txt, uri=audio_alt.absolute_uri)
+                a_init_url = _find_map_url(a_txt, audio_alt.absolute_uri)
+                a_key = _find_widevine_key(a_media)
+                if a_key is None:
+                    raise RuntimeError("MV audio stream has no Widevine key")
+
+            timeout = float(it(Config).download.downloadTimeout or 60)
+            async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
+                v_init_data = (await client.get(v_init_url)).content
+                a_init_data = (await client.get(a_init_url)).content if a_init_url else None
 
             logger.decrypting()
             v_content = await it(Decryptor).mv_content_key(url.id, v_key)
             a_content = await it(Decryptor).mv_content_key(url.id, a_key) if a_key else None
 
-            v_init, v_frags = await self._decrypt_stream(v_init_data, v_segs, v_content, logger, "video")
-            if a_content is not None:
-                a_init, a_frags = await self._decrypt_stream(a_init_data, a_segs, a_content, logger, "audio")
-            else:
-                a_init, a_frags = None, []
-            out = mux_mv(v_init, a_init, v_frags, a_frags)
+            v_init, _ = parse_init(v_init_data)
+            a_init, _ = parse_init(a_init_data) if a_init_data else (None, 0)
+            if v_init is None:
+                raise MP4ParseError("MV video init segment did not parse")
+            if a_content is not None and a_init is None:
+                raise MP4ParseError("MV audio init segment did not parse")
 
-            final_path, cover = await self._save(out, mv_name, artist_name, attrs, url)
+            save_dir = Path(cfg.saveDir)
+            save_dir.mkdir(parents=True, exist_ok=True)
+            safe = get_valid_filename(f"{artist_name} - {mv_name}")
+            final_path = save_dir / f"{safe}.m4v"
+            part_path = save_dir / f"{safe}.m4v.part"
+
+            if low_memory:
+                await self._rip_low_memory(logger, v_init, a_init, v_media, a_media,
+                                           v_content, a_content, part_path)
+            else:
+                await self._rip_in_memory(logger, v_init, a_init, v_media, a_media,
+                                          v_content, a_content, part_path)
+
+            final_path, cover = await self._save(part_path, final_path, mv_name, artist_name, attrs)
             logger.saved()
         except Exception as e:
             logger.logger.exception(f"MV download failed: {e}")
             raise
+
+    # ------------------------------------------------------------------ #
+    # download / decrypt / mux
+    # ------------------------------------------------------------------ #
+    async def _download_segment(self, client, url: str, retries: int) -> bytes:
+        for attempt in range(retries + 1):
+            try:
+                return (await client.get(url)).content
+            except httpx.HTTPError:
+                if attempt >= retries:
+                    raise
+                await asyncio.sleep(min(2 ** attempt, 15))
+        raise RuntimeError("segment download failed")
+
+    async def _decrypt_segment(self, seg: bytes, init, content_key):
+        frag, _ = parse_next_fragment(seg, 0, 0)
+        if frag is None:
+            return None
+        ti = list(init.tracks.values())[0]
+        decrypted = []
+        for spec in frag.samples:
+            sample = frag.mdat_payload[spec.offset:spec.offset + spec.length]
+            iv = spec.iv if spec.iv is not None else (ti.constant_iv or b"\x00" * 16)
+            pats = [(p.bytes_of_clear_data, p.bytes_of_protected_data) for p in spec.sub_sample_patterns]
+            decrypted.append(_decrypt_cbcs_sample(sample, iv, content_key, ti, pats))
+            it(Measurer).record_decrypt(len(sample))
+        return rebuild_fragment_bytes(frag, b"".join(decrypted))
+
+    async def _rip_in_memory(self, logger, v_init, a_init, v_media, a_media,
+                             v_content, a_content, part_path):
+        cfg = it(Config).mv
+        timeout = float(it(Config).download.downloadTimeout or 60)
+        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
+            sem = asyncio.Semaphore(cfg.segmentConcurrency)
+
+            async def get(seg):
+                async with sem:
+                    return await self._download_segment(client, seg.absolute_uri, cfg.segmentRetries)
+
+            v_segs = await asyncio.gather(*[get(s) for s in v_media.segments])
+            a_segs = await asyncio.gather(*[get(s) for s in a_media.segments]) if a_media else []
+
+        async def dec(seg, init, key):
+            return await self._decrypt_segment(seg, init, key)
+
+        v_frags = [f for f in (await asyncio.gather(*[dec(s, v_init, v_content) for s in v_segs])) if f]
+        a_frags = [f for f in (await asyncio.gather(*[dec(s, a_init, a_content) for s in a_segs])) if f] if a_content else []
+        if not v_frags:
+            raise RuntimeError("No video fragments downloaded")
+        out = mux_mv(v_init, a_init, v_frags, a_frags)
+        with open(part_path, "wb") as f:
+            f.write(out)
+
+    async def _rip_low_memory(self, logger, v_init, a_init, v_media, a_media,
+                              v_content, a_content, part_path):
+        cfg = it(Config).mv
+        ftyp, moov, v_old, a_old, v_ts, a_ts = build_container(v_init, a_init)
+        with tempfile.TemporaryDirectory() as td:
+            store = FragmentStore(os.path.join(td, "frags.bin"))
+            try:
+                timeout = float(it(Config).download.downloadTimeout or 60)
+                async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
+                    sem = asyncio.Semaphore(cfg.segmentConcurrency)
+
+                    async def process(kind, seg, init, content, old_id, new_id, ts_sec):
+                        async with sem:
+                            data = await self._download_segment(client, seg.absolute_uri, cfg.segmentRetries)
+                        frag = await self._decrypt_segment(data, init, content)
+                        if frag is None:
+                            return
+                        t, _, frag = fragment_entry(frag, old_id, new_id, ts_sec, kind)
+                        store.add(kind, frag, t)
+
+                    tasks = [process(0, s, v_init, v_content, v_old, 1, v_ts) for s in v_media.segments]
+                    if a_content is not None and a_media is not None:
+                        tasks += [process(1, s, a_init, a_content, a_old, 2, a_ts) for s in a_media.segments]
+                    await asyncio.gather(*tasks)
+                mux_mv_streamed(v_init, a_init, store, part_path)
+            finally:
+                store.close()
 
     async def _fetch_manifest(self, url: MusicVideo):
         resp = await it(WebAPI)._request(
@@ -132,52 +241,7 @@ class MVRipper:
             params={"include": "artists,albums", "l": it(Config).region.language})
         return resp.json()
 
-    async def _download_stream(self, media_playlist_url: str, adam_id: str, logger) -> tuple:
-        """Fetch the media playlist, download init + every segment, return the
-        encrypted (init_data, [segment_bytes]) and the Widevine key URI."""
-        txt = await it(WebAPI).download_m3u8(media_playlist_url)
-        media = m3u8.loads(txt, uri=media_playlist_url)
-        init_url = _find_map_url(txt, media_playlist_url)
-        key_uri = _find_widevine_key(media)
-        timeout = float(it(Config).download.downloadTimeout or 60)
-        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-            init_data = (await client.get(init_url)).content
-            segs = []
-            for seg in media.segments:
-                segs.append((await client.get(seg.absolute_uri)).content)
-        return init_data, segs, key_uri
-
-    async def _decrypt_stream(self, init_data, segments, content_key, logger, kind):
-        init, _ = parse_init(init_data)
-        if init is None:
-            raise MP4ParseError(f"MV {kind} init segment did not parse")
-        ti = list(init.tracks.values())[0]
-        frags = []
-        for i, seg in enumerate(segments):
-            frag, _ = parse_next_fragment(seg, 0, i)
-            if frag is None:
-                continue
-            decrypted = []
-            for spec in frag.samples:
-                sample = frag.mdat_payload[spec.offset:spec.offset + spec.length]
-                iv = spec.iv if spec.iv is not None else (ti.constant_iv or b"\x00" * 16)
-                pats = [(p.bytes_of_clear_data, p.bytes_of_protected_data) for p in spec.sub_sample_patterns]
-                decrypted.append(_decrypt_cbcs_sample(sample, iv, content_key, ti, pats))
-                it(Measurer).record_decrypt(len(sample))
-            frags.append(rebuild_fragment_bytes(frag, b"".join(decrypted)))
-            logger.logger.debug(f"{kind} fragment {i + 1}/{len(segments)} decrypted")
-        return init, frags
-
-    async def _save(self, out: bytes, mv_name: str, artist_name: str, attrs, url):
-        cfg = it(Config).mv
-        save_dir = Path(cfg.saveDir)
-        save_dir.mkdir(parents=True, exist_ok=True)
-        safe = get_valid_filename(f"{artist_name} - {mv_name}")
-        final_path = save_dir / f"{safe}.m4v"
-        part_path = save_dir / f"{safe}.m4v.part"
-        part_path.write_bytes(out)
-
-        # metadata
+    async def _save(self, part_path, final_path, mv_name, artist_name, attrs):
         tags = {}
         embed = it(Config).metadata.embedMetadata
         if "title" in embed:
@@ -195,7 +259,6 @@ class MVRipper:
         rtng = {"explicit": 1, "clean": 2}.get(attrs.get("contentRating"), 0)
         if "rtng" in embed:
             tags["rtng"] = (rtng,)
-        # cover
         cover = None
         artwork = attrs.get("artwork") or {}
         if artwork.get("url") and it(Config).download.saveCover:
@@ -212,5 +275,5 @@ class MVRipper:
         mp4.save()
         os.replace(part_path, final_path)
         if cover:
-            (save_dir / f"cover.{it(Config).download.coverFormat}").write_bytes(cover)
+            final_path.parent.joinpath(f"cover.{it(Config).download.coverFormat}").write_bytes(cover)
         return final_path, cover

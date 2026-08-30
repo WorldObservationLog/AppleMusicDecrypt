@@ -12,10 +12,16 @@ from src.types import M3U8Info, ParentDoneHandler
 
 class Status(StrEnum):
     WAITING = "WAITING"
+    PARSING = "PARSING"
     DOWNLOADING = "DOWNLOADING"
     DECRYPTING = "DECRYPTING"
+    SAVING = "SAVING"
     DONE = "DONE"
+    ALREADY_EXIST = "ALREADY_EXIST"
     FAILED = "FAILED"
+
+    def is_terminal(self) -> bool:
+        return self in (Status.DONE, Status.ALREADY_EXIST, Status.FAILED)
 
 
 @dataclass
@@ -31,6 +37,14 @@ class Task:
     # Streaming/decrypt progress (bytes), used by the status toolbar.
     downloaded_bytes: int = 0
     decrypted_bytes: int = 0
+
+    @property
+    def display_name(self) -> str:
+        if self.metadata and self.metadata.artist and self.metadata.title:
+            return f"{self.metadata.artist} - {self.metadata.title}"
+        if self.logger and getattr(self.logger, "full_name", None):
+            return self.logger.full_name
+        return self.adamId
 
     def update_status(self, status: Status):
         self.status = status

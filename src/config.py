@@ -54,7 +54,12 @@ class Download(BaseModel):
     playlistSongNameFormat: str = "{playlistSongIndex:02d}. {artist} - {title}"
     saveLyrics: bool = True
     lyricsFormat: str = "lrc"
+    # Word-timed (karaoke) lyrics: wrapper /lyrics syllable=1 + per-word LRC tags.
+    lyricsSyllable: bool = False
     lyricsExtra: list[str] = ["translation", "pronunciation"]
+    # Low-memory mode: all large files (MV segments, batch audio downloads) are
+    # spilled to disk and the MV muxer streams from disk instead of RAM.
+    lowMemory: bool = False
     saveCover: bool = True
     coverFormat: str = "jpg"
     coverSize: str = "5000x5000"
@@ -77,6 +82,10 @@ class MV(BaseModel):
     maxHeight: int = 1080
     # MV audio rendition: atmos | ac3 | aac
     audioType: str = "atmos"
+    # Concurrent segment downloads per stream (D2).
+    segmentConcurrency: int = 4
+    # Segment download retries (D2).
+    segmentRetries: int = 3
 
 
 class Config(BaseModel):

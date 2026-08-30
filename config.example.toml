@@ -98,8 +98,14 @@ saveLyrics = true
 # lrc or ttml
 # TTML format lyrics will be saved as .ttml suffix
 lyricsFormat = "lrc"
+# Word-timed (karaoke) lyrics: wrapper /lyrics syllable=1 + per-word LRC tags.
+# Songs without word timing fall back to line-level LRC.
+lyricsSyllable = false
 # Only applies to lrc lyrics
 lyricsExtra = ["translation", "pronunciation"]
+# Low-memory mode: all large files (MV segments, batch audio downloads) are
+# spilled to disk; the MV muxer streams straight to the .part file.
+lowMemory = false
 saveCover = true
 coverFormat = "jpg"
 coverSize = "5000x5000"
@@ -131,3 +137,7 @@ saveDir = "downloads/music-videos"
 maxHeight = 1080
 # MV audio rendition: atmos | ac3 | aac
 audioType = "atmos"
+# Concurrent segment downloads per MV stream
+segmentConcurrency = 4
+# Segment download retries
+segmentRetries = 3

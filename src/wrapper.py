@@ -163,12 +163,13 @@ class WrapperClient:
         data = await self.key_template(adam_id, uri)
         return json.dumps(data)
 
-    async def lyrics(self, adam_id: str, language: str, region: str) -> str:
-        # wrapper/lite's /lyrics consumes adamId + language (+ optional
-        # syllable); `region` is kept in the signature for interface
-        # compatibility and is not sent to the server.
+    async def lyrics(self, adam_id: str, language: str, region: str, syllable: bool = False) -> str:
+        # wrapper/lite's /lyrics consumes adamId + language + optional syllable
+        # (1 = word-timed /syllable-lyrics, 0 = standard /lyrics); `region` is
+        # kept in the signature for interface compatibility and not sent.
         data = await self._request(
-            "GET", "/lyrics", params={"adamId": adam_id, "language": language}
+            "GET", "/lyrics",
+            params={"adamId": adam_id, "language": language, "syllable": "1" if syllable else "0"},
         )
         return data["lyrics"]
 

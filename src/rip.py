@@ -68,6 +68,26 @@ class DownloadManager:
 class Ripper:
     def __init__(self):
         self.download_manager = DownloadManager()
+        # Batch m3u8 pre-fetch cache (D3): adam_id -> wrapper m3u8 URL.
+        self._m3u8_cache: dict[str, str] = {}
+
+    async def _prefetch_m3u8s(self, adam_ids: list[str], codec: str):
+        """Prefetch wrapper m3u8 URLs for an album/playlist's tracks so each
+        song's rip does not wait on a serial /m3u8 round-trip."""
+        if codec != Codec.ALAC or not adam_ids:
+            return
+        sem = asyncio.Semaphore(8)
+
+        async def one(adam_id: str):
+            if adam_id in self._m3u8_cache:
+                return
+            async with sem:
+                try:
+                    self._m3u8_cache[adam_id] = await it(WrapperClient).m3u8(adam_id)
+                except Exception:
+                    pass
+
+        await asyncio.gather(*[one(a) for a in adam_ids])
 
     # ------------------------------------------------------------------ #
     # Public entry points
@@ -88,6 +108,7 @@ class Ripper:
             await self.download_manager.register_task(task)
 
             # Fetch metadata
+            task.update_status(Status.PARSING)
             raw_metadata = await it(WebAPI).get_song_info(task.adamId, url.storefront, flags.language)
             album_data = await it(WebAPI).get_album_info(
                 raw_metadata.relationships.albums.data[0].id, url.storefront, flags.language)
@@ -112,14 +133,16 @@ class Ripper:
                                                              it(Config).download.coverSize)
 
             if raw_metadata.attributes.hasTimeSyncedLyrics:
-                task.metadata.lyrics = await it(WrapperClient).lyrics(task.adamId, flags.language, url.storefront)
+                task.metadata.lyrics = await it(WrapperClient).lyrics(
+                    task.adamId, flags.language, url.storefront,
+                    syllable=it(Config).download.lyricsSyllable)
 
             if playlist:
                 task.metadata.set_playlist_index(playlist.songIdIndexMapping.get(url.id))
 
             if not flags.force_save and check_song_exists(task.metadata, codec, playlist):
                 task.logger.already_exist()
-                task.update_status(Status.DONE)
+                task.update_status(Status.ALREADY_EXIST)
                 return
 
             m3u8_url = await self._get_m3u8_url(task, codec, raw_metadata)
@@ -149,11 +172,12 @@ class Ripper:
                 task.metadata.set_bit_depth_and_sample_rate(task.m3u8Info.bit_depth, task.m3u8Info.sample_rate)
                 if not flags.force_save and check_song_exists(task.metadata, codec, playlist):
                     task.logger.already_exist()
-                    task.update_status(Status.DONE)
+                    task.update_status(Status.ALREADY_EXIST)
                     return
 
             task.logger.logger.info("Waiting for available download streams...")
-            if it(Config).download.streamDecrypt:
+            if it(Config).download.streamDecrypt or it(Config).download.lowMemory:
+                # streaming is disk-backed (.part) and low-memory friendly
                 await self._rip_song_stream(task, timeout_sec)
             else:
                 await self._rip_song_batch(task, timeout_sec)
@@ -182,6 +206,9 @@ class Ripper:
             task.logger.audio_not_exist()
             return None
         if codec == Codec.ALAC and raw_metadata.attributes.extendedAssetUrls.enhancedHls:
+            cached = self._m3u8_cache.get(task.adamId)
+            if cached:
+                return cached
             return await it(WrapperClient).m3u8(task.adamId)
         if codec != Codec.AAC_LEGACY:
             return raw_metadata.attributes.extendedAssetUrls.enhancedHls
@@ -334,6 +361,7 @@ class Ripper:
             task.logger.decrypting()
             task.update_status(Status.DECRYPTING)
 
+            task.update_status(Status.SAVING)
             if not raw_atmos:
                 await run_sync(finalize, str(part_path), str(final_path), task.metadata,
                                it(Config).download.coverFormat)
@@ -415,6 +443,7 @@ class Ripper:
                 f.write(bytes(out))
             del out
 
+            task.update_status(Status.SAVING)
             if not raw_atmos:
                 await run_sync(finalize, str(part_path), str(final_path), task.metadata,
                                it(Config).download.coverFormat)
@@ -493,6 +522,7 @@ class Ripper:
                 f.write(bytes(out))
             del out
 
+            task.update_status(Status.SAVING)
             await run_sync(finalize, str(part_path), str(final_path), task.metadata,
                            it(Config).download.coverFormat)
             ok = await run_sync(check_song_integrity, str(final_path), Codec.AAC_LEGACY)
@@ -530,7 +560,9 @@ class Ripper:
                 await parent_done.try_done()
 
         done_handler = ParentDoneHandler(len(album_info.data[0].relationships.tracks.data), on_children_done)
-        for track in album_info.data[0].relationships.tracks.data:
+        tracks = album_info.data[0].relationships.tracks.data
+        safely_create_task(self._prefetch_m3u8s([t.id for t in tracks], codec))
+        for track in tracks:
             song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
             safely_create_task(self.rip_song(song, codec, flags, done_handler))
 
@@ -565,7 +597,9 @@ class Ripper:
             logger.done()
 
         done_handler = ParentDoneHandler(len(playlist_info.data[0].relationships.tracks.data), on_children_done)
-        for track in playlist_info.data[0].relationships.tracks.data:
+        tracks = playlist_info.data[0].relationships.tracks.data
+        safely_create_task(self._prefetch_m3u8s([t.id for t in tracks], codec))
+        for track in tracks:
             song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
             safely_create_task(self.rip_song(song, codec, flags, done_handler, playlist=playlist_info))
 

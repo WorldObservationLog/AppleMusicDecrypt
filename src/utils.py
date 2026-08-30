@@ -83,55 +83,106 @@ def get_digit_from_string(text: str) -> int:
     return int(''.join(filter(str.isdigit, text)))
 
 
+def _ttml_time_to_lrc(time_value: str) -> str:
+    """Convert a TTML begin/end value to ``[mm:ss.xx]`` (or the plain ``mm:ss.xx``
+    inside a tag) text, handling ``h:mm:ss.xxx`` / ``m:ss.xxx`` / ``ss.xxx``."""
+    if time_value.find('.') == -1:
+        time_value += '.000'
+    h = m = s = ms = 0
+    split_time = time_value.split(":")
+    ms_part = split_time[-1].split(".")
+    if len(split_time) == 1:
+        s, ms = get_digit_from_string(ms_part[0]), get_digit_from_string(ms_part[1])
+    elif len(split_time) == 2:
+        m, s, ms = (get_digit_from_string(split_time[0]), get_digit_from_string(ms_part[0]),
+                    get_digit_from_string(ms_part[1]))
+    else:
+        h, m, s, ms = (get_digit_from_string(split_time[0]), get_digit_from_string(split_time[1]),
+                       get_digit_from_string(ms_part[0]), get_digit_from_string(ms_part[1]))
+    total = m + h * 60
+    return f"{str(total).rjust(2, '0')}:{str(s).rjust(2, '0')}.{str(int(ms / 10)).rjust(2, '0')}"
+
+
+def _lyrics_extra_lines(b, item_key: str, timestamp: str) -> list[str]:
+    """Append translation / pronunciation lines for one lyric line."""
+    out = []
+    meta = b.tt.head.metadata.iTunesMetadata if b.tt.head and b.tt.head.metadata else None
+    if not meta:
+        return out
+    if "translation" in it(Config).download.lyricsExtra:
+        trans_type = meta.get("type")
+        for translation in meta.find_all("translation"):
+            if item_key == translation.get("for"):
+                if trans_type == "replacement":
+                    return [f"[{timestamp}]{translation.text}"]
+                out.append(f"[{timestamp}]{translation.text}")
+    if "pronunciation" in it(Config).download.lyricsExtra:
+        for transliteration in meta.find_all("transliteration"):
+            if item_key == transliteration.get("for"):
+                out.append(f"[{timestamp}]{transliteration.text}")
+    return out
+
+
+def ttml_convent_karaoke(ttml: str) -> str:
+    """Convert word-timed (syllable) TTML into karaoke-style LRC.
+
+    Lines that carry per-word ``<span begin end>`` children become
+    ``[line_begin]<word_end>word <word_end>word ...`` (player-highlightable).
+    Lines without word timing fall back to plain ``[begin]text``.
+    """
+    b = BeautifulSoup(ttml, features="xml")
+    lrc_lines = []
+    body = b.tt.body
+    for div in body.children:
+        for item in div.children:
+            if item is None or getattr(item, "get", None) is None:
+                continue
+            line_begin = item.get("begin")
+            if not line_begin:
+                continue
+            line_ts = _ttml_time_to_lrc(line_begin)
+            spans = [c for c in item.children
+                     if getattr(c, "name", None) == "span" and c.get("begin") and c.get("end")]
+            if spans:
+                words = []
+                for child in item.children:
+                    if getattr(child, "name", None) == "span":
+                        if child.get("begin") is None or child.get("end") is None:
+                            continue
+                        word_ts = _ttml_time_to_lrc(child["end"])
+                        text = child.get("text") or child.get_text() or ""
+                        words.append(f"<{word_ts}>{text}")
+                    else:
+                        if words:
+                            words.append(" ")
+                lrc_lines.append(f"[{line_ts}]{''.join(words)}".rstrip())
+            else:
+                lrc_lines.append(f"[{line_ts}]{item.get_text() or ''}")
+            for extra in _lyrics_extra_lines(b, item.get("itunes:key"), line_ts):
+                lrc_lines.append(extra)
+    return "\n".join(lrc_lines)
+
+
 def ttml_convent(ttml: str) -> str:
     if it(Config).download.lyricsFormat == "ttml":
         return ttml
+    if it(Config).download.lyricsSyllable:
+        return ttml_convent_karaoke(ttml)
 
     b = BeautifulSoup(ttml, features="xml")
     lrc_lines = []
 
     for item in b.tt.body.children:
         for lyric in item.children:
-            h, m, s, ms = 0, 0, 0, 0
+            if lyric is None or getattr(lyric, "get", None) is None:
+                continue
             lyric_time: str = lyric.get("begin")
             if not lyric_time:
                 return ""
-                # raise NotTimeSyncedLyricsException
-            if lyric_time.find('.') == -1:
-                lyric_time += '.000'
-            match lyric_time.count(":"):
-                case 0:
-                    split_time = lyric_time.split(".")
-                    s, ms = get_digit_from_string(split_time[0]), get_digit_from_string(split_time[1])
-                case 1:
-                    split_time = lyric_time.split(":")
-                    s_ms = split_time[-1]
-                    del split_time[-1]
-                    split_time.extend(s_ms.split("."))
-                    m, s, ms = (get_digit_from_string(split_time[0]), get_digit_from_string(split_time[1]),
-                                get_digit_from_string(split_time[2]))
-                case 2:
-                    split_time = lyric_time.split(":")
-                    s_ms = split_time[-1]
-                    del split_time[-1]
-                    split_time.extend(s_ms.split("."))
-                    h, m, s, ms = (get_digit_from_string(split_time[0]), get_digit_from_string(split_time[1]),
-                                   get_digit_from_string(split_time[2]), get_digit_from_string(split_time[3]))
-            lrc_lines.append(
-                f"[{str(m + h * 60).rjust(2, '0')}:{str(s).rjust(2, '0')}.{str(int(ms / 10)).rjust(2, '0')}]{lyric.text}")
-            if "translation" in it(Config).download.lyricsExtra and b.tt.head.metadata.iTunesMetadata.translation:
-                trans_type = b.tt.head.metadata.iTunesMetadata.translation.get("type")
-                for translation in b.tt.head.metadata.iTunesMetadata.translation.children:
-                    if lyric.get("itunes:key") == translation.get("for"):
-                        if trans_type == "replacement":
-                            del lrc_lines[-1]
-                        lrc_lines.append(
-                            f"[{str(m + h * 60).rjust(2, '0')}:{str(s).rjust(2, '0')}.{str(int(ms / 10)).rjust(2, '0')}]{translation.text}")
-            if "pronunciation" in it(Config).download.lyricsExtra and b.tt.head.metadata.iTunesMetadata.transliteration:
-                for transliteration in b.tt.head.metadata.iTunesMetadata.transliteration.children:
-                    if lyric.get("itunes:key") == transliteration.get("for"):
-                        lrc_lines.append(
-                            f"[{str(m + h * 60).rjust(2, '0')}:{str(s).rjust(2, '0')}.{str(int(ms / 10)).rjust(2, '0')}]{transliteration.text}")
+            ts = _ttml_time_to_lrc(lyric_time)
+            lrc_lines.append(f"[{ts}]{lyric.text}")
+            for extra in _lyrics_extra_lines(b, lyric.get("itunes:key"), ts):
+                lrc_lines.append(extra)
     return "\n".join(lrc_lines)
 
 
