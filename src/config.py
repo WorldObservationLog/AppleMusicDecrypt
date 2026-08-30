@@ -15,14 +15,25 @@ class Instance(BaseModel):
 
 class LocalInstance(BaseModel):
     enable: bool = False
+    # qemu-system-x86_64 binary ("" = auto-detect from PATH)
+    qemuBin: str = ""
+    # directory with vmlinuz-lite-qemu / lite-initramfs.cpio.gz / data.img
+    # (build them with the wrapper repo's qemu/build.sh; see docs)
+    assetDir: str = "assets/wrapper-lite-qemu"
+    # host port forwarded to the guest's wrapper-lite HTTP port
+    hostPort: int = 32767
+    guestPort: int = 8080
     enableHardwareAcceleration: bool = False
+    # kvm | whpx | hvf | tcg ("" = auto-detect)
     hardwareAccelerator: str = ""
     memorySize: str = "512M"
-    cpuModel: str = "Cascadelake-Server-v5"
+    cpuModel: str = ""          # "" = auto (host for kvm, qemu64-v1 for whpx, max for tcg)
+    smp: int = 2
     showWindow: bool = False
-    startArgs: str = "-host 0.0.0.0 -port 8080 -log-level info"
-    # Optional: override where the wrapper-lite qemu image zip is downloaded from.
-    imageUrl: str = ""
+    # args forwarded to wrapper-lite (one per line); "" = default boot
+    # (--host 0.0.0.0 --port 8080 --base-dir /data). e.g.:
+    #   "--login user:pass\n--code-from-file"
+    startArgs: str = ""
 
 
 class Region(BaseModel):

@@ -42,7 +42,7 @@ class InteractiveShell:
         loop.run_until_complete(run_sync(it(WebAPI).init))
         if it(Config).localInstance.enable:
             loop.run_until_complete(self.localInstance.launch_instance(loop))
-            it(Config).instance.url = "127.0.0.1:32767"
+            it(Config).instance.url = f"127.0.0.1:{it(Config).localInstance.hostPort}"
             it(Config).instance.secure = False
             # First access to WrapperClient reads the (mutated) config.
             loop.run_until_complete(it(WrapperClient).init())

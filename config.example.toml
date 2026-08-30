@@ -10,18 +10,30 @@ secure = false
 # Use qemu to launch wrapper-lite locally.
 # This setting will overwrite instance setting.
 enable = false
-# Use WHPX on Windows and KVM on Linux
-# For Windows users, run `Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform` to check if WHPX enabled
-# For Linux users, run `sudo kvm-ok` to check if KVM supported
+# qemu-system-x86_64 binary ("" = auto-detect from PATH)
+qemuBin = ""
+# Directory with vmlinuz-lite-qemu / lite-initramfs.cpio.gz / data.img.
+# Build them from the wrapper repo: `sudo ./qemu/build.sh`, then copy the three
+# files from wrapper/qemu/ into this directory.
+assetDir = "assets/wrapper-lite-qemu"
+# Host port forwarded to the guest's wrapper-lite HTTP port.
+hostPort = 32767
+guestPort = 8080
+# Use WHPX on Windows and KVM on Linux.
+# For Windows users, run `Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform` to check WHPX.
+# For Linux users, run `sudo kvm-ok` to check KVM.
 enableHardwareAcceleration = false
-# For Windows WHPX, you may have to set hardwareAccelerator to `whpx,kernel-irqchip=off` and cpuModel to `qemu64-v1`
+# kvm | whpx | hvf | tcg ("" = auto-detect)
 hardwareAccelerator = ""
 memorySize = "512M"
-cpuModel = "Cascadelake-Server-v5"
+# "" = auto (host for kvm, qemu64-v1 for whpx, max for tcg)
+cpuModel = ""
+smp = 2
 showWindow = false
-startArgs = "-host 0.0.0.0 -port 8080 -log-level info"
-# Optional: override where the wrapper-lite qemu image zip is downloaded from.
-imageUrl = ""
+# Args forwarded to wrapper-lite (one per line); "" = default boot
+# (--host 0.0.0.0 --port 8080 --base-dir /data). Example login:
+# startArgs = "--login user:pass\n--code-from-file"
+startArgs = ""
 
 [region]
 # The language of song metadata. Influence song title, author and other information.
