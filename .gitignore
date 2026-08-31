@@ -163,4 +163,3 @@ cython_debug/
 config.toml
 .python-version
 .vscode/*
-/extras/telegram_bot/bot_database.db

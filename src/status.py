@@ -1,4 +1,4 @@
-"""Internal task status system (inspired by the v2 ``with_status`` branch).
+"""Internal task status system.
 
 Provides a granular status vocabulary for ripping tasks and a panel renderer
 used by the REPL's ``status`` command to show a live snapshot of every running
