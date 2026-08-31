@@ -1,6 +1,5 @@
-"""HTTP client for the wrapper/lite service (v3).
+"""HTTP client for the wrapper/lite service.
 
-Replaces the old gRPC wrapper-manager client (``src/grpc/``, now deleted).
 Talks to a wrapper/lite instance over its JSON HTTP API:
 
     GET  /m3u8 /key /lyrics /webplayback /status
