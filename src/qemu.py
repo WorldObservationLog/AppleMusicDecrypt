@@ -76,13 +76,21 @@ class QemuInstance:
         env = build_launcher_env(cfg)
         it(GlobalLogger).logger.info(
             f"Launching wrapper-lite via {args[0]} (port {cfg.hostPort} -> {cfg.guestPort})")
+        # Windows: launch qemu in its own console so it cannot share (and
+        # compete for) the interactive console input with the REPL/TUI.
+        # Other platforms: /dev/tty stdin inheritance is prevented with
+        # DEVNULL, which also stops qemu from swallowing keystrokes.
+        creationflags = 0
+        if os.name == "nt":
+            import subprocess as _sp
+            creationflags = _sp.CREATE_NO_WINDOW
+
         self.proc = await asyncio.create_subprocess_exec(
             *args, env=env,
-            # Must NOT inherit the terminal stdin: qemu would compete with
-            # the REPL/TUI for /dev/tty input and swallow keystrokes.
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
+            creationflags=creationflags,
         )
 
         status_url = f"http://127.0.0.1:{cfg.hostPort}/status"
