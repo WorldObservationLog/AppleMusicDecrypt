@@ -114,9 +114,15 @@ class LogView:
         _orig_mouse = self.control.mouse_handler
 
         def _mouse_handler(mouse_event):
-            if (mouse_event.event_type == MouseEventType.MOUSE_UP
-                    and _get_app().layout.current_control != self.control):
-                _get_app().layout.current_control = self.control
+            if mouse_event.event_type == MouseEventType.MOUSE_UP:
+                if _get_app().layout.current_control != self.control:
+                    _get_app().layout.current_control = self.control
+                    return None
+            elif mouse_event.event_type == MouseEventType.SCROLL_DOWN:
+                self.scroll_down(3)
+                return None
+            elif mouse_event.event_type == MouseEventType.SCROLL_UP:
+                self.scroll_up(3)
                 return None
             return _orig_mouse(mouse_event)
 

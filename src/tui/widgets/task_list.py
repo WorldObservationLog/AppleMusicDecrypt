@@ -63,9 +63,15 @@ class TaskListWidget:
         _orig_mouse = self._inner_control.mouse_handler
 
         def _mouse_handler(mouse_event):
-            if (mouse_event.event_type == MouseEventType.MOUSE_UP
-                    and _get_app().layout.current_control != self._inner_control):
-                _get_app().layout.current_control = self._inner_control
+            if mouse_event.event_type == MouseEventType.MOUSE_UP:
+                if _get_app().layout.current_control != self._inner_control:
+                    _get_app().layout.current_control = self._inner_control
+                    return None
+            elif mouse_event.event_type == MouseEventType.SCROLL_DOWN:
+                self.scroll(3)
+                return None
+            elif mouse_event.event_type == MouseEventType.SCROLL_UP:
+                self.scroll(-3)
                 return None
             return _orig_mouse(mouse_event)
 
@@ -89,13 +95,26 @@ class TaskListWidget:
 
     def scroll(self, lines: int) -> None:
         """Scroll the sidebar by *lines* (negative = up)."""
-        total = max(0, len(self._render_lines()) - 1)
+        # Use the FULL (un-clipped) rendered lines as the scroll bound;
+        # _render() applies _scroll_offset, so calling it here would shrink
+        # the bound as we scroll and make up-scrolling impossible.
+        total = max(0, len(self._full_render_lines()) - 1)
         self._scroll_offset = max(0, min(self._scroll_offset + lines, total))
         self._apply_scroll()
 
     def scroll_to_top(self) -> None:
         self._scroll_offset = 0
         self._apply_scroll()
+
+    def _full_render_lines(self) -> list[str]:
+        """Render without applying the scroll offset (for bounds)."""
+        roots = self._tree.snapshot()
+        if not roots:
+            return []
+        out: StyleAndTextTuples = []
+        for node in roots:
+            self._render_node(node, out, depth=0, last=True)
+        return self._lines_from_fragments(out)
 
     def _render_lines(self) -> list[str]:
         frag = self._render()
