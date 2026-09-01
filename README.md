@@ -114,7 +114,7 @@ Tasks are shown as a tree: an album / playlist / artist download creates a paren
 
 # Run
 
-Requirements: Python 3.11+ and Poetry. A wrapper/lite instance (HTTP) is required — logging into Apple Music is done **on the wrapper side** (`lite --login user:pass`), not by this client. Optionally, `localInstance` (qemu) can run wrapper-lite locally (experimental, off by default).
+Requirements: Python 3.11+ and [uv](https://docs.astral.sh/uv/). A wrapper/lite instance (HTTP) is required — logging into Apple Music is done **on the wrapper side** (`lite --login user:pass`), not by this client. Optionally, `localInstance` (qemu) can run wrapper-lite locally (experimental, off by default).
 
 For Android users: [android-deploy.md](/android-deploy.md)
 
@@ -123,9 +123,9 @@ For Windows users: use [the pre-configured version](https://nightly.link/WorldOb
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt.git
 cd AppleMusicDecrypt
 git checkout v3
-poetry install
+uv sync
 cp config.example.toml config.toml
-poetry run python main.py
+uv run python main.py
 ```
 
 Point `[instance]` in `config.toml` at your wrapper-lite instance. The default is `127.0.0.1:8080` (http) for a locally self-hosted wrapper.

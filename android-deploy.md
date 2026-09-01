@@ -12,11 +12,11 @@ pd i debian
 ## Step 2: Deploy AppleMusicDecrypt
 Enter the Debian environment(`pd login debian`)
 ```shell
-apt update && apt install pipx git -y && pipx install poetry && pipx ensurepath && source ~/.bashrc
+apt update && apt install git -y && curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.bashrc
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt
 cd AppleMusicDecrypt
 git checkout v3
-poetry env use /usr/bin/python3 && poetry install
+uv sync
 cp config.example.toml config.toml
 nano config.toml
 ```
@@ -34,13 +34,13 @@ dirPathFormat = "/sdcard/Music/{album_artist}/{album}"
 playlistDirPathFormat = "/sdcard/Music/playlists/{playlistName}"
 ```
 ## Step 4: Run AppleMusicDecrypt
-`poetry run python main.py`
+`uv run python main.py`
 ## Update AppleMusicDecrypt
 ```shell
 pd login debian
 cd AppleMusicDecrypt
 git checkout -f && git pull
-poetry update
+uv sync
 cp config.example.toml config.toml
 nano config.toml
 ```
