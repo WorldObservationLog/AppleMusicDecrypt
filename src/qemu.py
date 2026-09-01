@@ -77,6 +77,9 @@ class QemuInstance:
             f"Launching wrapper-lite via {args[0]} (port {cfg.hostPort} -> {cfg.guestPort})")
         self.proc = await asyncio.create_subprocess_exec(
             *args, env=env,
+            # Must NOT inherit the terminal stdin: qemu would compete with
+            # the REPL/TUI for /dev/tty input and swallow keystrokes.
+            stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
         )
