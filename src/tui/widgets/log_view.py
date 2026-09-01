@@ -103,7 +103,7 @@ class LogView:
         )
         self.window = Window(
             content=self.control,
-            wrap_lines=False,
+            wrap_lines=True,   # long lines wrap instead of being clipped
             allow_scroll_beyond_bottom=False,
         )
 
