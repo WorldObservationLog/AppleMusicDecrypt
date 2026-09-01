@@ -68,9 +68,19 @@ jobs:
           @'
           .\.venv\Scripts\python.exe main.py
           '@ | Out-File -FilePath start.bat -Encoding ASCII
+      - name: Clean build intermediates
+        shell: pwsh
+        run: |
+          # Keep the artifact to what users actually need; the .venv is
+          # recreated by start scripts? No — it ships.  Remove only the
+          # download/cache noise, keep .venv so the package runs offline.
+          Remove-Item -Recurse -Force -ErrorAction SilentlyContinue `
+            "lite-artifact", "lite-artifact.zip"
+
       - name: Upload CLI artifact
         uses: actions/upload-artifact@v4
         with:
           name: AppleMusicDecrypt-Windows
           path: .
           include-hidden-files: true
+          retention-days: 30
