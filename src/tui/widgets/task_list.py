@@ -71,7 +71,7 @@ class TaskListWidget:
     def _render(self) -> StyleAndTextTuples:
         roots = self._tree.snapshot()
         if not roots:
-            return [("log.text", "  (no tasks)\n")]
+            return [("class:log.text", "  (no tasks)\n")]
 
         out: StyleAndTextTuples = []
         for node in roots:
@@ -111,7 +111,7 @@ class TaskListWidget:
         if len(name) > max_name:
             name = name[: max_name - 1] + "…"
 
-        name_style = node.kind_style() if depth == 0 else "task.kind.song"
+        name_style = node.kind_style() if depth == 0 else "class:task.kind.song"
 
         # ── progress / error suffix ───────────────────────────────────────
         suffix_parts: list[str] = []
@@ -128,15 +128,15 @@ class TaskListWidget:
 
         # ── assemble line ─────────────────────────────────────────────────
         if indent:
-            out.append(("task.tree", indent))
+            out.append(("class:task.tree", indent))
         if chevron:
-            out.append(("task.heading", chevron))
+            out.append(("class:task.heading", chevron))
         out.append((icon_style, icon + " "))
         out.append((name_style, name))
 
         if suffix_parts:
             suffix = "  " + " ".join(suffix_parts)
-            style  = "task.error" if status == NodeStatus.FAILED else "task.progress"
+            style  = "class:task.error" if status == NodeStatus.FAILED else "class:task.progress"
             out.append((style, suffix))
 
         out.append(("", "\n"))

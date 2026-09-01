@@ -66,12 +66,12 @@ class NodeStatus(Enum):
 
     def style_class(self) -> str:
         return {
-            NodeStatus.WAITING:  "task.icon.wait",
-            NodeStatus.RUNNING:  "task.icon.run",
-            NodeStatus.DONE:     "task.icon.done",
-            NodeStatus.EXIST:    "task.icon.exist",
-            NodeStatus.FAILED:   "task.icon.fail",
-            NodeStatus.PARTIAL:  "task.icon.fail",
+            NodeStatus.WAITING:  "class:task.icon.wait",
+            NodeStatus.RUNNING:  "class:task.icon.run",
+            NodeStatus.DONE:     "class:task.icon.done",
+            NodeStatus.EXIST:    "class:task.icon.exist",
+            NodeStatus.FAILED:   "class:task.icon.fail",
+            NodeStatus.PARTIAL:  "class:task.icon.fail",
         }[self]
 
 
@@ -161,11 +161,11 @@ class TreeNode:
 
     def kind_style(self) -> str:
         return {
-            NodeKind.ALBUM:    "task.kind.album",
-            NodeKind.PLAYLIST: "task.kind.playlist",
-            NodeKind.ARTIST:   "task.kind.artist",
-            NodeKind.MV:       "task.kind.mv",
-            NodeKind.SONG:     "task.kind.song",
+            NodeKind.ALBUM:    "class:task.kind.album",
+            NodeKind.PLAYLIST: "class:task.kind.playlist",
+            NodeKind.ARTIST:   "class:task.kind.artist",
+            NodeKind.MV:       "class:task.kind.mv",
+            NodeKind.SONG:     "class:task.kind.song",
         }[self.kind]
 
 

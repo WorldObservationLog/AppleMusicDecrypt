@@ -136,7 +136,7 @@ class LogView:
     def _get_text(self) -> StyleAndTextTuples:
         lines = log_sink.get_lines()
         if not lines:
-            return [("log.text", "(no log output yet)\n")]
+            return [("class:log.text", "(no log output yet)\n")]
 
         # Determine the window of lines to show.
         # prompt_toolkit will scroll the Window content automatically;
