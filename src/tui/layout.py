@@ -1,14 +1,25 @@
 """TUI layout definition.
 
-Assembles the four regions into a prompt_toolkit Layout:
+Assembles the four regions into a prompt_toolkit Layout.  Two body modes
+exist and exactly one is rendered at a time:
+
+Wide (>= NARROW_THRESHOLD columns) — the classic split:
 
   ┌─ LOG (focusable, scrollable) ──────┬─ TASKS (sidebar) ─┐
   │                                    │                    │
   ├─ INPUT BAR ────────────────────────┴────────────────────┤
   └─ STATUS BAR ───────────────────────────────────────────-┘
 
-A FloatContainer wraps the whole body so the BatchPanel float and the
-Help float can overlay when active.
+Narrow (< NARROW_THRESHOLD, e.g. phones) — single full-width pane;
+``show_tasks`` (an F2-toggled filter) picks TASKS, otherwise LOG:
+
+  ┌─ TASKS (F2: back to log) ───────────────────────────────┐
+  │                                                         │
+  ├─ INPUT BAR ─────────────────────────────────────────────┤
+  └─ STATUS BAR (compact hints) ───────────────────────────-┘
+
+A FloatContainer wraps the whole body so the BatchPanel float can
+overlay when batch mode is active.
 """
 
 from __future__ import annotations

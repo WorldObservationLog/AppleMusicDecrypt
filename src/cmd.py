@@ -182,12 +182,29 @@ class InteractiveShell:
         it(GlobalLogger).logger.info(
             "Commands:\n"
             "  dl <url...> [-c codec] [-f] [-b] [-l lang] [--include-participate-songs]  Download\n"
-            "  qa <url...> [--invert] [--codec-id] [--codec] [--bitrate] ...             Show quality\n"
-            "  status                                                                     Show wrapper status\n"
-            "  cl                                                                         Clear finished tasks from sidebar\n"
-            "  login / logout                                                             Hint about wrapper-side login\n"
-            "  help                                                                       This help\n"
-            "  exit                                                                       Quit")
+            "     -c codec    alac (default) / ec3 / ac3 / aac / aac-binaural /\n"
+            "                 aac-downmix / aac-legacy\n"
+            "     -f          overwrite existing files\n"
+            "     -b          batch mode: opens the URL input panel\n"
+            "     -l lang     metadata language, e.g. en-US, zh-Hant-HK, ja\n"
+            "  qa <url...> [--invert] [--codec-id] [--codec] [--bitrate] ...   Show quality\n"
+            "  status        wrapper status + available regions\n"
+            "  cl            clear finished tasks from the sidebar\n"
+            "  login/logout  login is handled on the wrapper side\n"
+            "  help          this help\n"
+            "  exit          quit\n"
+            "\n"
+            "Keys:\n"
+            "  Tab         move focus (log pane <-> input bar)\n"
+            "  Up/Down     scroll log (log focused) / command history (input focused)\n"
+            "  End         re-enable log auto-follow after scrolling\n"
+            "  F1          this help\n"
+            "  F2          narrow terminals: toggle LOG <-> TASKS full-width view\n"
+            "  F10/Ctrl+C  quit (press again within 5s when tasks are running)\n"
+            "  Ctrl+D      submit batch panel; Esc cancels it\n"
+            "\n"
+            "Mouse: click a pane to focus it, wheel scrolls. Tasks appear as a tree\n"
+            "in the sidebar (album -> tracks); 'cl' prunes finished ones.")
 
     async def do_clear_tasks(self):
         try:

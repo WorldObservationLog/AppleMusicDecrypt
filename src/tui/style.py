@@ -1,4 +1,12 @@
-"""Centralised prompt_toolkit Style for the TUI."""
+"""Centralised prompt_toolkit Style for the TUI.
+
+Catppuccin-Mocha-derived palette.  Widget code references tokens by
+class name (``"class:task.icon.run"`` etc.); bare tokens in
+formatted-text tuples crash the renderer (parsed as colour specs), so
+always use the ``class:`` prefix.
+
+The catalogue below documents every token and where it is emitted.
+"""
 
 from prompt_toolkit.styles import Style
 

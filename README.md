@@ -21,13 +21,16 @@ local decryption library:
   fMP4 file is parsed, decrypted and re-encapsulated by a pure-Python ISO-BMFF
   module; tags are written with `mutagen`; integrity is verified structurally.
 - **Batch-friendly** — prefetch key template reuse, cached metadata, streaming
-  download with byte-range resume, per-fragment pipelined decryption.
+  download with byte-range resume, per-fragment pipelined decryption, and a
+  shared keep-alive CDN connection pool.
 - **Music videos** — `dl <music-video-url>` downloads the MV: video + audio
   streams are fetched, decrypted with Widevine (pure-Python AES-CBC cbcs,
   verified byte-for-byte against Bento4 mp4decrypt) and remuxed into one MP4
   by the pure-Python muxer — no MP4Box/ffmpeg.
-- The interactive REPL (download / quality / status / batch mode) is kept and
-  improved.
+- **Full-screen TUI** — a responsive terminal interface with a live log pane,
+  a tree-structured task sidebar (album → tracks), a command input with
+  history/completion, a floating batch-URL panel and a status bar. Falls back
+  to stacked single-pane mode on narrow terminals (phones / Termux).
 
 ## Requirements
 
@@ -84,6 +87,56 @@ qa --codec-id https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39L
 qa --invert --codec-id https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-Ympg5s39LRqp
 ```
 
+## The TUI
+
+The whole interface is a full-screen terminal application:
+
+```
+┌ LOG ─────────────────────────────────────┬ TASKS ─────────────────┐
+│ live log output (scrollable, wraps)      │ ▼ 💿 Artist - Album     │
+│                                          │   ├─ 🔄 Song A  4.2MB ⬇│
+│                                          │   └─ ✅ Song B          │
+├──────────────────────────────────────────┴────────────────────────┤
+│ > dl -c alac https://music.apple.com/...                          │
+├───────────────────────────────────────────────────────────────────┤
+│ ⬇ 12.4 MB/s  🔓 9.8 MB/s  tasks 4  JP   [F1]Help [F10]Exit       │
+└───────────────────────────────────────────────────────────────────┘
+```
+
+### Command input
+* `Enter` runs the command (Tab completes; ↑/↓ walk history; Home/End jump).
+* Batch mode (`dl -b`) opens a floating panel — type one URL per line,
+  `Ctrl+D` submits, `Esc` cancels.
+
+### Keys
+| Key | Action |
+|-----|--------|
+| `Tab` | move focus between log pane and input bar |
+| `↑ / ↓ / PgUp / PgDn` | scroll the log (focus on log pane) |
+| `End` | re-enable log auto-follow after scrolling |
+| `F1` | help |
+| `F2` | narrow terminals only: toggle LOG ↔ TASKS full-width panes |
+| `F10` / `Ctrl+C` | exit (press twice when tasks are running) |
+| `Ctrl+D` | submit the batch panel (batch mode) |
+| `Esc` | cancel the batch panel |
+
+Mouse is supported: click a pane to focus it, wheel to scroll.
+
+### Commands
+| Command | Meaning |
+|---------|---------|
+| `dl <url...>` | download songs / albums / playlists / artists / MVs |
+| `qa <url...>` | show available qualities for a URL |
+| `status` | wrapper status + region list |
+| `cl` | clear finished tasks from the sidebar |
+| `exit` | quit |
+
+### Task sidebar
+Tasks are shown as a tree: an album / playlist / artist download creates a
+parent node; each song appears underneath with a live status icon
+(⏳ waiting, 🔄 running, ✅ done, ✔ already existed, ❌ failed, ⚠ some failed)
+and downloaded/decrypted byte counters. Music videos appear as 🎬 nodes.
+
 ## Support Codec
 
 - `alac (audio-alac-stereo)`
@@ -112,6 +165,9 @@ qa --invert --codec-id https://music.apple.com/jp/playlist/bocchi-the-rock/pl.u-
 | `[download] decryptBatchSize` | `256` | Temari stream batch size |
 | `[download] downloadTimeout` | `60` | idle timeout (s) for CDN streaming |
 | `[download] resumeDownload` | `true` | resume interrupted downloads via Range |
+| `[download] parallelNum` | `4` | concurrent song downloads (measured optimum 2-4) |
+| `[download] appleCDNIP` | `""` | pin the CDN host to an IP (e.g. `17.253.85.201`); empty = system DNS |
+| `[mv] maxHeight` | `1080` | maximum music-video resolution |
 
 ## FAQ
 

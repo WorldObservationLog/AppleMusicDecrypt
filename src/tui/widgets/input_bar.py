@@ -2,9 +2,13 @@
 
 A single-line TextArea with:
   • Tab-completion (NestedCompleter, reused from InteractiveShell.completer())
-  • InMemoryHistory (↑/↓ to browse)
-  • Dynamic prefix:  "> " in normal mode, "[BATCH] > " in batch mode
-  • Submission fires a callback (async) on Enter
+  • InMemoryHistory — ↑/↓ walk history (scoped to this buffer in app.py)
+  • Home/End jump to line start/end
+  • Mode-dependent prefix, rendered in a mode-matched window:
+      normal  "> "        (2-column window)
+      batch   "[BATCH] "  (8-column window)
+  • Enter: appends to history, fires the async ``on_submit`` callback
+    and clears the line.
 """
 
 from __future__ import annotations

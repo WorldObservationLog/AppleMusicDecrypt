@@ -1,11 +1,13 @@
 """Batch-mode floating input panel.
 
 Shown as a centred Float overlay when the user activates batch mode
-(``dl -b``).  The user types one URL per line, then presses Ctrl+D or
-clicks the [Submit] hint to commit; Esc cancels.
+(``dl -b``).  The user types one URL per line; ``Ctrl+D`` submits and
+``Esc`` cancels (both bound in ``app.py``, scoped to batch mode).
 
-The panel owns its own multi-line TextArea.  On submit the text is split
-on newlines and each non-empty line is passed to ``on_submit(urls)``.
+On submit the textarea is cleared and each non-empty line is passed to
+``on_submit(urls, cmd_prefix)`` — the prefix is the original command
+(e.g. ``dl -c aac``) captured when batch mode was activated, so every
+URL reuses the same options.
 """
 
 from __future__ import annotations

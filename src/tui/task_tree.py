@@ -7,9 +7,12 @@ Hierarchy
   TreeNode (MV)               ← standalone, no children
   TreeNode (SONG)             ← standalone (direct dl <song-url>)
 
-The ``TaskTree`` singleton (registered with creart) is the single source of
-truth for the task panel.  ``rip.py`` / ``mv.py`` call the small registration
-helpers; the TUI widget reads ``TaskTree.snapshot()`` on every render tick.
+``TaskTree`` (creart singleton, registered in ``main.py``) is the single
+source of truth for the task panel.  ``rip.py`` / ``mv.py`` call the
+registration helpers (wrapped in try/except so the pipeline works without
+the TUI); the widget reads ``TaskTree.snapshot()`` on every render tick
+and leaf names resolve live through ``TreeNode.resolved_name`` so the
+sidebar picks up real song titles once metadata arrives.
 
 Node lifecycle
 --------------

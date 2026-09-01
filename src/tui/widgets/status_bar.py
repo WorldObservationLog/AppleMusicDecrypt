@@ -2,8 +2,12 @@
 
 Renders a single styled line with three zones:
   LEFT  : ⬇ dl-speed  🔓 dec-speed  tasks N
-  CENTRE: wrapper region tags (JP HK TW) - from WrapperClient
-  RIGHT : mode indicator + keyboard hints
+  CENTRE: wrapper region tags (JP HK TW), from the cached
+          ``WrapperClient._last_regions`` (populated by the `status`
+          command); dropped on narrow terminals.
+  RIGHT : mode indicators ([BATCH] / [SCROLL]) + keyboard hints —
+          compact ([F2] Tasks [F10] Exit) when ``is_narrow``, full
+          ([Tab] Focus [F1] Help [F10] Exit) otherwise.
 
 The control is purely read-only (no focus, no cursor).
 """

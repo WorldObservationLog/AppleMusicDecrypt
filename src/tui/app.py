@@ -1,6 +1,6 @@
 """TUI Application — entry point for the interactive interface.
 
-``run_tui(loop)`` is the replacement for ``InteractiveShell.start()``.
+``run_tui(shell)`` is the replacement for ``InteractiveShell.start()``.
 It:
   1. Installs the log sink (redirects GlobalLogger / RipLogger into the deque).
   2. Instantiates all widgets and wires them together.
@@ -8,6 +8,15 @@ It:
   4. Registers all keybindings.
   5. Runs ``app.run_async()`` on the existing asyncio event loop.
   6. Tears down on exit (uninstalls log sink, stops QEMU if needed).
+
+Keybindings
+-----------
+Tab        focus log pane <-> input bar
+Up/Down    scroll log (log focused) / command history (input focused)
+End        log auto-follow after scrolling
+F1         help;  F2  narrow-terminal LOG<->TASKS toggle
+F10/Ctrl+C exit (two-step confirm while tasks run)
+Ctrl+D/Esc submit / cancel the batch panel
 
 Command dispatch is still handled by ``InteractiveShell.command_parser()``;
 this module only owns the UI shell.
