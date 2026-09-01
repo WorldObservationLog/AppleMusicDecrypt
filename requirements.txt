@@ -70,7 +70,7 @@ soupsieve==2.9.2
     # via beautifulsoup4
 tabulate==0.10.0
     # via applemusicdecrypt
-temari==0.3.0
+temari==0.3.1
     # via applemusicdecrypt
 tenacity==9.1.4
     # via applemusicdecrypt

@@ -68,7 +68,7 @@ requires-dist = [
     { name = "pywidevine", specifier = ">=1.9.0" },
     { name = "regex", specifier = ">=2026.2.28" },
     { name = "tabulate", specifier = ">=0.10.0" },
-    { name = "temari", specifier = ">=0.3.0" },
+    { name = "temari", specifier = ">=0.3.1" },
     { name = "tenacity", specifier = ">=9.1.4" },
 ]
 
@@ -976,11 +976,11 @@ wheels = [
 
 [[package]]
 name = "temari"
-version = "0.3.0"
+version = "0.3.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d3/85/1cd5a8a368f328bb290b64571dda2209dd26ca96387cfba9b28afe76cae4/temari-0.3.0.tar.gz", hash = "sha256:219e8bf6c357a7074cf2c966f36f34536df421bbdbfd70e58f5e70b04b5adbaf", size = 1634680, upload-time = "2026-09-01T12:26:37.929Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ce/e0/312a63b2c0b8ca29979825752ed8c111d0d62e29dda6ac15950477daa445/temari-0.3.1.tar.gz", hash = "sha256:b1e8f25a3bc48b7408fc357c8cf1634e5098c34f3e2baf77eac6bbed5de32af2", size = 1634721, upload-time = "2026-09-01T15:18:57.674Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/8e/b1/0c38bbd30c7f64726fc4fe1f85c83899ecbb77b02a8f78cccd537ab8c73a/temari-0.3.0-py3-none-any.whl", hash = "sha256:fefdccdf534d26d2c3108b6d1e3d70ed243a48277339dd8ab632ad9f109501cf", size = 1576653, upload-time = "2026-09-01T12:26:35.662Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/0d/767531430da5011e60ffe74626639cbe1dde23de7c11aa50d65eceb29534/temari-0.3.1-py3-none-any.whl", hash = "sha256:bd2386625d6b519d491192458e53fcc418dc5dd1684a392148364b8c4e74700e", size = 1576720, upload-time = "2026-09-01T15:18:55.976Z" },
 ]
 
 [[package]]
