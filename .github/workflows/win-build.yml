@@ -18,9 +18,48 @@ jobs:
         run: |
           python -m pip install --upgrade pip poetry
           poetry install
+      - name: Bundle wrapper-lite-qemu
+        shell: pwsh
+        run: |
+          # Fetch the latest wrapper-lite-qemu Windows build from the wrapper
+          # repo's build-lite workflow via nightly.link and unpack it into
+          # wrapper-lite-qemu/ so the local-instance mode works out of the box.
+          $dest = "wrapper-lite-qemu"
+          New-Item -ItemType Directory -Force -Path $dest | Out-Null
+
+          $url = "https://nightly.link/WorldObservationLog/wrapper/workflows/build-lite/lite?preview"
+          Write-Host "Downloading wrapper-lite artifact from $url"
+          Invoke-WebRequest -Uri $url -OutFile "lite-artifact.zip" -MaximumRedirection 10
+
+          Expand-Archive -Path "lite-artifact.zip" -DestinationPath "lite-artifact" -Force
+
+          # The artifact may be a zip of zips or a flat dir; find the exe and
+          # the qemu/ asset dir wherever they are and copy them to the bundle
+          # root.
+          $exe = Get-ChildItem -Path "lite-artifact" -Recurse -Filter "wrapper-lite-qemu.exe" | Select-Object -First 1
+          if (-not $exe) { throw "wrapper-lite-qemu.exe not found in artifact" }
+          Copy-Item $exe.FullName -Destination "$dest/wrapper-lite-qemu.exe"
+
+          $qemuDir = Get-ChildItem -Path "lite-artifact" -Recurse -Directory -Filter "qemu" | Select-Object -First 1
+          if ($qemuDir) {
+            Copy-Item $qemuDir.FullName -Destination "$dest/qemu" -Recurse -Force
+          } else {
+            Write-Warning "No qemu/ asset dir found in artifact; continuing with the launcher only."
+          }
+          Get-ChildItem $dest
       - name: Prepare environment and config
+        shell: pwsh
         run: |
           Copy-Item config.example.toml config.toml
+
+          # Point the config at the bundled launcher and enable the local
+          # instance so the package works out of the box (no separate
+          # wrapper install needed).
+          $config = Get-Content config.toml -Raw
+          $config = $config -replace 'launcherBin = ""', 'launcherBin = "wrapper-lite-qemu/wrapper-lite-qemu.exe"'
+          $config = $config -replace 'enable = false', 'enable = true'
+          Set-Content -Path config.toml -Value $config -Encoding UTF8
+
           @'
           .\.venv\Scripts\python.exe main.py
           '@ | Out-File -FilePath start.ps1 -Encoding UTF8
