@@ -55,10 +55,23 @@ class InputBar:
             show_cursor=False,
         )
 
+        # Prefix window width adapts to mode: 2 cols ("> ") in normal mode,
+        # 8 cols ("[BATCH] ") in batch mode.  ConditionalContainer swaps them.
+        from prompt_toolkit.filters import Condition
+        from prompt_toolkit.layout.containers import ConditionalContainer
         self.container = VSplit([
-            Window(content=self._prefix_control,
-                   width=D(preferred=8, max=8),   # widest prefix = "[BATCH] "
-                   style="class:tui.input.prompt"),
+            ConditionalContainer(
+                Window(content=self._prefix_control,
+                       width=D.exact(2),
+                       style="class:tui.input.prompt"),
+                filter=Condition(lambda: not self._is_batch()),
+            ),
+            ConditionalContainer(
+                Window(content=self._prefix_control,
+                       width=D.exact(8),
+                       style="class:tui.input.prompt"),
+                filter=Condition(self._is_batch),
+            ),
             self._textarea,
         ])
 
@@ -68,8 +81,7 @@ class InputBar:
     # ------------------------------------------------------------------ #
 
     def _prefix_text(self) -> StyleAndTextTuples:
-        # Prefixes are left-aligned in an 8-column window; normal mode is
-        # simply "> " (6 trailing columns stay blank while typing).
+        # Each mode's prefix fills its (mode-matched) window exactly.
         if self._is_batch():
             return [("class:tui.input.batch", "[BATCH] ")]
         return [("class:tui.input.prompt", "> ")]
