@@ -364,32 +364,15 @@ class InteractiveShell:
         """
         from prompt_toolkit import PromptSession
         from prompt_toolkit.patch_stdout import patch_stdout
-        from prompt_toolkit.input.defaults import create_input
-
-        # Reset the terminal to a sane state before entering the REPL:
-        # startup network/log code can leave stdin in an inconsistent
-        # termios mode on Termux/proot.  An explicit input object also
-        # prevents prompt_toolkit from silently falling back to DummyInput.
-        try:
-            import termios
-            import sys as _sys
-            fd = _sys.stdin.fileno()
-            termios.tcsetattr(fd, termios.TCSANOW, termios.tcgetattr(fd))
-        except Exception:
-            pass
-        _legacy_input = create_input()
-        it(GlobalLogger).logger.info(f"Legacy REPL input: {type(_legacy_input).__name__}")
 
         # Keep session creation inside patch_stdout exactly like v2: the
-        # stdout proxy must be active before PromptSession captures stdout,
-        # otherwise Termux/proot input can end up detached from the renderer.
+        # stdout proxy must be active before PromptSession captures stdout.
         with patch_stdout():
             session = PromptSession(
                 "> ",
                 bottom_toolbar=self.bottom_toolbar,
                 completer=self.completer(),
                 refresh_interval=1,
-                input=_legacy_input,
             )
             try:
                 while True:
