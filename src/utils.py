@@ -306,7 +306,18 @@ def check_dep():
         import temari
         temari.load()
     except Exception as e:
-        return False, f"temari runtime ({e})"
+        # Help diagnose platform mismatches (e.g. Android vs proot Linux:
+        # the wheel ships both android-arm64 [bionic] and linux-aarch64
+        # [glibc] cdylibs; which one is picked depends on the Python build).
+        try:
+            key = temari._platform_key()
+        except Exception:
+            key = "?"
+        import sys as _sys
+        android = hasattr(_sys, "getandroidapilevel")
+        hint = (f"temari runtime ({e}) [platform key: {key}, "
+                f"android python: {android}]")
+        return False, hint
     return True, None
 
 

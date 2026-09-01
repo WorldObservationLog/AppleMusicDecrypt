@@ -11,29 +11,23 @@ pd i debian
 ```
 ## Step 2: Deploy AppleMusicDecrypt
 Enter the Debian environment(`pd login debian`)
-
-Try uv first (fast):
 ```shell
 apt update && apt install git -y && curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.bashrc
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt
 cd AppleMusicDecrypt
 git checkout v3
 uv sync
-```
-
-> If `uv sync` fails with "built wheel ... is not compatible with the current
-> Python ... on Android aarch64", your uv binary is the Android build and it
-> rejects Linux wheels.  Fall back to pip + venv:
-> ```shell
-> apt install python3-venv python3-pip -y
-> python3 -m venv .venv
-> .venv/bin/pip install -r requirements.txt
-> ```
-
-Then continue:
-```shell
 cp config.example.toml config.toml
 nano config.toml
+```
+
+If `uv sync` fails with "built wheel ... is not compatible with the current
+Python ... on Android aarch64", your uv binary is the Android build and it
+rejects Linux wheels. Fall back to pip + venv:
+```shell
+apt install python3-venv python3-pip -y
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
 ```
 ## Step3: Edit config
 For Android users, some configurations need to be modified.
@@ -55,12 +49,16 @@ uv install:
 
 pip fallback install:
 `.venv/bin/python main.py`
+
+If startup fails with `no libtemari found for this platform`, the error
+includes the detected platform key (e.g. `[platform key: linux-aarch64, ...]`).
+Inside proot Debian it should be `linux-aarch64`; if it differs, set
+`TEMARI_LIB` to the matching library inside
+`site-packages/temari/lib/<key>/libtemari.so`.
 ## Update AppleMusicDecrypt
 ```shell
 pd login debian
 cd AppleMusicDecrypt
 git checkout -f && git pull
-uv sync               # or: .venv/bin/pip install -e .
-cp config.example.toml config.toml
-nano config.toml
+uv sync               # or: .venv/bin/pip install -r requirements.txt
 ```
