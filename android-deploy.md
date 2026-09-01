@@ -50,11 +50,11 @@ uv install:
 pip fallback install:
 `.venv/bin/python main.py`
 
-If startup fails with `no libtemari found for this platform`, the error
-includes the detected platform key (e.g. `[platform key: linux-aarch64, ...]`).
-Inside proot Debian it should be `linux-aarch64`; if it differs, set
-`TEMARI_LIB` to the matching library inside
-`site-packages/temari/lib/<key>/libtemari.so`.
+Inside proot Debian the detected key is `linux-arm64`; the app
+auto-resolves it to the bundled `linux-aarch64` library (a temari 0.3.0
+directory-naming quirk).  If startup still fails with `no libtemari found`,
+set `TEMARI_LIB` to the library inside
+`site-packages/temari/lib/linux-aarch64/libtemari.so`.
 ## Update AppleMusicDecrypt
 ```shell
 pd login debian

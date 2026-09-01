@@ -290,6 +290,49 @@ def convent_mac_timestamp_to_datetime(timestamp: int):
     return d + timedelta(seconds=timestamp)
 
 
+def ensure_temari_library() -> None:
+    """Work around temari's arm64/aarch64 bundle-directory mismatch.
+
+    temari's ``_platform_key()`` normalises ``aarch64`` to ``arm64`` but the
+    wheel ships the cdylibs under ``linux-aarch64`` / ``macos-x86_64``-style
+    directories, so on Linux/macOS ARM machines the bundled library is never
+    found (only x86_64 keys match).  If the default lookup fails, retry with
+    the alternate spelling and export ``TEMARI_LIB`` so every later
+    ``temari.load()`` (decryptor streaming etc.) picks it up.
+    """
+    import os
+    import platform as _platform
+
+    import temari
+
+    if os.environ.get("TEMARI_LIB"):
+        return
+    try:
+        temari.load()
+        return
+    except Exception:
+        pass
+
+    key = temari._platform_key() or ""
+    aliases = []
+    if key.endswith("-arm64"):
+        aliases.append(key[:-6] + "-aarch64")
+    elif key.endswith("-aarch64"):
+        aliases.append(key[:-8] + "-arm64")
+    machine = _platform.machine().lower()
+    for alias in aliases:
+        lib_dir = os.path.join(os.path.dirname(temari.__file__), "lib", alias)
+        if not os.path.isdir(lib_dir):
+            continue
+        name = ("temari.dll" if alias.startswith("windows")
+                else "libtemari.dylib" if alias.startswith("macos")
+                else "libtemari.so")
+        candidate = os.path.join(lib_dir, name)
+        if os.path.exists(candidate):
+            os.environ["TEMARI_LIB"] = candidate
+            return
+
+
 def check_dep():
     """Verify all required Python dependencies (and the bundled Temari cdylib)
     are importable. No external binaries are needed in v3."""
@@ -304,6 +347,7 @@ def check_dep():
             return False, dep
     try:
         import temari
+        ensure_temari_library()
         temari.load()
     except Exception as e:
         # Help diagnose platform mismatches (e.g. Android vs proot Linux:
