@@ -365,13 +365,16 @@ class InteractiveShell:
         from prompt_toolkit import PromptSession
         from prompt_toolkit.patch_stdout import patch_stdout
 
-        session = PromptSession(
-            "> ",
-            bottom_toolbar=self.bottom_toolbar,
-            completer=self.completer(),
-            refresh_interval=1,
-        )
+        # Keep session creation inside patch_stdout exactly like v2: the
+        # stdout proxy must be active before PromptSession captures stdout,
+        # otherwise Termux/proot input can end up detached from the renderer.
         with patch_stdout():
+            session = PromptSession(
+                "> ",
+                bottom_toolbar=self.bottom_toolbar,
+                completer=self.completer(),
+                refresh_interval=1,
+            )
             try:
                 while True:
                     try:
