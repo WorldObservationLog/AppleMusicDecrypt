@@ -57,7 +57,7 @@ class TaskListWidget:
         # Inner Window: height = len(rendered lines); ScrollablePane clips it.
         self._inner_window = Window(
             content=self._inner_control,
-            wrap_lines=False,
+            wrap_lines=True,   # long names wrap instead of being clipped
             dont_extend_width=False,
         )
         # ScrollablePane scrolls without focus.
@@ -106,12 +106,8 @@ class TaskListWidget:
         icon       = status.icon_padded()
         icon_style = status.style_class()
 
-        # ── name (truncate to fit sidebar) ───────────────────────────────
-        prefix_len   = len(indent) + len(chevron) + 2 + 4  # icon(2)+space + kind icon(2)+space
-        max_name     = max(8, SIDEBAR_WIDTH - prefix_len - 1)
+        # ── name (full text; the Window wraps long lines) ────────────────
         name         = node.resolved_name
-        if len(name) > max_name:
-            name = name[: max_name - 1] + "…"
 
         name_style = node.kind_style() if depth == 0 else "class:task.kind.song"
 
