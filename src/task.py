@@ -34,6 +34,9 @@ class Task:
     metadata: Optional[SongMetadata] = None
     logger: Optional[RipLogger] = None
     error: Optional[Exception] = None
+    # TUI task-tree: ID of the parent TreeNode (album / playlist / artist).
+    # Empty string means the task is a top-level (direct single-song dl).
+    group_node_id: str = ""
     # Streaming/decrypt progress (bytes), used by the status toolbar.
     downloaded_bytes: int = 0
     decrypted_bytes: int = 0

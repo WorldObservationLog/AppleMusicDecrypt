@@ -5,9 +5,7 @@ import os
 import sys
 
 from creart import it
-from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import NestedCompleter
-from prompt_toolkit.patch_stdout import patch_stdout
 
 from src.api import WebAPI
 from src.config import Config
@@ -93,6 +91,8 @@ class InteractiveShell:
         subparser.add_parser("logout")
         subparser.add_parser("help")
         subparser.add_parser("exit")
+        subparser.add_parser("cl")
+        subparser.add_parser("clear")
 
         self.batch_mode = False
 
@@ -103,6 +103,8 @@ class InteractiveShell:
         it(WrapperClient).status.cache_invalidate()
         st_resp = await it(WrapperClient).status()
         regions = st_resp.get("regions", []) if isinstance(st_resp, dict) else []
+        # Cache regions for the TUI status bar (non-blocking read).
+        it(WrapperClient)._last_regions = regions  # type: ignore[attr-defined]
         if not regions:
             it(GlobalLogger).logger.error(
                 "The current wrapper instance has no available account. Please log in on the wrapper side "
@@ -171,6 +173,8 @@ class InteractiveShell:
                     it(GlobalLogger).logger.info("Batch mode exited. Returning to normal command mode.")
                 else:
                     await self.confirm_and_exit()
+            case "cl" | "clear":
+                await self.do_clear_tasks()
             case "quality" | "qa":
                 safely_create_task(self.do_quality(args.url, args))
 
@@ -180,9 +184,18 @@ class InteractiveShell:
             "  dl <url...> [-c codec] [-f] [-b] [-l lang] [--include-participate-songs]  Download\n"
             "  qa <url...> [--invert] [--codec-id] [--codec] [--bitrate] ...             Show quality\n"
             "  status                                                                     Show wrapper status\n"
+            "  cl                                                                         Clear finished tasks from sidebar\n"
             "  login / logout                                                             Hint about wrapper-side login\n"
             "  help                                                                       This help\n"
             "  exit                                                                       Quit")
+
+    async def do_clear_tasks(self):
+        try:
+            from src.tui.task_tree import TaskTree
+            removed = it(TaskTree).clear_done()
+            it(GlobalLogger).logger.info(f"Cleared {removed} finished task(s) from the sidebar.")
+        except Exception as e:
+            it(GlobalLogger).logger.warning(f"cl: {e}")
 
     async def do_download(self, raw_urls: list[str], codec: str, force_download: bool, language: str,
                           include: bool = False):
@@ -288,7 +301,9 @@ class InteractiveShell:
             "login": None,
             "logout": None,
             "help": None,
-            "exit": None
+            "exit": None,
+            "cl": None,
+            "clear": None,
         }
         return NestedCompleter.from_nested_dict(mycompleter)
 
@@ -307,23 +322,7 @@ class InteractiveShell:
         self.loop.stop()
         os._exit(0)
 
-    async def handle_command(self):
-        session = PromptSession("> ", bottom_toolbar=self.bottom_toolbar, completer=self.completer(),
-                                refresh_interval=1)
-
-        while True:
-            try:
-                command = await session.prompt_async()
-                if command.strip() == '':
-                    continue
-                await self.command_parser(command)
-            except (EOFError, KeyboardInterrupt):
-                self.handle_exit()
-
     async def start(self):
-        with patch_stdout():
-            try:
-                await self.handle_command()
-            finally:
-                if it(Config).localInstance.enable:
-                    self.localInstance.terminate()
+        """Entry point — delegates to the TUI application."""
+        from src.tui.app import run_tui
+        await run_tui(self)

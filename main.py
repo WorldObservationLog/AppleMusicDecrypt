@@ -16,6 +16,8 @@ from src.decrypt import DecryptorCreator
 add_creator(DecryptorCreator)
 from src.measurer import MeasurerCreator
 add_creator(MeasurerCreator)
+from src.tui.task_tree import TaskTreeCreator
+add_creator(TaskTreeCreator)
 
 from src.cmd import InteractiveShell
 

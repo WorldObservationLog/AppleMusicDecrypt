@@ -96,6 +96,15 @@ class MVRipper:
             mv_name = attrs.get("name") or url.id
             logger.set_fullname(artist_name, mv_name)
             logger.create()
+            # Register MV node in the TUI task tree.
+            try:
+                from creart import it as _it
+                from src.tui.task_tree import TaskTree, NodeStatus
+                _mv_tree = _it(TaskTree)
+                _mv_tree.register_mv(url.id, f"{artist_name} - {mv_name}")
+                _mv_tree.update_mv_status(url.id, NodeStatus.RUNNING)
+            except Exception:
+                _mv_tree = None
 
             cfg = it(Config).mv
             low_memory = it(Config).download.lowMemory
@@ -158,7 +167,20 @@ class MVRipper:
             logger.saved()
         except Exception as e:
             logger.logger.exception(f"MV download failed: {e}")
+            try:
+                from creart import it as _it
+                from src.tui.task_tree import TaskTree, NodeStatus
+                _it(TaskTree).update_mv_status(url.id, NodeStatus.FAILED)
+            except Exception:
+                pass
             raise
+        else:
+            try:
+                from creart import it as _it
+                from src.tui.task_tree import TaskTree, NodeStatus
+                _it(TaskTree).update_mv_status(url.id, NodeStatus.DONE)
+            except Exception:
+                pass
 
     # ------------------------------------------------------------------ #
     # download / decrypt / mux

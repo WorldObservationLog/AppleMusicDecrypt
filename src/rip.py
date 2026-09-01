@@ -162,15 +162,24 @@ class Ripper:
     # ------------------------------------------------------------------ #
     async def rip_song(self, url: Song, codec: str, flags: Flags = Flags(),
                        parent_done: ParentDoneHandler = None, playlist: PlaylistInfo = None,
-                       timeout_sec: int = 0):
+                       timeout_sec: int = 0, group_node_id: str = ""):
         if self.download_manager.get_task(url.id):
             if parent_done:
                 # Already being processed: notify the parent so it does not wait.
                 await parent_done.try_done()
             return
 
-        task = Task(adamId=url.id, parentDone=parent_done, playlist=playlist)
+        task = Task(adamId=url.id, parentDone=parent_done, playlist=playlist,
+                    group_node_id=group_node_id)
         task.logger = RipLogger(URLType.Song, task.adamId)
+        # Register with the TUI task tree (no-op when tree is absent).
+        try:
+            from creart import it as _it
+            from src.tui.task_tree import TaskTree
+            _it(TaskTree).register_song(url.id, task.display_name, task,
+                                        parent_id=group_node_id)
+        except Exception:
+            pass
 
         try:
             await self.download_manager.register_task(task)
@@ -278,14 +287,11 @@ class Ripper:
         if not raw_metadata.attributes.extendedAssetUrls:
             task.logger.audio_not_exist()
             return None
-        if codec == Codec.ALAC and raw_metadata.attributes.extendedAssetUrls.enhancedHls:
-            cached = self._m3u8_cache.get(task.adamId)
-            if cached:
-                return cached
-            return await it(WrapperClient).m3u8(task.adamId)
-        if codec != Codec.AAC_LEGACY:
-            return raw_metadata.attributes.extendedAssetUrls.enhancedHls
-        return None
+        # All FPS codecs (ALAC/EC3/AAC) use the same enhancedHls master; the
+        # wrapper /m3u8 returns a different (device/download) rendition whose
+        # per-song key is the generic c6 key rather than the codec-specific
+        # c23/c24/c22 key, so we prefer enhancedHls from the web API.
+        return raw_metadata.attributes.extendedAssetUrls.enhancedHls
 
     # ------------------------------------------------------------------ #
     # Streaming (边下边解) pipeline
@@ -293,87 +299,56 @@ class Ripper:
     async def _rip_song_stream(self, task: Task, timeout_sec: int = 0):
         local_codec = get_codec_from_codec_id(task.m3u8Info.codec_id)
         raw_atmos = if_raw_atmos(local_codec, it(Config).download.atmosConventToM4a)
-        key_uri = task.m3u8Info.keys[0] if task.m3u8Info.keys else PREFETCH_KEY
-
+        segment_keys = task.m3u8Info.segment_keys
         final_path, part_path = prepare_paths(local_codec, task.metadata, task.playlist)
 
+        def key_for(seq: int) -> str:
+            if seq < len(segment_keys):
+                return segment_keys[seq]
+            return PREFETCH_KEY
+
         async def _phase():
-            stream = await it(Decryptor).stream(task.adamId, key_uri)
             out_file = open(part_path, "wb")
-            moofs = {}
-            pending = collections.deque()
-            sample_queue = asyncio.Queue(maxsize=2048)
-            spec_queue = asyncio.Queue()
-            init_written = False
+            current = {"seq": None, "moof": None, "samples": []}
+            done = collections.deque()  # (seq, moof, samples, key_uri)
 
-            async def submitter():
-                while True:
-                    item = await sample_queue.get()
-                    if item is None:
-                        break
-                    _, _, data = item
-                    await asyncio.to_thread(stream.submit, data)
-                    await spec_queue.put((item[0], item[1]))
+            def on_init(init):
+                if raw_atmos:
+                    return
+                creation = mac_epoch_to_datetime(init.creation_time) if init.creation_time is not None else None
+                modification = mac_epoch_to_datetime(init.modification_time) if init.modification_time is not None else None
+                out_file.write(patch_mvhd_times(init.output_init, creation, modification))
 
-            def flush(seq: int, payload: bytes):
+            def on_fragment_moof(seq, rebuilt_moof):
+                if current["moof"] is not None:
+                    done.append((current["seq"], current["moof"], current["samples"],
+                                 key_for(current["seq"])))
+                current["seq"] = seq
+                current["moof"] = rebuilt_moof
+                current["samples"] = []
+
+            def on_sample(seq, spec, data):
+                current["samples"].append(data)
+
+            parser = StreamingMP4Parser(on_init=on_init, on_fragment_moof=on_fragment_moof,
+                                        on_sample=on_sample)
+
+            async def flush_one(seq, moof, samples, key_uri):
+                template = await it(Decryptor).get_template(task.adamId, key_uri)
+                plains = template.decrypt_par(samples)
+                for p in plains:
+                    it(Measurer).record_decrypt(len(p))
+                    task.decrypted_bytes += len(p)
+                payload = b"".join(plains)
                 if raw_atmos:
                     out_file.write(payload)
                 else:
-                    out_file.write(moofs[seq])
-                    # Re-emit the mdat box header (32-bit, or 64-bit when huge)
-                    # so the file stays a valid fragmented MP4.
+                    out_file.write(moof)
                     if len(payload) + 8 < 0xFFFFFFFF:
                         out_file.write(struct.pack(">I4s", 8 + len(payload), b"mdat"))
                     else:
                         out_file.write(struct.pack(">I4sQ", 1, b"mdat", 16 + len(payload)))
                     out_file.write(payload)
-
-            async def consumer():
-                current_seq = None
-                buf = bytearray()
-                try:
-                    async for plain in stream.aiter():
-                        seq, spec = await spec_queue.get()
-                        if current_seq is None:
-                            current_seq = seq
-                            buf = bytearray()
-                        if seq != current_seq:
-                            flush(current_seq, bytes(buf))
-                            current_seq = seq
-                            buf = bytearray()
-                        buf.extend(plain)
-                        it(Measurer).record_decrypt(len(plain))
-                        task.decrypted_bytes += len(plain)
-                    if current_seq is not None:
-                        flush(current_seq, bytes(buf))
-                except Exception:
-                    raise
-
-            def on_init(init):
-                nonlocal init_written
-                if raw_atmos:
-                    init_written = True
-                    return
-                creation = mac_epoch_to_datetime(init.creation_time) if init.creation_time is not None else None
-                modification = mac_epoch_to_datetime(init.modification_time) if init.modification_time is not None else None
-                out_file.write(patch_mvhd_times(init.output_init, creation, modification))
-                init_written = True
-
-            def on_fragment_moof(seq, rebuilt_moof):
-                moofs[seq] = rebuilt_moof
-
-            def on_sample(seq, spec, data):
-                pending.append((seq, spec, data))
-
-            parser = StreamingMP4Parser(on_init=on_init, on_fragment_moof=on_fragment_moof,
-                                        on_sample=on_sample)
-
-            submitter_task = asyncio.create_task(submitter())
-            consumer_task = asyncio.create_task(consumer())
-
-            async def drain_pending():
-                while pending:
-                    await sample_queue.put(pending.popleft())
 
             try:
                 task.logger.downloading()
@@ -395,9 +370,14 @@ class Ripper:
                         async for chunk in it(WebAPI).stream_song(url, resume_from=resume_from,
                                                                   extra_headers=headers):
                             parser.feed(chunk)
-                            await drain_pending()
+                            while done:
+                                await flush_one(*done.popleft())
                         parser.finish()
-                        await drain_pending()
+                        if current["moof"] is not None:
+                            done.append((current["seq"], current["moof"], current["samples"],
+                                         key_for(current["seq"])))
+                        while done:
+                            await flush_one(*done.popleft())
                         break
                     except (httpx.HTTPError, ssl.SSLError, MP4ParseError, asyncio.TimeoutError) as e:
                         if not it(Config).download.resumeDownload or attempts >= max_attempts:
@@ -406,31 +386,16 @@ class Ripper:
                         resume_from = parser.next_box_offset
                         task.logger.logger.warning(
                             f"Download interrupted ({e.__class__.__name__}), resuming from offset {resume_from}")
+                        # Re-download from a box boundary; drop any partial fragment.
+                        current["moof"] = None
+                        current["samples"] = []
                         await asyncio.sleep(min(2 ** attempts, 30))
 
-                # Finish streaming
-                await sample_queue.put(None)
-                await submitter_task
-                await asyncio.to_thread(stream.finish)
-                await consumer_task
                 out_file.flush()
                 if it(Config).download.fsync:
                     await asyncio.to_thread(os.fsync, out_file.fileno())
             finally:
-                # Ensure background tasks terminate even on failure paths.
-                try:
-                    sample_queue.put_nowait(None)
-                except (asyncio.QueueFull, RuntimeError):
-                    pass
-                for t in (submitter_task, consumer_task):
-                    if not t.done():
-                        t.cancel()
-                await asyncio.gather(submitter_task, consumer_task, return_exceptions=True)
                 out_file.close()
-                try:
-                    stream.close()
-                except Exception:
-                    pass
 
             task.logger.decrypting()
             task.update_status(Status.DECRYPTING)
@@ -470,8 +435,13 @@ class Ripper:
     async def _rip_song_batch(self, task: Task, timeout_sec: int = 0):
         local_codec = get_codec_from_codec_id(task.m3u8Info.codec_id)
         raw_atmos = if_raw_atmos(local_codec, it(Config).download.atmosConventToM4a)
-        key_uri = task.m3u8Info.keys[0] if task.m3u8Info.keys else PREFETCH_KEY
+        segment_keys = task.m3u8Info.segment_keys
         final_path, part_path = prepare_paths(local_codec, task.metadata, task.playlist)
+
+        def key_for(seq: int) -> str:
+            if seq < len(segment_keys):
+                return segment_keys[seq]
+            return PREFETCH_KEY
 
         async def _phase():
             task.logger.downloading()
@@ -486,7 +456,6 @@ class Ripper:
 
             task.logger.decrypting()
             task.update_status(Status.DECRYPTING)
-            template = await it(Decryptor).get_template(task.adamId, key_uri)
             init, off = parse_init(bytes(raw_song))
             if init is None:
                 raise MP4ParseError("No init segment found")
@@ -500,6 +469,7 @@ class Ripper:
                 frag, off = parse_next_fragment(bytes(raw_song), off, seq)
                 if frag is None:
                     break
+                template = await it(Decryptor).get_template(task.adamId, key_for(seq))
                 decrypted = []
                 for spec in frag.samples:
                     payload = frag.mdat_payload[spec.offset:spec.offset + spec.length]
@@ -622,11 +592,21 @@ class Ripper:
     async def rip_album(self, url: Album, codec: str, flags: Flags = Flags(), parent_done: ParentDoneHandler = None):
         album_info = await self._get_album_info_cached(url.id, url.storefront, flags.language)
         logger = RipLogger(url.type, url.id)
-        logger.set_fullname(album_info.data[0].attributes.artistName, album_info.data[0].attributes.name)
+        album_name  = album_info.data[0].attributes.name
+        artist_name = album_info.data[0].attributes.artistName
+        logger.set_fullname(artist_name, album_name)
         logger.create()
         if not await check_album_existence(url.id, url.storefront):
             logger.not_exist()
             return
+        # Register album group node in the TUI task tree.
+        try:
+            from creart import it as _it
+            from src.tui.task_tree import TaskTree, NodeKind
+            _it(TaskTree).register_group(url.id, NodeKind.ALBUM,
+                                         f"{artist_name} - {album_name}")
+        except Exception:
+            pass
 
         async def on_children_done():
             logger.done()
@@ -638,13 +618,22 @@ class Ripper:
         safely_create_task(self._prefetch_batch([t.id for t in tracks], url.storefront, codec, flags.language))
         for track in tracks:
             song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
-            safely_create_task(self.rip_song(song, codec, flags, done_handler))
+            safely_create_task(self.rip_song(song, codec, flags, done_handler,
+                                             group_node_id=url.id))
 
     async def rip_artist(self, url: Album, codec: str, flags: Flags = Flags()):
         artist_info = await it(WebAPI).get_artist_info(url.id, url.storefront, flags.language)
         logger = RipLogger(url.type, url.id)
-        logger.set_fullname(artist_info.data[0].attributes.name)
+        artist_name = artist_info.data[0].attributes.name
+        logger.set_fullname(artist_name)
         logger.create()
+        # Register artist group node in the TUI task tree.
+        try:
+            from creart import it as _it
+            from src.tui.task_tree import TaskTree, NodeKind
+            _it(TaskTree).register_group(url.id, NodeKind.ARTIST, artist_name)
+        except Exception:
+            pass
 
         async def on_children_done():
             logger.done()
@@ -653,7 +642,8 @@ class Ripper:
             songs = await it(WebAPI).get_songs_from_artist(url.id, url.storefront, flags.language)
             done_handler = ParentDoneHandler(len(songs), on_children_done)
             for song_url in songs:
-                safely_create_task(self.rip_song(Song.parse_url(song_url), codec, flags, done_handler))
+                safely_create_task(self.rip_song(Song.parse_url(song_url), codec, flags,
+                                                 done_handler, group_node_id=url.id))
         else:
             albums = await it(WebAPI).get_albums_from_artist(url.id, url.storefront, flags.language)
             done_handler = ParentDoneHandler(len(albums), on_children_done)
@@ -664,8 +654,18 @@ class Ripper:
         playlist_info = await it(WebAPI).get_playlist_info_and_tracks(url.id, url.storefront, flags.language)
         playlist_info = playlist_write_song_index(playlist_info)
         logger = RipLogger(url.type, url.id)
-        logger.set_fullname(playlist_info.data[0].attributes.curatorName, playlist_info.data[0].attributes.name)
+        pl_name = playlist_info.data[0].attributes.name
+        curator = playlist_info.data[0].attributes.curatorName
+        logger.set_fullname(curator, pl_name)
         logger.create()
+        # Register playlist group node in the TUI task tree.
+        try:
+            from creart import it as _it
+            from src.tui.task_tree import TaskTree, NodeKind
+            _it(TaskTree).register_group(url.id, NodeKind.PLAYLIST,
+                                         f"{curator} - {pl_name}")
+        except Exception:
+            pass
 
         async def on_children_done():
             logger.done()
@@ -675,7 +675,9 @@ class Ripper:
         safely_create_task(self._prefetch_batch([t.id for t in tracks], url.storefront, codec, flags.language))
         for track in tracks:
             song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
-            safely_create_task(self.rip_song(song, codec, flags, done_handler, playlist=playlist_info))
+            safely_create_task(self.rip_song(song, codec, flags, done_handler,
+                                             playlist=playlist_info,
+                                             group_node_id=url.id))
 
 
 # ---------------------------------------------------------------------- #
