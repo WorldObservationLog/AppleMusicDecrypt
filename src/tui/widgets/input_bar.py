@@ -57,7 +57,7 @@ class InputBar:
 
         self.container = VSplit([
             Window(content=self._prefix_control,
-                   width=D.exact(11),   # "[BATCH] > " = 10 chars + 1 pad
+                   width=D(preferred=10, max=10),   # len("[BATCH] > ")
                    style="class:tui.input.prompt"),
             self._textarea,
         ])
@@ -68,9 +68,10 @@ class InputBar:
     # ------------------------------------------------------------------ #
 
     def _prefix_text(self) -> StyleAndTextTuples:
+        # Both modes render exactly 10 columns; no trailing padding spaces.
         if self._is_batch():
             return [("class:tui.input.batch", "[BATCH] > ")]
-        return [("class:tui.input.prompt", ">          ")]
+        return [("class:tui.input.prompt", "  dl      >")]
 
     def _on_accept(self, buf: Buffer) -> bool:
         text = buf.text.strip()

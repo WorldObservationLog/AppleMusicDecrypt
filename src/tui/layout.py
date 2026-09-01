@@ -45,12 +45,17 @@ def build_layout(
         Frame(
             body=log_view.window,
             title=" LOG ",
+            width=D(weight=7),
             style="class:frame.border",
         ),
         Frame(
             body=task_list.pane,
             title=" TASKS ",
-            width=D(preferred=SIDEBAR_WIDTH + 4, max=SIDEBAR_WIDTH + 4),
+            # Grow with content: preferred 52+4, never wider than 45% of
+            # the screen so the log pane keeps room on small terminals.
+            width=D(preferred=SIDEBAR_WIDTH + 4,
+                    max=SIDEBAR_WIDTH + 4,
+                    weight=3),
             style="class:frame.border",
         ),
     ])

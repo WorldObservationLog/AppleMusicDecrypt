@@ -56,12 +56,12 @@ class NodeStatus(Enum):
 
     def icon(self) -> str:
         return {
-            NodeStatus.WAITING:  "⏸",
-            NodeStatus.RUNNING:  "▶",
-            NodeStatus.DONE:     "✓",
-            NodeStatus.EXIST:    "✓",
-            NodeStatus.FAILED:   "✗",
-            NodeStatus.PARTIAL:  "!",
+            NodeStatus.WAITING:  "..",
+            NodeStatus.RUNNING:  ">>",
+            NodeStatus.DONE:     "ok",
+            NodeStatus.EXIST:    "ok",
+            NodeStatus.FAILED:   "XX",
+            NodeStatus.PARTIAL:  "!!",
         }[self]
 
     def style_class(self) -> str:
@@ -146,17 +146,27 @@ class TreeNode:
             return self.task.error
         return None
 
+    @property
+    def resolved_name(self) -> str:
+        """Live display name.  Leaf nodes re-read Task.display_name so the
+        sidebar picks up the real song title once metadata arrives (the
+        initial register happens before metadata is fetched, when the name
+        would still be the adam ID)."""
+        if self.task is not None:
+            return self.task.display_name
+        return self.display_name
+
     # ------------------------------------------------------------------ #
     # Kind helpers
     # ------------------------------------------------------------------ #
 
     def kind_icon(self) -> str:
         return {
-            NodeKind.ALBUM:    "💿",
-            NodeKind.PLAYLIST: "📋",
-            NodeKind.ARTIST:   "🎤",
-            NodeKind.MV:       "🎬",
-            NodeKind.SONG:     "🎵",
+            NodeKind.ALBUM:    "[ALB]",
+            NodeKind.PLAYLIST: "[PLS]",
+            NodeKind.ARTIST:   "[ART]",
+            NodeKind.MV:       "[MV] ",
+            NodeKind.SONG:     "     ",
         }[self.kind]
 
     def kind_style(self) -> str:

@@ -7,14 +7,14 @@ prompt_toolkit renders inside a ``ScrollablePane``.
 
 Tree chrome
 -----------
-  ▼ 💿  Album Name                   ← collapsed with ▶
-    ├─ ▶  Artist - Song A  4.2MB ↓
-    ├─ ✓  Artist - Song B
-    └─ ✗  Artist - Song C  ERR: …
+  [-] [ALB] Album Name
+      ├─ >> Artist - Song A  dl 4.2MB
+      ├─ ok Artist - Song B
+      └─ XX Artist - Song C  ERR:...
 
 Scroll
 ------
-Alt+↑ / Alt+↓ scroll the sidebar independently of the log pane.
+The pane scrolls independently of the log pane.
 The sidebar never receives keyboard focus (no Tab stop).
 """
 
@@ -29,7 +29,9 @@ from prompt_toolkit.layout.dimension import Dimension as D
 from src.tui.task_tree import TaskTree, TreeNode, NodeKind, NodeStatus
 
 # Column width reserved for the sidebar (set in layout.py via preferred).
-SIDEBAR_WIDTH = 32
+# Preferred sidebar width. The layout gives it up to 45% of the screen
+# width (preferred 52), so long artist - title lines are not clipped.
+SIDEBAR_WIDTH = 52
 
 
 def _fmt_bytes(n: int) -> str:
@@ -58,7 +60,7 @@ class TaskListWidget:
             wrap_lines=False,
             dont_extend_width=False,
         )
-        # ScrollablePane lets Alt+↑/↓ scroll without focus.
+        # ScrollablePane scrolls without focus.
         self.pane = ScrollablePane(
             content=self._inner_window,
             show_scrollbar=True,
@@ -96,7 +98,7 @@ class TaskListWidget:
 
         # ── expand / collapse chevron (parent nodes only) ────────────────
         if node.children:
-            chevron = "▼ " if node.expanded else "▶ "
+            chevron = "[-] " if node.expanded else "[+] "
         else:
             chevron = ""
 
@@ -107,9 +109,9 @@ class TaskListWidget:
         # ── name (truncate to fit sidebar) ───────────────────────────────
         prefix_len   = len(indent) + len(chevron) + 2   # icon + space
         max_name     = max(8, SIDEBAR_WIDTH - prefix_len - 1)
-        name         = node.display_name
+        name         = node.resolved_name
         if len(name) > max_name:
-            name = name[: max_name - 1] + "…"
+            name = name[: max_name - 1] + "~"
 
         name_style = node.kind_style() if depth == 0 else "class:task.kind.song"
 
@@ -119,9 +121,9 @@ class TaskListWidget:
             dl  = node.downloaded_bytes
             dec = node.decrypted_bytes
             if dl:
-                suffix_parts.append(f"{_fmt_bytes(dl)}↓")
+                suffix_parts.append(f"dl {_fmt_bytes(dl)}")
             if dec:
-                suffix_parts.append(f"{_fmt_bytes(dec)}🔓")
+                suffix_parts.append(f"dec {_fmt_bytes(dec)}")
         elif status == NodeStatus.FAILED and node.error:
             err = str(node.error)[:18]
             suffix_parts.append(f"ERR:{err}")
@@ -132,6 +134,8 @@ class TaskListWidget:
         if chevron:
             out.append(("class:task.heading", chevron))
         out.append((icon_style, icon + " "))
+        if depth == 0 and node.kind is not NodeKind.SONG:
+            out.append((node.kind_style(), node.kind_icon() + " "))
         out.append((name_style, name))
 
         if suffix_parts:
