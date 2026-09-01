@@ -23,8 +23,8 @@ jobs:
         run: |
           # Fetch the latest wrapper-lite-qemu Windows build from the wrapper
           # repo's build-lite workflow via nightly.link and unpack it into
-          # wrapper-lite-qemu/ so the local-instance mode works out of the box.
-          $dest = "wrapper-lite-qemu"
+          # qemu/ so the local-instance mode works out of the box.
+          $dest = "qemu"
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
           $url = "https://nightly.link/WorldObservationLog/wrapper/workflows/build-lite/lite?preview"
@@ -39,6 +39,8 @@ jobs:
           $exe = Get-ChildItem -Path "lite-artifact" -Recurse -Filter "wrapper-lite-qemu.exe" | Select-Object -First 1
           if (-not $exe) { throw "wrapper-lite-qemu.exe not found in artifact" }
           Copy-Item $exe.FullName -Destination "$dest/wrapper-lite-qemu.exe"
+          # Ship the interactive login helper next to the launcher.
+          Copy-Item "qemu/login.py" -Destination "$dest/login.py"
 
           $qemuDir = Get-ChildItem -Path "lite-artifact" -Recurse -Directory -Filter "qemu" | Select-Object -First 1
           if ($qemuDir) {
@@ -56,7 +58,7 @@ jobs:
           # instance so the package works out of the box (no separate
           # wrapper install needed).
           $config = Get-Content config.toml -Raw
-          $config = $config -replace 'launcherBin = ""', 'launcherBin = "wrapper-lite-qemu/wrapper-lite-qemu.exe"'
+          $config = $config -replace 'launcherBin = ""', 'launcherBin = "qemu/wrapper-lite-qemu.exe"'
           $config = $config -replace 'enable = false', 'enable = true'
           Set-Content -Path config.toml -Value $config -Encoding UTF8
 

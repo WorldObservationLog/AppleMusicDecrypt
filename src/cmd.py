@@ -44,11 +44,15 @@ class InteractiveShell:
             it(Config).instance.secure = False
             # First access to WrapperClient reads the (mutated) config.
             loop.run_until_complete(it(WrapperClient).init())
-            while True:
-                it(WrapperClient).status.cache_invalidate()
-                if loop.run_until_complete(it(WrapperClient).status()).get("regions"):
-                    break
-                loop.run_until_complete(asyncio.sleep(3))
+            it(WrapperClient).status.cache_invalidate()
+            if not loop.run_until_complete(it(WrapperClient).status()).get("regions"):
+                # No account logged in on the wrapper side: the app cannot
+                # rip anything.  Point the user at qemu/login.py and exit.
+                it(GlobalLogger).logger.error(
+                    "No Apple account is logged in on the wrapper instance.\n"
+                    "Run  python qemu/login.py  to log in, then start the app again.")
+                loop.run_until_complete(self.localInstance.terminate())
+                sys.exit(1)
         else:
             loop.run_until_complete(it(WrapperClient).init())
 
