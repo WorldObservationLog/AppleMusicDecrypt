@@ -122,8 +122,12 @@ class TreeNode:
         if any(s == NodeStatus.RUNNING  for s in statuses):
             return NodeStatus.RUNNING
         if all(s in (NodeStatus.DONE, NodeStatus.EXIST) for s in statuses):
+            # Auto-collapse finished groups: once every child is terminal,
+            # the group folds to a single summary line.
+            self.expanded = False
             return NodeStatus.DONE
         if all(s.is_terminal() for s in statuses):
+            self.expanded = False
             return NodeStatus.PARTIAL if any(
                 s == NodeStatus.FAILED for s in statuses) else NodeStatus.DONE
         return NodeStatus.WAITING
@@ -257,7 +261,7 @@ class TaskTree:
         if node_id in self._by_id:
             return self._by_id[node_id]
         node = TreeNode(node_id=node_id, kind=kind, display_name=display_name)
-        self._roots.append(node)
+        self._roots.insert(0, node)   # newest group on top
         self._by_id[node_id] = node
         return node
 
@@ -283,7 +287,7 @@ class TaskTree:
         if parent_id and parent_id in self._by_id:
             self._by_id[parent_id].children.append(node)
         else:
-            self._roots.append(node)
+            self._roots.insert(0, node)   # newest song on top
         return node
 
     def register_mv(
@@ -300,7 +304,7 @@ class TaskTree:
             display_name=display_name,
             _status=NodeStatus.WAITING,
         )
-        self._roots.append(node)
+        self._roots.insert(0, node)   # newest MV on top
         self._by_id[mv_id] = node
         return node
 

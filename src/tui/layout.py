@@ -29,6 +29,20 @@ from src.tui.widgets.batch_panel import BatchPanel
 from src.tui.widgets.status_bar import StatusBar
 
 
+# Current sidebar width (user-adjustable via Ctrl+Left/Ctrl+Right).
+_sidebar_width = SIDEBAR_WIDTH
+
+
+def set_sidebar_width(delta: int) -> None:
+    """Adjust the sidebar width (kept in sync with the layout render)."""
+    global _sidebar_width
+    _sidebar_width = max(24, min(90, _sidebar_width + delta))
+
+
+def get_sidebar_width() -> int:
+    return _sidebar_width
+
+
 def build_layout(
     log_view:    LogView,
     task_list:   TaskListWidget,
@@ -51,8 +65,8 @@ def build_layout(
             title=" TASKS ",
             # Grow with content: preferred 52+4, never wider than 45% of
             # the screen so the log pane keeps room on small terminals.
-            width=D(preferred=SIDEBAR_WIDTH + 4,
-                    max=SIDEBAR_WIDTH + 4,
+            width=D(preferred=_sidebar_width + 4,
+                    max=_sidebar_width + 4,
                     weight=3),
             style="class:frame.border",
         ),

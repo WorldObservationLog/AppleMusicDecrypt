@@ -52,7 +52,7 @@ class TaskListWidget:
 
         self._inner_control = FormattedTextControl(
             text=self._render,
-            focusable=False,
+            focusable=True,
             show_cursor=False,
         )
         # Inner Window: height = len(rendered lines); ScrollablePane clips it.
@@ -61,11 +61,45 @@ class TaskListWidget:
             wrap_lines=True,   # long names wrap instead of being clipped
             dont_extend_width=False,
         )
-        # ScrollablePane scrolls without focus.
+        # ScrollablePane supports keyboard scrolling when its content is
+        # focused; we also add explicit scroll() for mouse/keys below.
         self.pane = ScrollablePane(
             content=self._inner_window,
             show_scrollbar=True,
         )
+        self._scroll_offset = 0
+
+    def focusable_window(self):
+        return self.pane
+
+    def scroll(self, lines: int) -> None:
+        """Scroll the sidebar by *lines* (negative = up)."""
+        total = max(0, len(self._render_lines()) - 1)
+        self._scroll_offset = max(0, min(self._scroll_offset + lines, total))
+        self._apply_scroll()
+
+    def scroll_to_top(self) -> None:
+        self._scroll_offset = 0
+        self._apply_scroll()
+
+    def _render_lines(self) -> list[str]:
+        frag = self._render()
+        lines, buf = [], ""
+        for _, txt in frag:
+            buf += txt
+            if txt.endswith("\n"):
+                lines.append(buf.rstrip("\n"))
+                buf = ""
+        if buf:
+            lines.append(buf)
+        return lines
+
+    def _apply_scroll(self) -> None:
+        # ScrollablePane has no direct setter; emulate by adjusting the
+        # inner window's height with a leading spacer is complex.  Instead
+        # rely on prompt_toolkit's focus+up/down keys (bound in app.py via
+        # event.app.layout focused window's built-in scroll).
+        pass
 
     # ------------------------------------------------------------------ #
     # Renderer
@@ -79,7 +113,28 @@ class TaskListWidget:
         out: StyleAndTextTuples = []
         for node in roots:
             self._render_node(node, out, depth=0, last=True)
+
+        if self._scroll_offset:
+            rendered = self._lines_from_fragments(out)
+            out = self._fragments_from_lines(rendered[self._scroll_offset:])
         return out
+
+    def _lines_from_fragments(self, frag: StyleAndTextTuples) -> list[str]:
+        lines, buf = [], ""
+        for _, txt in frag:
+            buf += txt
+            if txt.endswith("\n"):
+                lines.append(buf.rstrip("\n"))
+                buf = ""
+        if buf:
+            lines.append(buf)
+        return lines
+
+    def _fragments_from_lines(self, lines: list[str]) -> StyleAndTextTuples:
+        result: StyleAndTextTuples = []
+        for line in lines:
+            result.append(("", line + "\n"))
+        return result
 
     def _render_node(
         self,

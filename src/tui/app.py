@@ -178,6 +178,31 @@ async def run_tui(shell: "InteractiveShell") -> None:
         is_batch=is_batch,
     )
 
+    # Right-click paste: when mouse_support is on, the terminal forwards the
+    # right button to the app instead of the emulator's paste action.  Read
+    # the app clipboard and insert into the focused TextArea.
+    from prompt_toolkit.mouse_events import MouseButton, MouseEventType
+
+    def _right_click_paste(mouse_event):
+        if (mouse_event.event_type == MouseEventType.MOUSE_DOWN
+                and mouse_event.button == MouseButton.RIGHT):
+            try:
+                # Use the Application clipboard (set by the OS integration);
+                # no pyperclip dependency.
+                from prompt_toolkit.application.current import get_app
+                text = get_app().clipboard.get_data().text or ""
+                if text:
+                    buf = input_bar._textarea.buffer
+                    buf.insert_text(text)
+            except Exception:
+                pass
+            return None
+        return NotImplemented
+
+    # Attach to the input bar window's control mouse_handler (preserve default
+    # by only handling right-click; other events fall through).
+    input_bar._textarea.control.mouse_handler = _right_click_paste
+
     batch_panel = BatchPanel(
         is_active=is_batch,
         on_submit=_on_batch_submit,
@@ -195,6 +220,7 @@ async def run_tui(shell: "InteractiveShell") -> None:
         log_view     = log_view,
         input_bar    = input_bar,
         batch_panel  = batch_panel,
+        task_list    = task_list,
         is_batch     = is_batch,
         shell        = shell,
         app_ref      = app_ref,
@@ -236,6 +262,7 @@ def _build_keybindings(
     log_view:     LogView,
     input_bar:    InputBar,
     batch_panel:  BatchPanel,
+    task_list:    "TaskListWidget",
     is_batch:     "Callable[[], bool]",
     shell:        "InteractiveShell",
     app_ref:      list,
@@ -258,18 +285,52 @@ def _build_keybindings(
     async def _ctrl_exit(event):
         await shell.confirm_and_exit()
 
-    # ── focus toggle (Tab) ───────────────────────────────────────────────
+    # ── focus guards (defined once, used by both tab and scroll) ─────────
+    from prompt_toolkit.filters import has_focus as _has_focus
+    from prompt_toolkit.filters import Condition as _Condition
+    from prompt_toolkit.layout.dimension import Dimension as _D
+
+    log_focused = _has_focus(log_view.window)
+    input_focused = _has_focus(input_bar.window)
+    task_focused = _has_focus(task_list._inner_window)
+    not_batch = _Condition(lambda: not is_batch())
+
+    # ── focus toggle (Tab): log -> sidebar -> input -> ... ───────────────
+
     @kb.add("tab")
     def _focus_toggle(event):
-        focus_next(event)
+        if log_focused():
+            event.app.layout.focus(task_list._inner_window)
+        elif task_focused():
+            event.app.layout.focus(input_bar.window)
+        else:
+            event.app.layout.focus(log_view.window)
+        invalidate()
+
+    # sidebar scroll when focused
+    @kb.add("up", filter=task_focused & not_batch)
+    def _sidebar_scroll_up(event):
+        task_list.scroll(-1)
+        invalidate()
+
+    @kb.add("down", filter=task_focused & not_batch)
+    def _sidebar_scroll_down(event):
+        task_list.scroll(1)
+        invalidate()
+
+    @kb.add("pageup", filter=task_focused & not_batch)
+    def _sidebar_page_up(event):
+        task_list.scroll(-10)
+        invalidate()
+
+    @kb.add("pagedown", filter=task_focused & not_batch)
+    def _sidebar_page_down(event):
+        task_list.scroll(10)
+        invalidate()
 
     # ── log scroll (only when the log pane is focused) ──────────────────
     # The has_focus guard is essential: without it these bindings steal
     # up/down from the command input's history navigation.
-    from prompt_toolkit.filters import has_focus as _has_focus
-    from prompt_toolkit.filters import Condition as _Condition
-    log_focused = _has_focus(log_view.window)
-    not_batch = _Condition(lambda: not is_batch())
 
     @kb.add("up",    filter=log_focused & not_batch)
     def _scroll_up(event):
@@ -296,19 +357,6 @@ def _build_keybindings(
         log_view.scroll_to_bottom()
         invalidate()
 
-    # ── sidebar scroll (Alt+↑ / Alt+↓, no focus needed) ─────────────────
-    # ScrollablePane handles its own scroll internally through the mouse /
-    # its own key events; we bind Alt+arrows as an explicit override.
-    @kb.add("escape", "up")    # Alt+↑ in many terminals
-    def _sidebar_up(event):
-        task_list_pane = event.app.layout.container
-        # ScrollablePane exposes scroll via its own internal state;
-        # we trigger it by simulating the ScrollablePane's up action.
-        try:
-            event.app.layout.focus(batch_panel.window if is_batch()
-                                   else input_bar.window)
-        except Exception:
-            pass
 
     # ── batch panel: submit (Ctrl+D) / cancel (Esc) ──────────────────────
     @kb.add("c-d", filter=Condition(is_batch))
@@ -329,6 +377,19 @@ def _build_keybindings(
                 event.app.layout.focus(batch_panel.window)
             except Exception:
                 pass
+
+    # ── sidebar width (Ctrl+Left / Ctrl+Right) ──────────────────────────
+    @kb.add("c-left")
+    def _sidebar_narrower(event):
+        from src.tui.layout import set_sidebar_width
+        set_sidebar_width(-4)
+        invalidate()
+
+    @kb.add("c-right")
+    def _sidebar_wider(event):
+        from src.tui.layout import set_sidebar_width
+        set_sidebar_width(4)
+        invalidate()
 
     # ── F1 help ──────────────────────────────────────────────────────────
     @kb.add("f1")

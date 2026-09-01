@@ -66,7 +66,8 @@ The whole interface is a full-screen terminal application with three areas: a li
 ## Keys
 | Key | Action |
 |-----|--------|
-| `Tab` | move focus between log pane and input bar |
+| `Tab` | move focus: log pane ↔ task sidebar ↔ input bar |
+| `Ctrl+Left / Ctrl+Right` | resize the task sidebar |
 | `↑ / ↓ / PgUp / PgDn` | scroll the log (focus on log pane) |
 | `End` | re-enable log auto-follow after scrolling |
 | `F1` | help |
