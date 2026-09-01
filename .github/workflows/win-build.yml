@@ -27,7 +27,7 @@ jobs:
           $dest = "qemu"
           New-Item -ItemType Directory -Force -Path $dest | Out-Null
 
-          $url = "https://nightly.link/WorldObservationLog/wrapper/workflows/build-lite/lite?preview"
+          $url = "https://nightly.link/WorldObservationLog/wrapper/workflows/build-lite/lite/wrapper-lite-qemu-windows-x86_64.zip"
           Write-Host "Downloading wrapper-lite artifact from $url"
           Invoke-WebRequest -Uri $url -OutFile "lite-artifact.zip" -MaximumRedirection 10
 
