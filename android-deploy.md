@@ -11,12 +11,27 @@ pd i debian
 ```
 ## Step 2: Deploy AppleMusicDecrypt
 Enter the Debian environment(`pd login debian`)
+
+Try uv first (fast):
 ```shell
 apt update && apt install git -y && curl -LsSf https://astral.sh/uv/install.sh | sh && source ~/.bashrc
 git clone https://github.com/WorldObservationLog/AppleMusicDecrypt
 cd AppleMusicDecrypt
 git checkout v3
 uv sync
+```
+
+> If `uv sync` fails with "built wheel ... is not compatible with the current
+> Python ... on Android aarch64", your uv binary is the Android build and it
+> rejects Linux wheels.  Fall back to pip + venv:
+> ```shell
+> apt install python3-venv python3-pip -y
+> python3 -m venv .venv
+> .venv/bin/pip install -r requirements.txt
+> ```
+
+Then continue:
+```shell
 cp config.example.toml config.toml
 nano config.toml
 ```
@@ -34,13 +49,18 @@ dirPathFormat = "/sdcard/Music/{album_artist}/{album}"
 playlistDirPathFormat = "/sdcard/Music/playlists/{playlistName}"
 ```
 ## Step 4: Run AppleMusicDecrypt
+
+uv install:
 `uv run python main.py`
+
+pip fallback install:
+`.venv/bin/python main.py`
 ## Update AppleMusicDecrypt
 ```shell
 pd login debian
 cd AppleMusicDecrypt
 git checkout -f && git pull
-uv sync
+uv sync               # or: .venv/bin/pip install -e .
 cp config.example.toml config.toml
 nano config.toml
 ```
