@@ -249,24 +249,26 @@ def _build_keybindings(
     # The has_focus guard is essential: without it these bindings steal
     # up/down from the command input's history navigation.
     from prompt_toolkit.filters import has_focus as _has_focus
+    from prompt_toolkit.filters import Condition as _Condition
     log_focused = _has_focus(log_view.window)
+    not_batch = _Condition(lambda: not is_batch())
 
-    @kb.add("up",    filter=log_focused & ~is_batch())
+    @kb.add("up",    filter=log_focused & not_batch)
     def _scroll_up(event):
         log_view.scroll_up(1)
         invalidate()
 
-    @kb.add("down",  filter=log_focused & ~is_batch())
+    @kb.add("down",  filter=log_focused & not_batch)
     def _scroll_down(event):
         log_view.scroll_down(1)
         invalidate()
 
-    @kb.add("pageup", filter=log_focused & ~is_batch())
+    @kb.add("pageup", filter=log_focused & not_batch)
     def _page_up(event):
         log_view.scroll_up(10)
         invalidate()
 
-    @kb.add("pagedown", filter=log_focused & ~is_batch())
+    @kb.add("pagedown", filter=log_focused & not_batch)
     def _page_down(event):
         log_view.scroll_down(10)
         invalidate()
