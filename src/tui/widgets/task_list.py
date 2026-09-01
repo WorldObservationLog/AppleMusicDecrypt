@@ -98,7 +98,7 @@ class TaskListWidget:
 
         # ── expand / collapse chevron (parent nodes only) ────────────────
         if node.children:
-            chevron = "[-] " if node.expanded else "[+] "
+            chevron = "▼ " if node.expanded else "▶ "
         else:
             chevron = ""
 
@@ -111,7 +111,7 @@ class TaskListWidget:
         max_name     = max(8, SIDEBAR_WIDTH - prefix_len - 1)
         name         = node.resolved_name
         if len(name) > max_name:
-            name = name[: max_name - 1] + "~"
+            name = name[: max_name - 1] + "…"
 
         name_style = node.kind_style() if depth == 0 else "class:task.kind.song"
 
@@ -134,8 +134,8 @@ class TaskListWidget:
         if chevron:
             out.append(("class:task.heading", chevron))
         out.append((icon_style, icon + " "))
-        if depth == 0 and node.kind is not NodeKind.SONG:
-            out.append((node.kind_style(), node.kind_icon() + " "))
+        # Kind icon on every node (album/playlist/artist/MV/song).
+        out.append((node.kind_style(), node.kind_icon() + " "))
         out.append((name_style, name))
 
         if suffix_parts:

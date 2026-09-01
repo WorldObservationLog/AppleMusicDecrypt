@@ -56,12 +56,12 @@ class NodeStatus(Enum):
 
     def icon(self) -> str:
         return {
-            NodeStatus.WAITING:  "..",
-            NodeStatus.RUNNING:  ">>",
-            NodeStatus.DONE:     "ok",
-            NodeStatus.EXIST:    "ok",
-            NodeStatus.FAILED:   "XX",
-            NodeStatus.PARTIAL:  "!!",
+            NodeStatus.WAITING:  "⏳",
+            NodeStatus.RUNNING:  "🔄",
+            NodeStatus.DONE:     "✅",
+            NodeStatus.EXIST:    "✔",
+            NodeStatus.FAILED:   "❌",
+            NodeStatus.PARTIAL:  "⚠",
         }[self]
 
     def style_class(self) -> str:
@@ -162,11 +162,11 @@ class TreeNode:
 
     def kind_icon(self) -> str:
         return {
-            NodeKind.ALBUM:    "[ALB]",
-            NodeKind.PLAYLIST: "[PLS]",
-            NodeKind.ARTIST:   "[ART]",
-            NodeKind.MV:       "[MV] ",
-            NodeKind.SONG:     "     ",
+            NodeKind.ALBUM:    "💿",
+            NodeKind.PLAYLIST: "📋",
+            NodeKind.ARTIST:   "🎤",
+            NodeKind.MV:       "🎬",
+            NodeKind.SONG:     "🎵",
         }[self.kind]
 
     def kind_style(self) -> str:

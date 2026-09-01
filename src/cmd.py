@@ -308,13 +308,18 @@ class InteractiveShell:
         return NestedCompleter.from_nested_dict(mycompleter)
 
     async def confirm_and_exit(self):
-        if it(Measurer).tasks_count() > 0:
-            it(GlobalLogger).logger.info(
-                f"There is still {it(Measurer).tasks_count()} tasks, do you really want to exit? (y/N)")
-            session = PromptSession("> ")
-            response = (await session.prompt_async()).strip().lower()
-            if response != 'y':
-                return
+        """Two-step confirm: first press logs a warning; pressing again
+        within 5 seconds exits.  Avoids any blocking text prompt inside
+        the TUI event loop."""
+        import time
+        now = time.monotonic()
+        last = getattr(self, "_exit_warn_at", 0.0)
+        if it(Measurer).tasks_count() > 0 and now - last > 5:
+            self._exit_warn_at = now
+            it(GlobalLogger).logger.warning(
+                f"There are still {it(Measurer).tasks_count()} running tasks — "
+                f"press exit again within 5s to confirm.")
+            return
         self.handle_exit()
 
     def handle_exit(self):
