@@ -9,8 +9,7 @@ Public API
 ----------
 install()   – replace the existing ``_safe_print`` target; call once at TUI
               startup before ``Application.run_async()``.
-uninstall() – restore the original ``_safe_print`` behaviour (for teardown /
-              --no-tui mode, kept for future use).
+uninstall() – restore the original ``_safe_print`` behaviour (for teardown).
 get_lines() – return a snapshot list[str] of recent log lines (newest last).
 push(msg)   – internal; also callable from tests.
 """
