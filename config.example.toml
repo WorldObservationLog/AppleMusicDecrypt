@@ -11,21 +11,15 @@ secure = false
 # This setting will overwrite instance setting.
 enable = false
 # wrapper-lite-qemu launcher binary ("" = auto-detect from PATH).
-# Build it from the wrapper repo:
-#   c++ -std=c++11 -O2 -o wrapper-lite-qemu wrapper-lite-qemu.cpp
-# and keep its qemu/ asset dir next to the binary.
 launcherBin = ""
 # Host port forwarded to the guest's wrapper-lite HTTP port.
 hostPort = 32767
 guestPort = 8080
-# kvm | whpx | hvf | tcg ("" = auto-detect by the launcher).
-# For Windows WHPX, run `Get-WindowsOptionalFeature -Online -FeatureName HypervisorPlatform` to check WHPX.
+# Hardware accelerator ("" = auto-detect).
 hardwareAccelerator = ""
 memorySize = "512M"
 smp = 2
-# Args forwarded to wrapper-lite (one per line); "" = default boot
-# (--host 0.0.0.0 --port 8080 --base-dir /data). Example login:
-# startArgs = "--login user:pass\n--code-from-file"
+# Extra arguments forwarded to wrapper-lite (one per line); "" = default.
 startArgs = ""
 
 [region]
@@ -39,9 +33,7 @@ languageNotExistWarning = true
 [download]
 # Send request to Apple Music through proxy. Only support http and https protocol
 proxy = ""
-# Number of concurrent song downloads.
-# Measured: 2-4 concurrent CDN streams yield the best aggregate throughput
-# (+84% at 2, +153% at 4 over a single stream); beyond ~4 the gain plateaus.
+# Number of concurrent song downloads
 parallelNum = 4
 # Number of max running tasks
 maxRunningTasks = 128
@@ -51,13 +43,12 @@ maxRunningTasks = 128
 # Japan: 17.253.69.200, 17.253.69.202, 17.253.75.201, 17.253.75.202
 appleCDNIP = ""
 # Decrypt samples while the media file is still downloading (边下边解).
-# Uses Temari's streaming decryptor; memory stays bounded to one fragment.
 streamDecrypt = true
-# Batch size used by Temari's streaming decryptor.
+# Number of samples decrypted per batch while streaming.
 decryptBatchSize = 256
 # Idle timeout (seconds) for the streaming CDN download; 0 disables the timeout.
 downloadTimeout = 60
-# Resume an interrupted download from the last complete box boundary (Range requests).
+# Resume an interrupted download from where it stopped.
 resumeDownload = true
 # After enabling this feature, if the specified codec does not exist, the script will look for another codec to download
 codecAlternative = true
@@ -105,16 +96,13 @@ saveLyrics = true
 # lrc or ttml
 # TTML format lyrics will be saved as .ttml suffix
 lyricsFormat = "lrc"
-# Word-timed (karaoke) lyrics: wrapper /lyrics syllable=1 + per-word LRC tags.
-# Songs without word timing fall back to line-level LRC.
+# Save word-timed (karaoke) lyrics when available.
 lyricsSyllable = false
 # Only applies to lrc lyrics
 lyricsExtra = ["translation", "pronunciation"]
-# Low-memory mode: all large files (MV segments, batch audio downloads) are
-# spilled to disk; the MV muxer streams straight to the .part file.
+# Reduce memory usage for large downloads and music videos.
 lowMemory = false
-# fsync each finished file (durability vs throughput). Disable for large
-# batches to avoid blocking the event loop on synchronous fsync.
+# Force each finished file to be written to disk before continuing.
 fsync = true
 saveCover = true
 coverFormat = "jpg"

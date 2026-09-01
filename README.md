@@ -57,19 +57,7 @@ cl
 
 # The TUI
 
-The whole interface is a full-screen terminal application:
-
-```
-┌ LOG ─────────────────────────────────────┬ TASKS ─────────────────┐
-│ live log output (scrollable, wraps)      │ ▼ 💿 Artist - Album     │
-│                                          │   ├─ 🔄 Song A  4.2MB ⬇│
-│                                          │   └─ ✅ Song B          │
-├──────────────────────────────────────────┴────────────────────────┤
-│ > dl -c alac https://music.apple.com/...                          │
-├───────────────────────────────────────────────────────────────────┤
-│ ⬇ 12.4 MB/s  🔓 9.8 MB/s  tasks 4  JP   [F1]Help [F10]Exit       │
-└───────────────────────────────────────────────────────────────────┘
-```
+The whole interface is a full-screen terminal application with three areas: a live log pane, a task sidebar showing downloads as a tree, and a command input bar with a status bar underneath.
 
 ## Command input
 * `Enter` runs the command (Tab completes; ↑/↓ walk history; Home/End jump).
