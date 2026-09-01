@@ -257,7 +257,6 @@ class Ripper:
                     task.update_status(Status.ALREADY_EXIST)
                     return
 
-            task.logger.logger.info("Waiting for available download streams...")
             if it(Config).download.streamDecrypt or it(Config).download.lowMemory:
                 # streaming is disk-backed (.part) and low-memory friendly
                 await self._rip_song_stream(task, timeout_sec)

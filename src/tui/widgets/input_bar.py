@@ -89,9 +89,81 @@ class InputBar:
     def _on_accept(self, buf: Buffer) -> bool:
         text = buf.text.strip()
         if text:
+            # Append to history so ↑/↓ can recall it later.
+            self._history.append_string(text)
             import asyncio
-            asyncio.get_event_loop().create_task(self._on_submit(text))
-        return True   # clears the buffer after accept
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None:
+                loop.create_task(self._on_submit(text))
+        buf.reset()          # clear the input line after Enter
+        return False
 
     def get_text(self) -> str:
         return self._textarea.text
+
+    # ------------------------------------------------------------------ #
+    # History / cursor keybindings (merged into the app's keybindings)
+    # ------------------------------------------------------------------ #
+
+    def key_bindings(self):
+        """↑/↓ history navigation + Home/End line jumps, scoped to the
+        input buffer so they don't clash with log-pane scrolling."""
+        from prompt_toolkit.key_binding import KeyBindings
+        from prompt_toolkit.filters import has_focus
+
+        kb = KeyBindings()
+        cond = has_focus(self._textarea.window)
+
+        @kb.add("up", filter=cond)
+        def _history_prev(event):
+            self._history_previous()
+
+        @kb.add("down", filter=cond)
+        def _history_next(event):
+            self._history_next()
+
+        @kb.add("home", filter=cond)
+        def _home(event):
+            self._textarea.buffer.cursor_position = 0
+
+        @kb.add("end", filter=cond)
+        def _end(event):
+            self._textarea.buffer.cursor_position = len(self._textarea.buffer.text)
+
+        return kb
+
+    def _history_previous(self) -> None:
+        """Recall the previous command (↑)."""
+        strings = self._history.get_strings()
+        if not strings:
+            return
+        self._h_index = getattr(self, "_h_index", len(strings)) - 1
+        self._h_index = max(0, self._h_index)
+        self._textarea.buffer.set_document(
+            type(self._textarea.buffer.document)(
+                strings[self._h_index], cursor_position=len(strings[self._h_index])
+            ),
+            bypass_readonly=True,
+        )
+
+    def _history_next(self) -> None:
+        """Recall the next command (↓); past the newest one clears the line."""
+        strings = self._history.get_strings()
+        if not strings:
+            return
+        self._h_index = getattr(self, "_h_index", len(strings)) + 1
+        if self._h_index >= len(strings):
+            self._h_index = len(strings)
+            self._textarea.buffer.reset()
+            return
+        self._h_index = max(0, self._h_index)
+        text = strings[self._h_index]
+        self._textarea.buffer.set_document(
+            type(self._textarea.buffer.document)(
+                text, cursor_position=len(text)
+            ),
+            bypass_readonly=True,
+        )

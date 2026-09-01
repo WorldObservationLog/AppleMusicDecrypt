@@ -6,7 +6,7 @@ Talks to a wrapper/lite instance over its JSON HTTP API:
     POST /license
 
 Every response uses the envelope ``{"code":0,"msg":"SUCCESS","data":{...}}``;
-a non-zero ``code`` raises :class:`WrapperManagerException`. Transport
+a non-zero ``code`` raises :class:`WrapperError`. Transport
 failures are retried with exponential backoff (``[download] retryTime /
 maxWaitTime``); envelope errors are retried unless the message is a terminal
 marker (``'no such account'``).
@@ -46,7 +46,7 @@ if __name__ == "__main__":
     add_creator(ConfigCreator)
 
 
-class WrapperManagerException(Exception):
+class WrapperError(Exception):
     """Raised when the wrapper returns code != 0 or transport fails."""
 
     def __init__(self, msg: str):
@@ -77,7 +77,7 @@ def _retry_policy():
     """Tenacity retry predicate for wrapper requests.
 
     - Transport failures (any httpx error / TLS failure) are always retried.
-    - Envelope errors (``code != 0`` -> ``WrapperManagerException``) are
+    - Envelope errors (``code != 0`` -> ``WrapperError``) are
       retried unless the message contains the terminal marker
       ``'no such account'``. ``'no available instance'`` is transient and is
       retried (it does not contain the terminal marker).
@@ -85,7 +85,7 @@ def _retry_policy():
     return (
         retry_if_exception_type((httpx.HTTPError, ssl.SSLError))
         | (
-            retry_if_exception_type(WrapperManagerException)
+            retry_if_exception_type(WrapperError)
             & _retry_unless_terminal("no such account")
         )
     )
@@ -121,14 +121,14 @@ class WrapperClient:
     async def init(self) -> "WrapperClient":
         """Warm-ping the wrapper once and return ``self``.
 
-        Fails with a clear :class:`WrapperManagerException` that includes the
+        Fails with a clear :class:`WrapperError` that includes the
         base URL when the wrapper cannot be reached (after retries are
         exhausted).
         """
         try:
             await self.status()
         except Exception as e:
-            raise WrapperManagerException(
+            raise WrapperError(
                 f"unable to connect to wrapper at {self._base_url}: {e}"
             ) from e
         return self
@@ -198,7 +198,7 @@ class WrapperClient:
         """Send one request, acquire the semaphore and validate the envelope.
 
         Returns the ``data`` object of the envelope. Raises
-        :class:`WrapperManagerException` for transport failures, HTTP 404
+        :class:`WrapperError` for transport failures, HTTP 404
         (endpoint not available on this wrapper), non-JSON bodies, unexpected
         envelopes and ``code != 0`` responses.
         """
@@ -206,7 +206,7 @@ class WrapperClient:
             try:
                 response = await self._client.request(method, path, **kwargs)
             except (httpx.HTTPError, ssl.SSLError) as e:
-                raise WrapperManagerException(
+                raise WrapperError(
                     f"{method} {path} transport error at {self._base_url}: {e!r}"
                 ) from e
             return self._decode_response(method, path, response)
@@ -214,10 +214,10 @@ class WrapperClient:
     @staticmethod
     def _decode_response(method: str, path: str, response: httpx.Response) -> dict:
         # Some wrapper/lite builds do not register every endpoint (e.g.
-        # /webplayback); surface that as a WrapperManagerException instead of
+        # /webplayback); surface that as a WrapperError instead of
         # failing silently.
         if response.status_code == 404:
-            raise WrapperManagerException(
+            raise WrapperError(
                 f"wrapper endpoint {method} {path} is not available at "
                 f"{response.url} (HTTP 404)"
             )
@@ -225,7 +225,7 @@ class WrapperClient:
         try:
             payload = response.json()
         except ValueError:
-            raise WrapperManagerException(
+            raise WrapperError(
                 f"wrapper returned a non-JSON body for {method} {path} "
                 f"(HTTP {response.status_code})"
             )
@@ -233,7 +233,7 @@ class WrapperClient:
         if not isinstance(payload, dict) or "code" not in payload:
             # NB: do not embed the raw payload here - loguru's message
             # formatting (used by before_sleep) interprets literal braces.
-            raise WrapperManagerException(
+            raise WrapperError(
                 f"wrapper returned an unexpected envelope for {method} {path} "
                 f"(HTTP {response.status_code}, missing 'code' field)"
             )
@@ -241,7 +241,7 @@ class WrapperClient:
         code = payload.get("code")
         msg = payload.get("msg")
         if code != 0:
-            raise WrapperManagerException(
+            raise WrapperError(
                 str(msg) if msg else f"wrapper error code {code} on {method} {path}"
             )
 

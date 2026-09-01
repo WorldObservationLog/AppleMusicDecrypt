@@ -281,4 +281,5 @@ def _build_keybindings(
         # Inject the "help" command into the shell.
         asyncio.get_event_loop().create_task(shell.command_parser("help"))
 
-    return kb
+    # Input-bar scoped bindings: ↑/↓ history, Home/End line jumps.
+    return merge_key_bindings([kb, input_bar.key_bindings()])

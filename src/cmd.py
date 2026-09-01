@@ -19,7 +19,7 @@ from src.rip import Ripper
 from src.status import status_panel
 from src.url import AppleMusicURL, URLType
 from src.utils import check_dep, run_sync, safely_create_task, config_outdated
-from src.wrapper import WrapperClient, WrapperManagerException
+from src.wrapper import WrapperClient, WrapperError
 
 
 class InteractiveShell:
@@ -54,7 +54,7 @@ class InteractiveShell:
 
         try:
             loop.run_until_complete(self.show_status())
-        except WrapperManagerException:
+        except WrapperError:
             it(GlobalLogger).logger.error("Unable to connect to the wrapper-lite instance")
             sys.exit()
 
