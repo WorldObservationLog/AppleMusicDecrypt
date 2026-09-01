@@ -65,7 +65,7 @@ requires-dist = [
     { name = "prompt-toolkit", specifier = ">=3.0.52" },
     { name = "pycryptodome", specifier = ">=3.20.0" },
     { name = "pydantic", specifier = ">=2.12.5" },
-    { name = "pywidevine", git = "https://github.com/WorldObservationLog/pywidevine" },
+    { name = "pywidevine", specifier = ">=1.9.0" },
     { name = "regex", specifier = ">=2026.2.28" },
     { name = "tabulate", specifier = ">=0.10.0" },
     { name = "temari", specifier = ">=0.1.0" },
@@ -750,8 +750,8 @@ wheels = [
 
 [[package]]
 name = "pywidevine"
-version = "1.8.0"
-source = { git = "https://github.com/WorldObservationLog/pywidevine#10b3ea3601ba709cfc36d54c6e6f130b5b740bcd" }
+version = "1.9.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
     { name = "protobuf" },
@@ -760,6 +760,10 @@ dependencies = [
     { name = "pyyaml" },
     { name = "requests" },
     { name = "unidecode" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/52/b6/4855cb958892653029f3cafa8a4724d554b847de0a43a3808cea109b9e78/pywidevine-1.9.0.tar.gz", hash = "sha256:6742daf5fd797c5a4813eb1300efb3181ffcddd0c8c478ee28c7c536aa0e51b2", size = 75511, upload-time = "2025-10-27T09:13:15.909Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/dd/e2/e692647f12008495654868e99c972696f2b8cb39637b507c409f5f99b4b6/pywidevine-1.9.0-py3-none-any.whl", hash = "sha256:70b5726abc2c3fe763f070da853b7c87d6aeb6131a27778743187258bf97e492", size = 70419, upload-time = "2025-10-27T09:13:14.303Z" },
 ]
 
 [[package]]

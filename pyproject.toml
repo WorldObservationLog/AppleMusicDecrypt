@@ -15,7 +15,7 @@ dependencies = [
     "m3u8>=6.0.0",
     "tenacity>=9.1.4",
     "prompt-toolkit>=3.0.52",
-    "pywidevine",
+    "pywidevine>=1.9.0",
     "creart>=0.3.0",
     "mutagen>=1.47.0",
     "async-lru>=2.2.0",
@@ -23,9 +23,6 @@ dependencies = [
     "temari>=0.1.0",
     "pycryptodome>=3.20.0",
 ]
-
-[tool.uv.sources]
-pywidevine = { git = "https://github.com/WorldObservationLog/pywidevine" }
 
 [dependency-groups]
 dev = [
