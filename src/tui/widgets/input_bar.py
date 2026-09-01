@@ -45,7 +45,9 @@ class InputBar:
             multiline=False,
             wrap_lines=False,
             completer=completer,
-            complete_while_typing=True,
+            # Termux narrow terminals: live-completion floats can fight the
+            # on-screen keyboard and swallow input; Tab still completes.
+            complete_while_typing=False,
             history=self._history,
             accept_handler=self._on_accept,
             lexer=SimpleLexer(style="class:tui.input.prompt"),

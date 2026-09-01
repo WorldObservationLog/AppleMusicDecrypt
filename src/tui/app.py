@@ -189,7 +189,9 @@ async def run_tui(shell: "InteractiveShell") -> None:
         style           = TUI_STYLE,
         key_bindings    = kb,
         full_screen     = True,
-        mouse_support   = True,   # click to focus panes, wheel to scroll
+        # Disable mouse in narrow terminals: Termux touch events can yank
+        # focus away from the input bar.  Wide terminals keep mouse support.
+        mouse_support   = not is_narrow_tasks(),
         refresh_interval = 0.5,
     )
     app_ref.append(app)
@@ -243,28 +245,33 @@ def _build_keybindings(
     def _focus_toggle(event):
         focus_next(event)
 
-    # ── log scroll (when log window has focus) ───────────────────────────
-    @kb.add("up",    filter=Condition(lambda: not is_batch()))
+    # ── log scroll (only when the log pane is focused) ──────────────────
+    # The has_focus guard is essential: without it these bindings steal
+    # up/down from the command input's history navigation.
+    from prompt_toolkit.filters import has_focus as _has_focus
+    log_focused = _has_focus(log_view.window)
+
+    @kb.add("up",    filter=log_focused & ~is_batch())
     def _scroll_up(event):
         log_view.scroll_up(1)
         invalidate()
 
-    @kb.add("down",  filter=Condition(lambda: not is_batch()))
+    @kb.add("down",  filter=log_focused & ~is_batch())
     def _scroll_down(event):
         log_view.scroll_down(1)
         invalidate()
 
-    @kb.add("pageup", filter=Condition(lambda: not is_batch()))
+    @kb.add("pageup", filter=log_focused & ~is_batch())
     def _page_up(event):
         log_view.scroll_up(10)
         invalidate()
 
-    @kb.add("pagedown", filter=Condition(lambda: not is_batch()))
+    @kb.add("pagedown", filter=log_focused & ~is_batch())
     def _page_down(event):
         log_view.scroll_down(10)
         invalidate()
 
-    @kb.add("end")
+    @kb.add("end", filter=log_focused)
     def _tail(event):
         log_view.scroll_to_bottom()
         invalidate()
