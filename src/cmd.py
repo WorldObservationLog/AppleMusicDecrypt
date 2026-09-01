@@ -345,8 +345,15 @@ class InteractiveShell:
 
     def handle_exit(self):
         it(GlobalLogger).logger.info("Exit.")
+        # In the full-screen TUI, ask prompt_toolkit to exit normally so it
+        # restores the terminal (alternate screen, raw mode, mouse tracking).
+        # os._exit would skip that cleanup and leave the terminal broken
+        # (wheel / input garbage) after quitting.
+        app = getattr(self, "_tui_app", None)
+        if app is not None and app.is_running:
+            app.exit()
+            return
         self.loop.stop()
-        os._exit(0)
 
     async def start(self):
         """Entry point — legacy REPL or full-screen TUI."""

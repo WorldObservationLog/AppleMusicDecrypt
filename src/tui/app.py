@@ -225,7 +225,7 @@ async def run_tui(shell: "InteractiveShell") -> None:
     finally:
         log_sink.uninstall()
         if it(Config).localInstance.enable:
-            shell.localInstance.terminate()
+            await shell.localInstance.terminate()
 
 
 # ---------------------------------------------------------------------------
