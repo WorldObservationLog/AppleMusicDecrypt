@@ -1,6 +1,5 @@
 """Pure-Python ISO-BMFF / fragmented MP4 (fMP4) parser, transformer and rebuilder.
 
-Fully replaces the previous gpac/MP4Box/Bento4-based implementation.
 Stdlib only (struct/memoryview); no third-party imports.
 
 Implements the v3 contract in docs/v3-INTERFACES.md section "2) src/mp4.py",

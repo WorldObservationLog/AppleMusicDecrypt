@@ -4,8 +4,7 @@ MV streams are delivered as separate video + audio HLS playlists (each a
 fragmented MP4 with an ``#EXT-X-MAP`` init segment and ``.m4s`` fragments),
 encrypted with Widevine ``cbcs``. We download both, decrypt with the Widevine
 content key from the wrapper's ``/license`` (pure-Python AES-CBC cbcs, matched
-byte-for-byte against Bento4 mp4decrypt), then remux them into one MP4 with
-the pure-Python muxer — no MP4Box/ffmpeg needed.
+then remux them into one MP4 with the pure-Python muxer.
 
 Default keeps fragments in memory (fine for most MVs). With ``[download]
 lowMemory`` the fragments are spilled to a temp file and the muxer streams

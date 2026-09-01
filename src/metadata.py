@@ -77,8 +77,10 @@ class SongMetadata(BaseModel):
                     tags.append(f"{key}={lrc}")
                     continue
                 if key.lower() in ('upc', 'isrc'):
-                    # https://github.com/gpac/gpac/issues/3259
-                    # tags.append(f"WM/{key.lower()}={value}")
+                    # UPC/ISRC are excluded from MP4 freeform tags: the
+                    # common container quirk (tracked upstream as
+                    # https://github.com/gpac/gpac/issues/3259) makes
+                    # players misread them.
                     continue
                 if key == 'composer':
                     tags.append(f"writer={value}")

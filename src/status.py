@@ -10,40 +10,12 @@ from typing import Iterable
 
 from src.task import Task
 
-
-class StatusCode(StrEnum):
-    """Granular per-task stage (superset of :class:`src.task.Status`)."""
-    WAITING = "WAITING"
-    PARSING = "PARSING"
-    DOWNLOADING = "DOWNLOADING"
-    DECRYPTING = "DECRYPTING"
-    SAVING = "SAVING"
-    DONE = "DONE"
-    ALREADY_EXIST = "ALREADY_EXIST"
-    FAILED = "FAILED"
-
-
-class WarningCode(StrEnum):
-    NO_AVAILABLE_ACCOUNT_FOR_LYRICS = "NO_AVAILABLE_ACCOUNT_FOR_LYRICS"
-    UNABLE_GET_LYRICS = "UNABLE_GET_LYRICS"
-    RETRYABLE_DECRYPT_FAILED = "RETRYABLE_DECRYPT_FAILED"
-
-
-class ErrorCode(StrEnum):
-    NOT_EXIST_IN_STOREFRONT = "NOT_EXIST_IN_STOREFRONT"
-    AUDIO_NOT_EXIST = "AUDIO_NOT_EXIST"
-    LOSSLESS_AUDIO_NOT_EXIST = "LOSSLESS_AUDIO_NOT_EXIST"
-    DECRYPT_FAILED = "DECRYPT_FAILED"
-    INTEGRITY_FAILED = "INTEGRITY_FAILED"
-
-
 def _fmt_bytes(n: int) -> str:
     if n >= 1 << 20:
         return f"{n / (1 << 20):.1f} MB"
     if n >= 1 << 10:
         return f"{n / (1 << 10):.0f} kB"
     return f"{n} B"
-
 
 def status_panel(tasks: Iterable[Task]) -> str:
     """Render a text panel of the given tasks (newest first)."""

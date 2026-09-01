@@ -749,7 +749,7 @@ def _cbcs_decrypt_runs(data: bytes, patterns, key: bytes, iv: bytes, cbb: int, s
     sub-sample (protected) run; within a run it carries across the encrypted
     blocks only (skipped clear blocks do not advance it). The crypt/skip
     pattern phase restarts at each run. Partial final blocks are left
-    untouched (matching Bento4 mp4decrypt).
+    untouched (matching standard mp4decrypt behaviour).
     """
     from Crypto.Cipher import AES
 

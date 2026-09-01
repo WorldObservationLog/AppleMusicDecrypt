@@ -1,5 +1,5 @@
 """Pure-Python MP4 muxer: merge an MV's video and audio fragmented streams into
-one MP4 file (replaces MP4Box/ffmpeg for MV remuxing).
+one MP4 file for MV remuxing.
 
 Both input streams are already-decrypted fragmented MP4s (init + moof/mdat
 fragments). The merged output keeps every fragment's moof/tfdt/trun intact

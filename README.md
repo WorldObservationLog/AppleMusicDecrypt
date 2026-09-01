@@ -17,16 +17,15 @@ local decryption library:
   by the bundled `temari` Rust cdylib while the media file is still
   downloading. No per-sample round-trips to the wrapper, so throughput scales
   with your CPU cores.
-- **Zero external binaries** — gpac / MP4Box / Bento4 / ffmpeg are gone. The
-  fMP4 file is parsed, decrypted and re-encapsulated by a pure-Python ISO-BMFF
-  module; tags are written with `mutagen`; integrity is verified structurally.
+- **Zero external binaries** — the fMP4 file is parsed, decrypted and
+  re-encapsulated by a pure-Python ISO-BMFF module; tags are written with
+  `mutagen`; integrity is verified structurally.
 - **Batch-friendly** — prefetch key template reuse, cached metadata, streaming
   download with byte-range resume, per-fragment pipelined decryption, and a
   shared keep-alive CDN connection pool.
 - **Music videos** — `dl <music-video-url>` downloads the MV: video + audio
-  streams are fetched, decrypted with Widevine (pure-Python AES-CBC cbcs,
-  verified byte-for-byte against Bento4 mp4decrypt) and remuxed into one MP4
-  by the pure-Python muxer — no MP4Box/ffmpeg.
+  streams are fetched, decrypted with pure-Python AES-CBC cbcs Widevine and
+  remuxed into one MP4 by the pure-Python muxer.
 - **Full-screen TUI** — a responsive terminal interface with a live log pane,
   a tree-structured task sidebar (album → tracks), a command input with
   history/completion, a floating batch-URL panel and a status bar. Falls back

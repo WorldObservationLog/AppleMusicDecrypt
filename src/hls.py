@@ -1,6 +1,6 @@
 """HLS (m3u8) helpers: parse the master/media playlists and pick the codec.
 
-This is the pure-Python replacement for the m3u8 part of the old gpac flow.
+Pure-Python HLS/m3u8 playlist handling.
 """
 
 import regex
