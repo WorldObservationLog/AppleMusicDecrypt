@@ -396,9 +396,9 @@ class Ripper:
             finally:
                 out_file.close()
 
-            task.logger.decrypting()
-            task.update_status(Status.DECRYPTING)
-
+            # Streaming decrypts while downloading (边下边解), so by the time
+            # the CDN stream ends the samples are already decrypted — there is
+            # no separate DECRYPTING phase here.  Go straight to SAVING.
             task.update_status(Status.SAVING)
             if not raw_atmos:
                 await run_sync(finalize, str(part_path), str(final_path), task.metadata,
