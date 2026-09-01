@@ -64,6 +64,11 @@ class NodeStatus(Enum):
             NodeStatus.PARTIAL:  "⚠",
         }[self]
 
+    def icon_padded(self) -> str:
+        """Status icon padded to a fixed 2-cell display width so the
+        sidebar columns line up regardless of glyph advance width."""
+        return _pad_to_width(self.icon(), 2)
+
     def style_class(self) -> str:
         return {
             NodeStatus.WAITING:  "class:task.icon.wait",
@@ -177,6 +182,33 @@ class TreeNode:
             NodeKind.MV:       "class:task.kind.mv",
             NodeKind.SONG:     "class:task.kind.song",
         }[self.kind]
+
+
+def _display_width(s: str) -> int:
+    """Approximate terminal cell width of a string.
+
+    Every emoji used by the TUI (⏳🔄✅✔❌⚠ + kind icons) renders as
+    exactly 2 columns on modern terminals, so we count any char in the
+    emoji / East-Asian-wide ranges as 2 cells and everything else as 1.
+    """
+    import unicodedata
+    w = 0
+    for ch in s:
+        if 0x1F000 <= ord(ch) <= 0x1FAFF:      # emoji plane
+            w += 2
+        elif unicodedata.east_asian_width(ch) in ("W", "F"):
+            w += 2
+        elif 0x2600 <= ord(ch) <= 0x27BF:      # misc symbols (✔ ⚠ ⬇ …)
+            w += 2
+        else:
+            w += 1
+    return w
+
+
+def _pad_to_width(s: str, width: int) -> str:
+    """Right-pad *s* with spaces so its display width == *width*."""
+    pad = width - _display_width(s)
+    return s + " " * max(0, pad)
 
 
 def _task_to_node_status(task: Optional["Task"]) -> NodeStatus:

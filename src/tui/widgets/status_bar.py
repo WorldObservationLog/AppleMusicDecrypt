@@ -1,7 +1,7 @@
 """Status bar widget — bottom-most line of the TUI.
 
 Renders a single styled line with three zones:
-  LEFT  : dl speed  dec speed  tasks N
+  LEFT  : ⬇ dl-speed  🔓 dec-speed  tasks N
   CENTRE: wrapper region tags (JP HK TW) - from WrapperClient
   RIGHT : mode indicator + keyboard hints
 
@@ -50,10 +50,10 @@ class StatusBar:
 
         # ── left ─────────────────────────────────────────────────────────
         out: StyleAndTextTuples = [
-            ("class:tui.statusbar.key",   " dl "),
+            ("class:tui.statusbar.key",   "⬇ "),
             ("class:tui.statusbar.value", m.download_speed()),
             ("class:tui.statusbar.sep",   "  "),
-            ("class:tui.statusbar.key",   " dec "),
+            ("class:tui.statusbar.key",   "🔓 "),
             ("class:tui.statusbar.value", m.decrypt_speed()),
             ("class:tui.statusbar.sep",   "  "),
             ("class:tui.statusbar.key",   "tasks "),

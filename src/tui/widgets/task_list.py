@@ -7,10 +7,10 @@ prompt_toolkit renders inside a ``ScrollablePane``.
 
 Tree chrome
 -----------
-  [-] [ALB] Album Name
-      ├─ >> Artist - Song A  dl 4.2MB
-      ├─ ok Artist - Song B
-      └─ XX Artist - Song C  ERR:...
+  ▼ 💿 Album Name
+      ├─ 🔄 Artist - Song A  4.2MB ⬇
+      ├─ ✅ Artist - Song B
+      └─ ❌ Artist - Song C  ERR:...
 
 Scroll
 ------
@@ -102,12 +102,12 @@ class TaskListWidget:
         else:
             chevron = ""
 
-        # ── status icon ──────────────────────────────────────────────────
-        icon       = status.icon()
+        # ── status icon (padded so columns align) ────────────────────────
+        icon       = status.icon_padded()
         icon_style = status.style_class()
 
         # ── name (truncate to fit sidebar) ───────────────────────────────
-        prefix_len   = len(indent) + len(chevron) + 2   # icon + space
+        prefix_len   = len(indent) + len(chevron) + 2 + 4  # icon(2)+space + kind icon(2)+space
         max_name     = max(8, SIDEBAR_WIDTH - prefix_len - 1)
         name         = node.resolved_name
         if len(name) > max_name:
@@ -121,9 +121,9 @@ class TaskListWidget:
             dl  = node.downloaded_bytes
             dec = node.decrypted_bytes
             if dl:
-                suffix_parts.append(f"dl {_fmt_bytes(dl)}")
+                suffix_parts.append(f"{_fmt_bytes(dl)} ⬇")
             if dec:
-                suffix_parts.append(f"dec {_fmt_bytes(dec)}")
+                suffix_parts.append(f"{_fmt_bytes(dec)} 🔓")
         elif status == NodeStatus.FAILED and node.error:
             err = str(node.error)[:18]
             suffix_parts.append(f"ERR:{err}")
