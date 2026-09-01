@@ -57,23 +57,25 @@ def _ansi_to_tuples(raw: str) -> StyleAndTextTuples:
     """Convert a loguru-formatted ANSI string to prompt_toolkit tuples."""
     result: StyleAndTextTuples = []
     current_style = ""
+    style_parts: list[str] = []
     pos = 0
     for m in _ANSI_RE.finditer(raw):
         # Text before this escape.
         if m.start() > pos:
             result.append((current_style, raw[pos:m.start()]))
-        # Update style.
+        # Update style.  style_parts persists across consecutive SGR codes
+        # (e.g. "[33m[1m" => yellow + bold), and is only cleared
+        # by an explicit reset (0).
         codes = m.group(1).split(";")
-        parts = []
         for code in codes:
             mapped = _SGR_TO_STYLE.get(code)
             if mapped is None:
                 continue
             if mapped == "":
-                parts = []          # reset
+                style_parts = []    # reset
             else:
-                parts.append(mapped)
-        current_style = " ".join(parts)
+                style_parts.append(mapped)
+        current_style = " ".join(style_parts)
         pos = m.end()
     # Trailing text.
     if pos < len(raw):
