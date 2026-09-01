@@ -88,6 +88,17 @@ async def run_tui(shell: "InteractiveShell") -> None:
     log_sink.install()
 
     # ── 1b. reliable input source for Termux / proot ─────────────────────
+    if _os.environ.get("TERMUX_VERSION"):
+        from src.logger import GlobalLogger as _GL
+        try:
+            from creart import it as _it
+            _it(_GL).logger.warning(
+                "Termux detected: if the on-screen keyboard is not responding, "
+                "long-press the Termux terminal and use 'Text input', or enable "
+                "the extra keys row (Termux settings -> Keyboard -> Show extra keys).")
+        except Exception:
+            pass
+
     # prompt_toolkit silently falls back to DummyInput when sys.stdin has no
     # usable fileno() — that makes every key (including Ctrl+C) dead.  In
     # such environments try /dev/tty explicitly.
@@ -209,7 +220,10 @@ async def run_tui(shell: "InteractiveShell") -> None:
         layout          = layout,
         style           = TUI_STYLE,
         key_bindings    = kb,
-        full_screen     = True,
+        # Termux: virtual keyboards can lose key events inside the
+        # alternate screen; keep full-screen rendering but stay on the
+        # primary screen in narrow terminals for reliable input.
+        full_screen     = not is_narrow_tasks(),
         input           = _input_source,   # None -> prompt_toolkit default
         # Disable mouse in narrow terminals: Termux touch events can yank
         # focus away from the input bar.  Wide terminals keep mouse support.
