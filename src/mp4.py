@@ -1113,6 +1113,37 @@ def _patch_trun_data_offset(trun_raw: bytes, delta: int) -> bytes | None:
     return bytes(out)
 
 
+def _patch_tfhd_sample_desc_index(tfhd_raw: bytes, index: int = 1) -> bytes | None:
+    """Return a copy of *tfhd_raw* with ``sample_description_index`` set to
+    *index*, or ``None`` when the field is absent or already equal to *index*.
+
+    The sanitized output init keeps exactly one sample entry in ``stsd``, so
+    fragments that originally referenced the second (pre-removal) entry must
+    be rewritten to reference entry 1.  Without this, players see a
+    sample_description_index of 2 in later fragments and ignore them, which
+    makes the track appear to be only the first fragment (~15 s) long.
+    """
+    try:
+        btype, size, header_size, _ = _box_header(tfhd_raw, 0, len(tfhd_raw))
+    except MP4ParseError:
+        return None
+    if btype != b"tfhd" or header_size + 8 > len(tfhd_raw):
+        return None
+    flags = _u32(tfhd_raw, header_size) & 0xFFFFFF
+    if not (flags & 0x2):  # no sample_description_index field
+        return None
+    field_off = header_size + 8  # version/flags + track_ID
+    if flags & 0x1:
+        field_off += 8  # base_data_offset is present
+    if field_off + 4 > len(tfhd_raw):
+        return None
+    if _u32(tfhd_raw, field_off) == index:
+        return None
+    out = bytearray(tfhd_raw)
+    struct.pack_into(">I", out, field_off, index)
+    return bytes(out)
+
+
 def _build_fragment_tree(data, box: _Box, parent: _Node | None = None) -> _Node:
     node = _Node(box.type, raw=bytes(data[box.start:box.end]), usertype=box.usertype, parent=parent)
     if box.type in _FRAGMENT_CONTAINERS:
@@ -1169,6 +1200,18 @@ def _rebuild_moof_bytes(data, moof_box: _Box) -> bytes:
                     patched = _patch_trun_data_offset(c.raw, total_removed)
                     if patched is not None:
                         c.raw = patched
+                        traf.mark_dirty()
+
+    # The sanitized init keeps a single stsd entry, so rewrite any tfhd that
+    # still references the pre-sanitization second entry (sample_description_index 2)
+    # to entry 1.  Leaving it at 2 makes demuxers ignore all later fragments.
+    for traf in trafs:
+        for c in traf.children:
+            if c.btype == b"tfhd":
+                patched = _patch_tfhd_sample_desc_index(c.raw, 1)
+                if patched is not None:
+                    c.raw = patched
+                    traf.mark_dirty()
     return _encode_node(root)
 
 

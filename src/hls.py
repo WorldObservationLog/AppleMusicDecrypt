@@ -15,6 +15,19 @@ from src.types import M3U8Info, Codec, CodecKeySuffix, prefetchKey
 from src.utils import find_best_codec, get_codec_from_codec_id
 
 
+def _filter_fairplay_keys(media_txt: str) -> str:
+    """Drop non-FairPlay ``#EXT-X-KEY`` lines (PlayReady/Widevine ``data:``
+    URIs) so only the ``com.apple.streamingkeydelivery`` (FairPlay) keys
+    survive. Mirrors the reference implementation's ``filterResponse``.
+    """
+    out = []
+    for line in media_txt.splitlines():
+        if line.startswith("#EXT-X-KEY:") and "streamingkeydelivery" not in line:
+            continue
+        out.append(line)
+    return "\n".join(out) + "\n"
+
+
 async def get_available_codecs(m3u8_url: str) -> tuple[list[str], list[str]]:
     parsed_m3u8 = m3u8.loads(await it(WebAPI).download_m3u8(m3u8_url), uri=m3u8_url)
     codec_ids = [playlist.stream_info.audio for playlist in parsed_m3u8.playlists]
@@ -37,8 +50,13 @@ async def extract_media(m3u8_url: str, codec: str, task: Task) -> M3U8Info:
     if not specifyPlaylist:
         raise CodecNotFoundException
     selected_codec = specifyPlaylist.media[0].group_id
-    stream = m3u8.loads(await it(WebAPI).download_m3u8(specifyPlaylist.absolute_uri),
-                        uri=specifyPlaylist.absolute_uri)
+    media_txt = await it(WebAPI).download_m3u8(specifyPlaylist.absolute_uri)
+    # The web (enhancedHls) media playlist declares several DRM keys
+    # (PlayReady/Widevine as data: URIs) alongside the FairPlay skd:// keys.
+    # Drop the non-FairPlay key lines BEFORE parsing so the m3u8 library's
+    # per-segment key assignment only ever sees the FairPlay keys (mirrors the
+    # reference implementation's filterResponse).
+    stream = m3u8.loads(_filter_fairplay_keys(media_txt), uri=specifyPlaylist.absolute_uri)
     skds = [key.uri for key in stream.keys if regex.match('(skd?://[^"]*)', key.uri)]
     keys = [prefetchKey]
     key_suffix = CodecKeySuffix.KeySuffixDefault
@@ -82,9 +100,14 @@ async def extract_media(m3u8_url: str, codec: str, task: Task) -> M3U8Info:
         if extras.get("sample_rate") and extras.get("bit_depth"):
             sample_rate, bit_depth = int(extras["sample_rate"]), int(extras["bit_depth"])
 
+    # Per-segment key URIs (fragment i <-> segment i): the first segment uses
+    # the prefetch key, the rest use the per-song key (c6/c23).
+    segment_keys = [seg.key.uri if seg.key else prefetchKey for seg in segments]
+
     return M3U8Info(uri=segment.absolute_uri, keys=keys, codec_id=selected_codec,
                     bit_depth=bit_depth, sample_rate=sample_rate,
-                    range_start=range_start, range_length=range_length)
+                    range_start=range_start, range_length=range_length,
+                    segment_keys=segment_keys)
 
 
 async def legacy_extract_media(m3u8_url: str) -> M3U8Info:

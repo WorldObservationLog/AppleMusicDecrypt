@@ -30,6 +30,9 @@ class M3U8Info(BaseModel):
     # when present the media file is a sub-range of ``uri``.
     range_start: Optional[int] = None
     range_length: Optional[int] = None
+    # Per-segment key URIs (fragment i <-> segment i); the first is usually the
+    # prefetch key, the rest the per-song key (c6/c23).
+    segment_keys: list[str] = []
 
 
 class Codec:
