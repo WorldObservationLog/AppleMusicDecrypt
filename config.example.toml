@@ -13,7 +13,7 @@ enable = false
 # wrapper-lite-qemu launcher binary ("" = auto-detect from PATH).
 launcherBin = ""
 # Host port forwarded to the guest's wrapper-lite HTTP port.
-hostPort = 32767
+hostPort = 12340
 guestPort = 12340
 # Hardware accelerator ("" = auto-detect).
 hardwareAccelerator = ""

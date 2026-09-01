@@ -20,7 +20,7 @@ class LocalInstance(BaseModel):
     #   c++ -std=c++11 -O2 -o wrapper-lite-qemu wrapper-lite-qemu.cpp
     # and keep its qemu/ asset dir next to the binary.
     launcherBin: str = ""
-    hostPort: int = 32767
+    hostPort: int = 12340
     guestPort: int = 12340
     # kvm | whpx | hvf | tcg ("" = auto-detect by the launcher)
     hardwareAccelerator: str = ""
