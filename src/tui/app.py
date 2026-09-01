@@ -88,6 +88,7 @@ async def run_tui(shell: "InteractiveShell") -> None:
     log_sink.install()
 
     # ── 1b. reliable input source for Termux / proot ─────────────────────
+    import os as _os
     if _os.environ.get("TERMUX_VERSION"):
         from src.logger import GlobalLogger as _GL
         try:
@@ -102,7 +103,6 @@ async def run_tui(shell: "InteractiveShell") -> None:
     # prompt_toolkit silently falls back to DummyInput when sys.stdin has no
     # usable fileno() — that makes every key (including Ctrl+C) dead.  In
     # such environments try /dev/tty explicitly.
-    import os as _os
     import sys as _sys
     _input_source = None
     try:
