@@ -105,6 +105,9 @@ async def run_tui(shell: "InteractiveShell") -> None:
         """Dispatch a command string through InteractiveShell."""
         # Detect batch activation: shell sets shell.batch_mode.
         await shell.command_parser(text)
+        # A command's output (help text, status panel, ...) should be
+        # visible immediately — re-tail the log and redraw.
+        log_view.scroll_to_bottom()
         # Sync batch flag back to TUI state.
         _batch_active[0] = shell.batch_mode
         if shell.batch_mode:
@@ -119,6 +122,7 @@ async def run_tui(shell: "InteractiveShell") -> None:
         for url in urls:
             full_cmd = f"{cmd_prefix} {url}"
             await shell.command_parser(full_cmd)
+        log_view.scroll_to_bottom()
         if app_ref:
             app_ref[0].invalidate()
 
@@ -163,7 +167,7 @@ async def run_tui(shell: "InteractiveShell") -> None:
         style           = TUI_STYLE,
         key_bindings    = kb,
         full_screen     = True,
-        mouse_support   = False,
+        mouse_support   = True,   # click to focus panes, wheel to scroll
         refresh_interval = 0.5,
     )
     app_ref.append(app)
@@ -279,7 +283,11 @@ def _build_keybindings(
     @kb.add("f1")
     def _help(event):
         # Inject the "help" command into the shell.
-        asyncio.get_event_loop().create_task(shell.command_parser("help"))
+        async def _run_help():
+            await shell.command_parser("help")
+            log_view.scroll_to_bottom()
+            invalidate()
+        asyncio.get_event_loop().create_task(_run_help())
 
     # Input-bar scoped bindings: ↑/↓ history, Home/End line jumps.
     return merge_key_bindings([kb, input_bar.key_bindings()])
