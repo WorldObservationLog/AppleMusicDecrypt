@@ -106,6 +106,9 @@ class WrapperClient:
             http2=False,
         )
         self._semaphore = asyncio.Semaphore(64)
+        # wrapper/lite's /m3u8 cannot serve many concurrent requests; keep
+        # the batch prefetch from overwhelming it.
+        self._m3u8_semaphore = asyncio.Semaphore(4)
 
     async def __aenter__(self) -> "WrapperClient":
         return self
@@ -143,8 +146,9 @@ class WrapperClient:
         return await self._request("GET", "/status")
 
     async def m3u8(self, adam_id: str) -> str:
-        data = await self._request("GET", "/m3u8", params={"adamId": adam_id})
-        return data["m3u8"]
+        async with self._m3u8_semaphore:
+            data = await self._request("GET", "/m3u8", params={"adamId": adam_id})
+            return data["m3u8"]
 
     async def key_template(self, adam_id: str, uri: str) -> dict:
         """Return the full ``data`` dict of GET /key (ctx/state/registers).
