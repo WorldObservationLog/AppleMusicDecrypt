@@ -3,7 +3,7 @@ version = "0.1.0"
 
 [instance]
 # wrapper-lite HTTP instance URL (scheme is decided by `secure`)
-url = "127.0.0.1:8080"
+url = "127.0.0.1:12340"
 secure = false
 
 [localInstance]
@@ -14,7 +14,7 @@ enable = false
 launcherBin = ""
 # Host port forwarded to the guest's wrapper-lite HTTP port.
 hostPort = 32767
-guestPort = 8080
+guestPort = 12340
 # Hardware accelerator ("" = auto-detect).
 hardwareAccelerator = ""
 memorySize = "512M"

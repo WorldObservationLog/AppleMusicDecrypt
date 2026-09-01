@@ -101,7 +101,7 @@ Tasks are shown as a tree: an album / playlist / artist download creates a paren
 
 | Option | Default | Meaning |
 |--------|---------|---------|
-| `[instance] url` | `127.0.0.1:8080` | wrapper-lite HTTP instance |
+| `[instance] url` | `127.0.0.1:12340` | wrapper-lite HTTP instance |
 | `[instance] secure` | `false` | https when `true` |
 | `[download] streamDecrypt` | `true` | decrypt while downloading (边下边解) |
 | `[download] decryptBatchSize` | `256` | Temari stream batch size |
@@ -127,7 +127,7 @@ cp config.example.toml config.toml
 uv run python main.py
 ```
 
-Point `[instance]` in `config.toml` at your wrapper-lite instance. The default is `127.0.0.1:8080` (http) for a locally self-hosted wrapper.
+Point `[instance]` in `config.toml` at your wrapper-lite instance. The default is `127.0.0.1:12340` (http) for a locally self-hosted wrapper.
 
 # FAQ
 ### Song did not pass the integrity check

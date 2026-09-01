@@ -33,7 +33,7 @@ python3 -m venv .venv
 For Android users, some configurations need to be modified.
 ```toml
 [instance]
-url = "127.0.0.1:8080" # Address of your wrapper-lite instance
+url = "127.0.0.1:12340" # Address of your wrapper-lite instance
 secure = false
 
 [download]

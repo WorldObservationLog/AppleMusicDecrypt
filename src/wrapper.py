@@ -268,7 +268,7 @@ class WrapperCreator(AbstractCreator):
 if __name__ == "__main__":
     # Minimal self-check: construct the client and print base_url. No network.
     async def _self_check() -> None:
-        client = WrapperClient("127.0.0.1:8080", False)
+        client = WrapperClient("127.0.0.1:12340", False)
         print(f"WrapperClient constructed; base_url={client.base_url}")
         print(
             "status.cache_invalidate available:",

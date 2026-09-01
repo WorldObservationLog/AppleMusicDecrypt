@@ -9,7 +9,7 @@ CONFIG_VERSION = "0.1.0"
 
 
 class Instance(BaseModel):
-    url: str = "127.0.0.1:8080"
+    url: str = "127.0.0.1:12340"
     secure: bool = False
 
 
@@ -21,13 +21,13 @@ class LocalInstance(BaseModel):
     # and keep its qemu/ asset dir next to the binary.
     launcherBin: str = ""
     hostPort: int = 32767
-    guestPort: int = 8080
+    guestPort: int = 12340
     # kvm | whpx | hvf | tcg ("" = auto-detect by the launcher)
     hardwareAccelerator: str = ""
     memorySize: str = "512M"
     smp: int = 2
     # args forwarded to wrapper-lite (one per line); "" = default boot
-    # (--host 0.0.0.0 --port 8080 --base-dir /data). e.g.:
+    # (--host 0.0.0.0 --port 12340 --base-dir /data). e.g.:
     #   "--login user:pass\n--code-from-file"
     startArgs: str = ""
 
