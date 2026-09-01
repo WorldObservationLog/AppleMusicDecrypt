@@ -220,14 +220,12 @@ async def run_tui(shell: "InteractiveShell") -> None:
         layout          = layout,
         style           = TUI_STYLE,
         key_bindings    = kb,
-        # Termux: virtual keyboards can lose key events inside the
-        # alternate screen; keep full-screen rendering but stay on the
-        # primary screen in narrow terminals for reliable input.
-        full_screen     = not is_narrow_tasks(),
+        # Always full-screen for a proper TUI.  Touch/mouse stays enabled so
+        # tapping the log pane or the input bar switches focus (Termux users
+        # explicitly prefer this over relying only on Tab).
+        full_screen     = True,
         input           = _input_source,   # None -> prompt_toolkit default
-        # Disable mouse in narrow terminals: Termux touch events can yank
-        # focus away from the input bar.  Wide terminals keep mouse support.
-        mouse_support   = not is_narrow_tasks(),
+        mouse_support   = True,
         refresh_interval = 0.5,
     )
     app_ref.append(app)
