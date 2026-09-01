@@ -119,6 +119,32 @@ class QemuInstance:
             await asyncio.sleep(2)
         raise QemuCrashedException("timed out waiting for wrapper-lite to become ready")
 
+    async def run_login(self, loop: asyncio.AbstractEventLoop) -> int:
+        """Launch wrapper-lite in one-shot login mode and wait for exit.
+
+        The guest entrypoint runs ``wrapper-lite --login`` and exits after
+        caching tokens; it never starts the HTTP service, so we cannot wait
+        for /status.  Returns the launcher's exit code.
+        """
+        cfg = it(Config).localInstance
+        args = build_launcher_args(cfg)
+        env = build_launcher_env(cfg)
+        it(GlobalLogger).logger.info(
+            f"Running one-shot login via {args[0]} (port {cfg.hostPort} -> {cfg.guestPort})")
+        creationflags = 0
+        if os.name == "nt":
+            import subprocess as _sp
+            creationflags = _sp.CREATE_NO_WINDOW
+        self.proc = await asyncio.create_subprocess_exec(
+            *args, env=env,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+            creationflags=creationflags,
+        )
+        await asyncio.wait_for(self.proc.wait(), timeout=300)
+        return self.proc.returncode
+
     def running(self) -> bool:
         return self.proc is not None and self.proc.returncode is None
 

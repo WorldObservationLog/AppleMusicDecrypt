@@ -80,49 +80,50 @@ async def main() -> int:
     password = getpass.getpass("Password: ")
     two_fa = input("2FA code (leave empty if not prompted): ").strip()
 
-    # Write the login arguments to a temp file.  wrapper-lite reads its
-    # argument list from LITE_ARGS_FILE, so the password never appears in
-    # the qemu process command line (ps) — same spirit as v2 passing the
-    # credentials through the login API instead of CLI args.
-    login_args = [f"--login {username}:{password}"]
+    # The guest entrypoint performs login when the account database is
+    # missing: it launches wrapper-lite-rootless --login ... and exits after
+    # the tokens are cached.  So the login run is a one-shot boot that
+    # terminates itself; the next normal boot serves requests.
+    login_args = f"--login {username}:{password}"
     code_file = None
     if two_fa:
-        fd, code_file = tempfile.mkstemp(prefix="lite-2fa-", text=True)
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
+        # wrapper-lite reads the 2FA code from <base-dir>/2fa.txt when
+        # --code-from-file is set.  The qemu guest mounts data.img as /data,
+        # so write the code into the host data directory used by the guest.
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qemu")
+        os.makedirs(data_dir, exist_ok=True)
+        code_file = os.path.join(data_dir, "2fa.txt")
+        with open(code_file, "w", encoding="utf-8") as f:
             f.write(two_fa)
-        login_args.append(f"--code-from-file {code_file}")
+        login_args += " --code-from-file"
 
-    fd_args, args_path = tempfile.mkstemp(prefix="lite-args-", text=True)
-    with os.fdopen(fd_args, "w", encoding="utf-8") as f:
-        f.write("\n".join(login_args) + "\n")
-
-    # Relaunch wrapper-lite with the args file; wait for regions to confirm
-    # the login actually succeeded.
-    print("\nRestarting wrapper-lite with login credentials...")
+    print("\nRunning one-shot login with wrapper-lite...")
     await qemu.terminate()
-    old_env = os.environ.get("LITE_ARGS_FILE")
-    os.environ["LITE_ARGS_FILE"] = args_path
+    old_start_args = cfg.startArgs
+    cfg.startArgs = login_args
     try:
-        qemu2 = QemuInstance()
-        await qemu2.launch_instance(loop, wait_for_regions=True)
-        it(Config).instance.url = f"127.0.0.1:{cfg.hostPort}"
-        await it(WrapperClient).init()
-
-        ok = await _regions_available()
-        await qemu2.terminate()
+        qemu_login = QemuInstance()
+        # Login mode never starts the HTTP service; wait for the launcher
+        # (and the guest) to exit after the tokens are cached.
+        await qemu_login.run_login(loop)
     finally:
-        os.environ.pop("LITE_ARGS_FILE", None)
-        if old_env is not None:
-            os.environ["LITE_ARGS_FILE"] = old_env
-        try:
-            os.remove(args_path)
-        except OSError:
-            pass
+        cfg.startArgs = old_start_args
         if code_file:
             try:
                 os.remove(code_file)
             except OSError:
                 pass
+
+    # Final boot without login args: the cached tokens should now make the
+    # service report a region.
+    print("\nStarting wrapper-lite with cached account...")
+    qemu_final = QemuInstance()
+    await qemu_final.launch_instance(loop, wait_for_regions=True)
+    it(Config).instance.url = f"127.0.0.1:{cfg.hostPort}"
+    await it(WrapperClient).init()
+
+    ok = await _regions_available()
+    await qemu_final.terminate()
 
     if ok:
         print("\nLogin successful! You can now start the app with start.bat.")
