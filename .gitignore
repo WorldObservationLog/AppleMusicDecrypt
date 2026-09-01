@@ -167,4 +167,3 @@ config.toml
 /tests/
 qemu/wrapper-lite-qemu.exe
 qemu/qemu/
-qemu/2fa_code.txt

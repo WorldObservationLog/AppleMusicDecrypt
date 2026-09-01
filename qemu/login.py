@@ -1,20 +1,21 @@
 """Local wrapper-lite login helper.
 
 Boots the bundled wrapper-lite instance (via wrapper-lite-qemu), prompts
-for Apple ID credentials, and relaunches wrapper-lite with ``--login``.
+for Apple ID credentials, and performs the login without putting the
+password on any command line: the credentials are written to a temporary
+args file and passed to the launcher through the ``LITE_ARGS_FILE``
+environment variable (wrapper-lite reads its arguments from that file).
+
 Run from the package root:
 
     python qemu/login.py
-
-This is the interactive counterpart of setting ``[localInstance] startArgs``
-in ``config.toml``.
 """
 
 import asyncio
 import getpass
 import os
 import sys
-from pathlib import Path
+import tempfile
 
 # Allow running from the package root (python qemu/login.py) or from
 # inside the qemu/ directory.
@@ -61,9 +62,10 @@ async def main() -> int:
         print("Enable it in config.toml first, then re-run this script.")
         return 1
 
-    # Boot wrapper-lite without login args.
+    # Boot wrapper-lite without login args.  For a *login* we wait until
+    # /status reports a region, not merely an HTTP 200.
     qemu = QemuInstance()
-    await qemu.launch_instance(loop)
+    await qemu.launch_instance(loop, wait_for_regions=True)
     it(Config).instance.url = f"127.0.0.1:{cfg.hostPort}"
     it(Config).instance.secure = False
     await it(WrapperClient).init()
@@ -77,25 +79,49 @@ async def main() -> int:
     password = getpass.getpass("Password: ")
     two_fa = input("2FA code (leave empty if not prompted): ").strip()
 
-    lite_args = f"--login {username}:{password}"
+    # Write the login arguments to a temp file.  wrapper-lite reads its
+    # argument list from LITE_ARGS_FILE, so the password never appears in
+    # the qemu process command line (ps) — same spirit as v2 passing the
+    # credentials through the login API instead of CLI args.
+    login_args = [f"--login {username}:{password}"]
+    code_file = None
     if two_fa:
-        # wrapper-lite reads the 2FA code from a file (--code-from-file).
-        code_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "2fa_code.txt")
-        Path(code_file).write_text(two_fa, encoding="utf-8")
-        lite_args += f" --code-from-file {code_file}"
+        fd, code_file = tempfile.mkstemp(prefix="lite-2fa-", text=True)
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(two_fa)
+        login_args.append(f"--code-from-file {code_file}")
 
-    # Relaunch wrapper-lite with the login args: the login is performed by
-    # the guest at boot, so the instance must be restarted with the creds.
+    fd_args, args_path = tempfile.mkstemp(prefix="lite-args-", text=True)
+    with os.fdopen(fd_args, "w", encoding="utf-8") as f:
+        f.write("\n".join(login_args) + "\n")
+
+    # Relaunch wrapper-lite with the args file; wait for regions to confirm
+    # the login actually succeeded.
     print("\nRestarting wrapper-lite with login credentials...")
     await qemu.terminate()
-    cfg.startArgs = lite_args
-    qemu2 = QemuInstance()
-    await qemu2.launch_instance(loop)
-    it(Config).instance.url = f"127.0.0.1:{cfg.hostPort}"
-    await it(WrapperClient).init()
+    old_env = os.environ.get("LITE_ARGS_FILE")
+    os.environ["LITE_ARGS_FILE"] = args_path
+    try:
+        qemu2 = QemuInstance()
+        await qemu2.launch_instance(loop, wait_for_regions=True)
+        it(Config).instance.url = f"127.0.0.1:{cfg.hostPort}"
+        await it(WrapperClient).init()
 
-    ok = await _regions_available()
-    await qemu2.terminate()
+        ok = await _regions_available()
+        await qemu2.terminate()
+    finally:
+        os.environ.pop("LITE_ARGS_FILE", None)
+        if old_env is not None:
+            os.environ["LITE_ARGS_FILE"] = old_env
+        try:
+            os.remove(args_path)
+        except OSError:
+            pass
+        if code_file:
+            try:
+                os.remove(code_file)
+            except OSError:
+                pass
 
     if ok:
         print("\nLogin successful! You can now start the app with start.bat.")

@@ -69,7 +69,8 @@ def build_launcher_env(cfg) -> dict:
 class QemuInstance:
     proc = None
 
-    async def launch_instance(self, loop: asyncio.AbstractEventLoop):
+    async def launch_instance(self, loop: asyncio.AbstractEventLoop,
+                              wait_for_regions: bool = False):
         cfg = it(Config).localInstance
         args = build_launcher_args(cfg)
         env = build_launcher_env(cfg)
@@ -93,8 +94,18 @@ class QemuInstance:
                 async with httpx.AsyncClient(timeout=3.0) as client:
                     resp = await client.get(status_url)
                     if resp.status_code == 200:
-                        it(GlobalLogger).logger.info("wrapper-lite is ready")
-                        return
+                        if not wait_for_regions:
+                            it(GlobalLogger).logger.info("wrapper-lite is ready")
+                            return
+                        # HTTP 200 alone is not enough for login flows: the
+                        # wrapper is usable only once an account region exists.
+                        try:
+                            regions = resp.json().get("data", {}).get("regions") or []
+                        except Exception:
+                            regions = []
+                        if regions:
+                            it(GlobalLogger).logger.info("wrapper-lite is ready (regions available)")
+                            return
             except Exception:
                 pass
             await asyncio.sleep(2)
