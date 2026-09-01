@@ -14,7 +14,7 @@ local decryption library:
 - **Zero external binaries** — the fMP4 file is parsed, decrypted and re-encapsulated by a pure-Python ISO-BMFF module; tags are written with `mutagen`; integrity is verified structurally.
 - **Batch-friendly** — prefetch key template reuse, cached metadata, streaming download with byte-range resume, per-fragment pipelined decryption, and a shared keep-alive CDN connection pool.
 - **Music videos** — `dl <music-video-url>` downloads the MV: video + audio streams are fetched, decrypted with pure-Python AES-CBC cbcs Widevine and remuxed into one MP4 by the pure-Python muxer.
-- **Full-screen TUI** — a responsive terminal interface with a live log pane, a tree-structured task sidebar (album → tracks), a command input with history/completion, a floating batch-URL panel and a status bar. Falls back to stacked single-pane mode on narrow terminals (phones / Termux).
+- **Full-screen TUI** — a live log pane, a tree-structured task sidebar (album → tracks), a command input with history/completion, a floating batch-URL panel and a status bar. A `--legacy-ui` flag restores the v2-style simple REPL for minimal terminals.
 
 # Usage
 
@@ -70,7 +70,6 @@ The whole interface is a full-screen terminal application with three areas: a li
 | `↑ / ↓ / PgUp / PgDn` | scroll the log (focus on log pane) |
 | `End` | re-enable log auto-follow after scrolling |
 | `F1` | help |
-| `F2` | narrow terminals only: toggle LOG ↔ TASKS full-width panes |
 | `F10` / `Ctrl+C` | exit (press twice when tasks are running) |
 | `Ctrl+D` | submit the batch panel (batch mode) |
 | `Esc` | cancel the batch panel |

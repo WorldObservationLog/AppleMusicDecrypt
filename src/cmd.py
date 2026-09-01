@@ -28,8 +28,9 @@ class InteractiveShell:
     localInstance: QemuInstance = QemuInstance()
     ripper: Ripper
 
-    def __init__(self, loop: asyncio.AbstractEventLoop):
+    def __init__(self, loop: asyncio.AbstractEventLoop, legacy_ui: bool = False):
         self.ripper = Ripper()
+        self.legacy_ui = legacy_ui
         dep_installed, missing_dep = check_dep()
         if not dep_installed:
             it(GlobalLogger).logger.error(f"Dependency {missing_dep} was not installed!")
@@ -203,7 +204,6 @@ class InteractiveShell:
             "  Up/Down     scroll log (log focused) / command history (input focused)\n"
             "  End         re-enable log auto-follow after scrolling\n"
             "  F1          this help\n"
-            "  F2          narrow terminals: toggle LOG <-> TASKS full-width view\n"
             "  F10/Ctrl+C  quit (press again within 5s when tasks are running)\n"
             "  Ctrl+D      submit batch panel; Esc cancels it\n"
             "\n"
@@ -349,6 +349,39 @@ class InteractiveShell:
         os._exit(0)
 
     async def start(self):
-        """Entry point — delegates to the TUI application."""
+        """Entry point — legacy REPL or full-screen TUI."""
+        if self.legacy_ui:
+            await self.start_legacy()
+            return
         from src.tui.app import run_tui
         await run_tui(self)
+
+    async def start_legacy(self):
+        """v2-style REPL (PromptSession) for simple terminals.
+
+        Mirrors the v2 UI: a plain "> " prompt with a bottom speed
+        toolbar and Tab completion; no full-screen alternate buffer.
+        """
+        from prompt_toolkit import PromptSession
+        from prompt_toolkit.patch_stdout import patch_stdout
+
+        session = PromptSession(
+            "> ",
+            bottom_toolbar=self.bottom_toolbar,
+            completer=self.completer(),
+            refresh_interval=1,
+        )
+        with patch_stdout():
+            try:
+                while True:
+                    try:
+                        command = await session.prompt_async()
+                    except (EOFError, KeyboardInterrupt):
+                        self.handle_exit()
+                        return
+                    if command.strip() == '':
+                        continue
+                    await self.command_parser(command)
+            finally:
+                if it(Config).localInstance.enable:
+                    self.localInstance.terminate()

@@ -1,6 +1,15 @@
+import argparse
 import asyncio
 
 from creart import add_creator
+
+parser = argparse.ArgumentParser(description="AppleMusicDecrypt")
+parser.add_argument(
+    "--legacy-ui",
+    action="store_true",
+    help="use the v2-style simple REPL instead of the full-screen TUI",
+)
+args, _ = parser.parse_known_args()
 
 loop = asyncio.new_event_loop()
 
@@ -22,7 +31,7 @@ add_creator(TaskTreeCreator)
 from src.cmd import InteractiveShell
 
 if __name__ == '__main__':
-    cmd = InteractiveShell(loop)
+    cmd = InteractiveShell(loop, legacy_ui=args.legacy_ui)
     try:
         loop.run_until_complete(cmd.start())
     except KeyboardInterrupt:

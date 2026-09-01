@@ -1,38 +1,23 @@
 """TUI layout definition.
 
-Assembles the four regions into a prompt_toolkit Layout.  Two body modes
-exist and exactly one is rendered at a time:
+Single full-screen split layout (log pane | task sidebar), input bar and
+status bar.  Narrow-terminal stacked mode was removed.
 
-Wide (>= NARROW_THRESHOLD columns) — the classic split:
-
-  ┌─ LOG (focusable, scrollable) ──────┬─ TASKS (sidebar) ─┐
-  │                                    │                    │
-  ├─ INPUT BAR ────────────────────────┴────────────────────┤
-  └─ STATUS BAR ───────────────────────────────────────────-┘
-
-Narrow (< NARROW_THRESHOLD, e.g. phones) — single full-width pane;
-``show_tasks`` (an F2-toggled filter) picks TASKS, otherwise LOG:
-
-  ┌─ TASKS (F2: back to log) ───────────────────────────────┐
-  │                                                         │
-  ├─ INPUT BAR ─────────────────────────────────────────────┤
-  └─ STATUS BAR (compact hints) ───────────────────────────-┘
-
-A FloatContainer wraps the whole body so the BatchPanel float can
-overlay when batch mode is active.
+  ┌ LOG (focusable, scrollable) ──────┬ TASKS (sidebar) ─┐
+  │                                   │                    │
+  ├ INPUT BAR ────────────────────────┴────────────────────┤
+  └ STATUS BAR ───────────────────────────────────────────-┘
 """
 
 from __future__ import annotations
 
 from prompt_toolkit.layout.containers import (
-    ConditionalContainer,
     FloatContainer,
     Float,
     HSplit,
     VSplit,
     Window,
 )
-from prompt_toolkit.filters import Condition
 from prompt_toolkit.layout.dimension import Dimension as D
 from prompt_toolkit.layout import Layout
 from prompt_toolkit.widgets import Frame, HorizontalLine, VerticalLine
@@ -44,32 +29,17 @@ from src.tui.widgets.batch_panel import BatchPanel
 from src.tui.widgets.status_bar import StatusBar
 
 
-# Below this many columns the layout switches to the stacked mode:
-# a single pane that toggles between LOG and TASKS (phones / narrow
-# split-screens).  Above it the classic two-column split is used.
-NARROW_THRESHOLD = 80
-
-
 def build_layout(
     log_view:    LogView,
     task_list:   TaskListWidget,
     input_bar:   InputBar,
     batch_panel: BatchPanel,
     status_bar:  StatusBar,
-    show_tasks:  "Condition | None" = None,
 ) -> tuple[Layout, list[Float]]:
-    """Build and return the prompt_toolkit Layout plus the list of Floats.
+    """Build and return the prompt_toolkit Layout plus the list of Floats."""
 
-    ``show_tasks`` drives the narrow-terminal stacked mode: when the
-    terminal is narrower than NARROW_THRESHOLD both the wide two-column
-    body and the stacked TASKS pane react to it (exactly one is visible).
-    """
-    from prompt_toolkit.filters import Condition as _Cond
-    show_tasks = show_tasks if show_tasks is not None else _Cond(lambda: False)
-    wide = ~show_tasks   # wide mode = NOT the toggled narrow tasks view
-
-    # ── wide body: log | sidebar (>= NARROW_THRESHOLD columns) ──────────
-    wide_body = VSplit([
+    # ── body: log | sidebar ──────────────────────────────────────────────
+    body = VSplit([
         Frame(
             body=log_view.window,
             title=" LOG ",
@@ -88,25 +58,6 @@ def build_layout(
         ),
     ])
 
-    # ── narrow body: full-width TASKS pane (toggled via F2) ─────────────
-    narrow_body = Frame(
-        body=task_list.pane,
-        title=" TASKS (F2: back to log) ",
-        style="class:frame.border",
-    )
-
-    # Exactly one body is rendered.  wide_body additionally requires that
-    # the terminal is not too narrow; narrow_body only shows when toggled.
-    from src.tui.widgets.status_bar import StatusBar as _SB  # noqa: F401
-    body = ConditionalContainer(
-        content=wide_body,
-        filter=wide,
-    )
-    narrow = ConditionalContainer(
-        content=narrow_body,
-        filter=show_tasks,
-    )
-
     # ── input row ────────────────────────────────────────────────────────
     input_row = Frame(
         body=input_bar.container,
@@ -117,7 +68,6 @@ def build_layout(
     # ── full-screen stack ────────────────────────────────────────────────
     root = HSplit([
         body,
-        narrow,
         input_row,
         status_bar.window,
     ])

@@ -14,7 +14,7 @@ Keybindings
 Tab        focus log pane <-> input bar
 Up/Down    scroll log (log focused) / command history (input focused)
 End        log auto-follow after scrolling
-F1         help;  F2  narrow-terminal LOG<->TASKS toggle
+F1         help
 F10/Ctrl+C exit (two-step confirm while tasks run)
 Ctrl+D/Esc submit / cancel the batch panel
 
@@ -126,16 +126,6 @@ async def run_tui(shell: "InteractiveShell") -> None:
     # Shared mutable state (plain lists used as mutable cells).
     _batch_active = [False]
     _batch_args_cmd = ["dl"]         # stores the command prefix for batch
-    # Narrow-terminal mode: on phones / split screens the sidebar and log
-    # cannot fit side-by-side.  Narrow terminals start in LOG view; F2
-    # toggles to the full-width TASKS pane and back.
-    from src.tui.layout import NARROW_THRESHOLD
-    import shutil as _shutil
-    _narrow_tasks = [(_shutil.get_terminal_size().columns or 80) < NARROW_THRESHOLD]
-
-    def is_narrow_tasks() -> bool:
-        return _narrow_tasks[0]
-
     def is_batch() -> bool:
         return _batch_active[0]
 
@@ -149,7 +139,6 @@ async def run_tui(shell: "InteractiveShell") -> None:
         get_regions = _get_regions,
         is_tailing  = is_tailing,
         is_batch    = is_batch,
-        is_narrow   = is_narrow_tasks,
     )
 
     async def _on_command(text: str) -> None:
@@ -199,7 +188,6 @@ async def run_tui(shell: "InteractiveShell") -> None:
     # ── 4. layout ─────────────────────────────────────────────────────────
     layout, floats = build_layout(
         log_view, task_list, input_bar, batch_panel, status_bar,
-        show_tasks=Condition(is_narrow_tasks),
     )
 
     # ── 5. keybindings ────────────────────────────────────────────────────
@@ -211,8 +199,6 @@ async def run_tui(shell: "InteractiveShell") -> None:
         shell        = shell,
         app_ref      = app_ref,
         _batch_active = _batch_active,
-        is_narrow_tasks = is_narrow_tasks,
-        _narrow_tasks   = _narrow_tasks,
     )
 
     # ── 6. Application ────────────────────────────────────────────────────
@@ -254,8 +240,6 @@ def _build_keybindings(
     shell:        "InteractiveShell",
     app_ref:      list,
     _batch_active: list,
-    is_narrow_tasks: "Callable[[], bool]" = lambda: False,
-    _narrow_tasks:   list = None,
 ) -> KeyBindings:
 
     kb = KeyBindings()
@@ -345,13 +329,6 @@ def _build_keybindings(
                 event.app.layout.focus(batch_panel.window)
             except Exception:
                 pass
-
-    # ── F2: narrow-terminal LOG <-> TASKS toggle ─────────────────────────
-    @kb.add("f2", filter=Condition(lambda: not is_batch()))
-    def _toggle_tasks(event):
-        if _narrow_tasks is not None:
-            _narrow_tasks[0] = not _narrow_tasks[0]
-            invalidate()
 
     # ── F1 help ──────────────────────────────────────────────────────────
     @kb.add("f1")

@@ -4,10 +4,8 @@ Renders a single styled line with three zones:
   LEFT  : ⬇ dl-speed  🔓 dec-speed  tasks N
   CENTRE: wrapper region tags (JP HK TW), from the cached
           ``WrapperClient._last_regions`` (populated by the `status`
-          command); dropped on narrow terminals.
-  RIGHT : mode indicators ([BATCH] / [SCROLL]) + keyboard hints —
-          compact ([F2] Tasks [F10] Exit) when ``is_narrow``, full
-          ([Tab] Focus [F1] Help [F10] Exit) otherwise.
+          command).
+  RIGHT : mode indicators ([BATCH] / [SCROLL]) + keyboard hints.
 
 The control is purely read-only (no focus, no cursor).
 """
@@ -31,12 +29,10 @@ class StatusBar:
         get_regions:    "Callable[[], list[str]]",
         is_tailing:     "Callable[[], bool]",
         is_batch:       "Callable[[], bool]",
-        is_narrow:      "Callable[[], bool] | None" = None,
     ) -> None:
         self._get_regions = get_regions
         self._is_tailing  = is_tailing
         self._is_batch    = is_batch
-        self._is_narrow   = is_narrow or (lambda: False)
 
         self.control = FormattedTextControl(
             text=self._render,
@@ -56,7 +52,7 @@ class StatusBar:
 
         # ── left ─────────────────────────────────────────────────────────
         out: StyleAndTextTuples = [
-            ("class:tui.statusbar.key",   "⬇ "),
+            ("class:tui.statusbar.key",   " ⬇ "),
             ("class:tui.statusbar.value", m.download_speed()),
             ("class:tui.statusbar.sep",   "  "),
             ("class:tui.statusbar.key",   "🔓 "),
@@ -67,16 +63,15 @@ class StatusBar:
             ("class:tui.statusbar.sep",   "   "),
         ]
 
-        # ── centre: regions (dropped on narrow terminals) ────────────────
-        if not self._is_narrow():
-            regions = self._get_regions()
-            if regions:
-                for r in regions:
-                    out.append(("class:tui.statusbar.region", r.upper()))
-                    out.append(("class:tui.statusbar.sep",    "  "))
-            else:
-                out.append(("class:tui.statusbar.key", "(no regions)"))
-                out.append(("class:tui.statusbar.sep",  "   "))
+        # ── centre: regions ──────────────────────────────────────────────
+        regions = self._get_regions()
+        if regions:
+            for r in regions:
+                out.append(("class:tui.statusbar.region", r.upper()))
+                out.append(("class:tui.statusbar.sep",    "  "))
+        else:
+            out.append(("class:tui.statusbar.key", "(no regions)"))
+            out.append(("class:tui.statusbar.sep",  "   "))
 
         # ── mode indicators ───────────────────────────────────────────────
         if self._is_batch():
@@ -84,23 +79,14 @@ class StatusBar:
         if not self._is_tailing():
             out.append(("class:tui.statusbar.scroll", "[SCROLL End=tail]  "))
 
-        # ── right: key hints (compact on narrow terminals) ───────────────
-        if self._is_narrow():
-            # Narrow / phone terminals: the essential keys only.
-            out += [
-                ("class:tui.statusbar.key",   "[F2]"),
-                ("class:tui.statusbar",       "Tasks "),
-                ("class:tui.statusbar.key",   "[F10]"),
-                ("class:tui.statusbar",       "Exit "),
-            ]
-        else:
-            out += [
-                ("class:tui.statusbar.sep",   " "),
-                ("class:tui.statusbar.key",   "[Tab]"),
-                ("class:tui.statusbar",       "Focus  "),
-                ("class:tui.statusbar.key",   "[F1]"),
-                ("class:tui.statusbar",       "Help  "),
-                ("class:tui.statusbar.key",   "[F10]"),
-                ("class:tui.statusbar",       "Exit "),
-            ]
+        # ── right: key hints ─────────────────────────────────────────────
+        out += [
+            ("class:tui.statusbar.sep",   " "),
+            ("class:tui.statusbar.key",   "[Tab]"),
+            ("class:tui.statusbar",       "Focus  "),
+            ("class:tui.statusbar.key",   "[F1]"),
+            ("class:tui.statusbar",       "Help  "),
+            ("class:tui.statusbar.key",   "[F10]"),
+            ("class:tui.statusbar",       "Exit "),
+        ]
         return out

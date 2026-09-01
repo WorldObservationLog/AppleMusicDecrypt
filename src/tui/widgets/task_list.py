@@ -12,12 +12,11 @@ Tree chrome
       ├─ ✅ Artist - Song B
       └─ ❌ Artist - Song C  ERR:...
 
-Scroll / narrow terminals
--------------------------
+Scroll
+------
 The pane scrolls independently of the log pane (mouse wheel) and never
-receives keyboard focus (no Tab stop).  On narrow terminals the pane
-occupies the full width instead of a sidebar — see ``layout.py``.
-Names are never truncated: long lines soft-wrap.
+receives keyboard focus (no Tab stop).  Names are never truncated:
+long lines soft-wrap.
 """
 
 from __future__ import annotations
