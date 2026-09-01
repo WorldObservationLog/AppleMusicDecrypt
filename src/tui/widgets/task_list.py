@@ -66,6 +66,7 @@ class TaskListWidget:
             if mouse_event.event_type == MouseEventType.MOUSE_UP:
                 if _get_app().layout.current_control != self._inner_control:
                     _get_app().layout.current_control = self._inner_control
+                    _get_app().invalidate()   # refresh focused-frame highlight
                     return None
             elif mouse_event.event_type == MouseEventType.SCROLL_DOWN:
                 self.scroll(3)
