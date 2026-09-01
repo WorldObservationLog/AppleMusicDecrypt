@@ -39,8 +39,7 @@ jobs:
           $exe = Get-ChildItem -Path "lite-artifact" -Recurse -Filter "wrapper-lite-qemu.exe" | Select-Object -First 1
           if (-not $exe) { throw "wrapper-lite-qemu.exe not found in artifact" }
           Copy-Item $exe.FullName -Destination "$dest/wrapper-lite-qemu.exe"
-          # Ship the interactive login helper next to the launcher.
-          Copy-Item "qemu/login.py" -Destination "$dest/login.py"
+          # login.py is already tracked in qemu/ and ships with the repo.
 
           $qemuDir = Get-ChildItem -Path "lite-artifact" -Recurse -Directory -Filter "qemu" | Select-Object -First 1
           if ($qemuDir) {
