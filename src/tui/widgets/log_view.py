@@ -21,6 +21,7 @@ from __future__ import annotations
 import re
 from typing import Callable
 
+from prompt_toolkit.data_structures import Point
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.containers import Window
@@ -95,11 +96,13 @@ class LogView:
     def __init__(self) -> None:
         self._offset: int  = 0      # lines from the bottom (0 = auto-tail)
         self._tail:   bool = True   # True → auto-tail mode
+        self._cursor_pos = None     # (row, col) hint for Window auto-scroll
 
         self.control = FormattedTextControl(
             text=self._get_text,
             focusable=True,
             show_cursor=False,
+            get_cursor_position=lambda: self._cursor_pos,
         )
         self.window = Window(
             content=self.control,
@@ -136,6 +139,7 @@ class LogView:
     def _get_text(self) -> StyleAndTextTuples:
         lines = log_sink.get_lines()
         if not lines:
+            self._cursor_pos = None
             return [("class:log.text", "(no log output yet)\n")]
 
         # Determine the window of lines to show.
@@ -151,4 +155,9 @@ class LogView:
         result: StyleAndTextTuples = []
         for raw in lines:
             result.extend(_ansi_to_tuples(raw))
+
+        # Cursor on the last rendered line: the Window keeps the view
+        # scrolled to the bottom (auto-tail) as new lines arrive.
+        # Point(x=column, y=row).
+        self._cursor_pos = Point(x=0, y=len(lines) - 1)
         return result
