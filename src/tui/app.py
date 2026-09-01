@@ -87,6 +87,27 @@ async def run_tui(shell: "InteractiveShell") -> None:
     # ── 1. log sink ───────────────────────────────────────────────────────
     log_sink.install()
 
+    # ── 1b. reliable input source for Termux / proot ─────────────────────
+    # prompt_toolkit silently falls back to DummyInput when sys.stdin has no
+    # usable fileno() — that makes every key (including Ctrl+C) dead.  In
+    # such environments try /dev/tty explicitly.
+    import os as _os
+    import sys as _sys
+    _input_source = None
+    try:
+        _sys.stdin.fileno()
+    except Exception:
+        try:
+            _tty_fd = _os.open("/dev/tty", _os.O_RDONLY)
+            _input_source = _os.fdopen(_tty_fd, "r", encoding="utf-8", errors="replace")
+        except Exception:
+            _input_source = None
+    from prompt_toolkit.input.defaults import create_input as _create_input
+    if _input_source is None:
+        _input_source = _create_input()   # may still be DummyInput
+    else:
+        _input_source = _create_input(_input_source)
+
     # ── 2. widget state ───────────────────────────────────────────────────
     tree   = it(TaskTree)
     app_ref: list[Application] = []   # filled after app construction
@@ -189,6 +210,7 @@ async def run_tui(shell: "InteractiveShell") -> None:
         style           = TUI_STYLE,
         key_bindings    = kb,
         full_screen     = True,
+        input           = _input_source,   # None -> prompt_toolkit default
         # Disable mouse in narrow terminals: Termux touch events can yank
         # focus away from the input bar.  Wide terminals keep mouse support.
         mouse_support   = not is_narrow_tasks(),
