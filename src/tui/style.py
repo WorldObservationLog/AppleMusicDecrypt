@@ -40,6 +40,7 @@ from prompt_toolkit.styles import Style
 TUI_STYLE = Style.from_dict({
     # ── borders ──────────────────────────────────────────────────────────────
     "frame.border":                 "#4a4a6a",
+    "frame.border.focused":         "bold #89b4fa",
     "frame.label":                  "bold #8888cc",
 
     # ── status bar ────────────────────────────────────────────────────────────

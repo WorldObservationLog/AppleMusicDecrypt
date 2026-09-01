@@ -55,6 +55,21 @@ class TaskListWidget:
             focusable=True,
             show_cursor=False,
         )
+        # Click-to-focus for the sidebar (FormattedTextControl has no
+        # built-in focus_on_click like BufferControl does).
+        from prompt_toolkit.mouse_events import MouseEventType
+        from prompt_toolkit.application.current import get_app as _get_app
+
+        _orig_mouse = self._inner_control.mouse_handler
+
+        def _mouse_handler(mouse_event):
+            if (mouse_event.event_type == MouseEventType.MOUSE_UP
+                    and _get_app().layout.current_control != self._inner_control):
+                _get_app().layout.current_control = self._inner_control
+                return None
+            return _orig_mouse(mouse_event)
+
+        self._inner_control.mouse_handler = _mouse_handler
         # Inner Window: height = len(rendered lines); ScrollablePane clips it.
         self._inner_window = Window(
             content=self._inner_control,

@@ -12,12 +12,14 @@ status bar.  Narrow-terminal stacked mode was removed.
 from __future__ import annotations
 
 from prompt_toolkit.layout.containers import (
+    DynamicContainer,
     FloatContainer,
     Float,
     HSplit,
     VSplit,
     Window,
 )
+from prompt_toolkit.filters import has_focus
 from prompt_toolkit.layout.dimension import Dimension as D
 from prompt_toolkit.layout import Layout
 from prompt_toolkit.widgets import Frame, HorizontalLine, VerticalLine
@@ -53,31 +55,41 @@ def build_layout(
     """Build and return the prompt_toolkit Layout plus the list of Floats."""
 
     # ── body: log | sidebar ──────────────────────────────────────────────
-    body = VSplit([
-        Frame(
+    def _log_frame():
+        return Frame(
             body=log_view.window,
             title=" LOG ",
             width=D(weight=7),
-            style="class:frame.border",
-        ),
-        Frame(
+            style="class:frame.border.focused" if has_focus(log_view.window)()
+                  else "class:frame.border",
+        )
+
+    def _task_frame():
+        return Frame(
             body=task_list.pane,
             title=" TASKS ",
-            # Grow with content: preferred 52+4, never wider than 45% of
-            # the screen so the log pane keeps room on small terminals.
-            width=D(preferred=_sidebar_width + 4,
-                    max=_sidebar_width + 4,
+            width=D(preferred=get_sidebar_width() + 4,
+                    max=get_sidebar_width() + 4,
                     weight=3),
-            style="class:frame.border",
-        ),
+            style="class:frame.border.focused" if has_focus(task_list._inner_window)()
+                  else "class:frame.border",
+        )
+
+    body = VSplit([
+        DynamicContainer(_log_frame),
+        DynamicContainer(_task_frame),
     ])
 
     # ── input row ────────────────────────────────────────────────────────
-    input_row = Frame(
-        body=input_bar.container,
-        height=D.exact(3),
-        style="class:frame.border",
-    )
+    def _input_frame():
+        return Frame(
+            body=input_bar.container,
+            height=D.exact(3),
+            style="class:frame.border.focused" if has_focus(input_bar.window)()
+                  else "class:frame.border",
+        )
+
+    input_row = DynamicContainer(_input_frame)
 
     # ── full-screen stack ────────────────────────────────────────────────
     root = HSplit([
