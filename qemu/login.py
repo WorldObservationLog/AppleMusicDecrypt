@@ -62,10 +62,11 @@ async def main() -> int:
         print("Enable it in config.toml first, then re-run this script.")
         return 1
 
-    # Boot wrapper-lite without login args.  For a *login* we wait until
-    # /status reports a region, not merely an HTTP 200.
+    # Boot wrapper-lite without login args.  An unauthenticated instance
+    # legitimately reports an empty regions list, so only wait for HTTP 200
+    # here; the post-login relaunch below waits for regions.
     qemu = QemuInstance()
-    await qemu.launch_instance(loop, wait_for_regions=True)
+    await qemu.launch_instance(loop, wait_for_regions=False)
     it(Config).instance.url = f"127.0.0.1:{cfg.hostPort}"
     it(Config).instance.secure = False
     await it(WrapperClient).init()
