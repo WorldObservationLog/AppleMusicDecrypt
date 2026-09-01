@@ -27,10 +27,12 @@ class StatusBar:
         get_regions:    "Callable[[], list[str]]",
         is_tailing:     "Callable[[], bool]",
         is_batch:       "Callable[[], bool]",
+        is_narrow:      "Callable[[], bool] | None" = None,
     ) -> None:
         self._get_regions = get_regions
         self._is_tailing  = is_tailing
         self._is_batch    = is_batch
+        self._is_narrow   = is_narrow or (lambda: False)
 
         self.control = FormattedTextControl(
             text=self._render,
@@ -61,15 +63,16 @@ class StatusBar:
             ("class:tui.statusbar.sep",   "   "),
         ]
 
-        # ── centre: regions ──────────────────────────────────────────────
-        regions = self._get_regions()
-        if regions:
-            for r in regions:
-                out.append(("class:tui.statusbar.region", r.upper()))
-                out.append(("class:tui.statusbar.sep",    "  "))
-        else:
-            out.append(("class:tui.statusbar.key", "(no regions)"))
-            out.append(("class:tui.statusbar.sep",  "   "))
+        # ── centre: regions (dropped on narrow terminals) ────────────────
+        if not self._is_narrow():
+            regions = self._get_regions()
+            if regions:
+                for r in regions:
+                    out.append(("class:tui.statusbar.region", r.upper()))
+                    out.append(("class:tui.statusbar.sep",    "  "))
+            else:
+                out.append(("class:tui.statusbar.key", "(no regions)"))
+                out.append(("class:tui.statusbar.sep",  "   "))
 
         # ── mode indicators ───────────────────────────────────────────────
         if self._is_batch():
@@ -77,14 +80,23 @@ class StatusBar:
         if not self._is_tailing():
             out.append(("class:tui.statusbar.scroll", "[SCROLL End=tail]  "))
 
-        # ── right: key hints ─────────────────────────────────────────────
-        out += [
-            ("class:tui.statusbar.sep",   " "),
-            ("class:tui.statusbar.key",   "[Tab]"),
-            ("class:tui.statusbar",       "Focus  "),
-            ("class:tui.statusbar.key",   "[F1]"),
-            ("class:tui.statusbar",       "Help  "),
-            ("class:tui.statusbar.key",   "[F10]"),
-            ("class:tui.statusbar",       "Exit "),
-        ]
+        # ── right: key hints (compact on narrow terminals) ───────────────
+        if self._is_narrow():
+            # Narrow / phone terminals: the essential keys only.
+            out += [
+                ("class:tui.statusbar.key",   "[F2]"),
+                ("class:tui.statusbar",       "Tasks "),
+                ("class:tui.statusbar.key",   "[F10]"),
+                ("class:tui.statusbar",       "Exit "),
+            ]
+        else:
+            out += [
+                ("class:tui.statusbar.sep",   " "),
+                ("class:tui.statusbar.key",   "[Tab]"),
+                ("class:tui.statusbar",       "Focus  "),
+                ("class:tui.statusbar.key",   "[F1]"),
+                ("class:tui.statusbar",       "Help  "),
+                ("class:tui.statusbar.key",   "[F10]"),
+                ("class:tui.statusbar",       "Exit "),
+            ]
         return out
