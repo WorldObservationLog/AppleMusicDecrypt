@@ -123,12 +123,41 @@ class QemuInstance:
         return self.proc is not None and self.proc.returncode is None
 
     async def terminate(self):
-        if self.proc is not None and self.proc.returncode is None:
-            try:
-                self.proc.terminate()
-                await asyncio.wait_for(self.proc.wait(), timeout=10)
-            except Exception:
+        if self.proc is None:
+            return
+        pid = self.proc.pid
+        if self.proc.returncode is None:
+            if os.name == "nt":
+                # wrapper-lite-qemu spawns a real qemu-system-x86_64 child;
+                # killing only the launcher leaves the child holding the
+                # forwarded port.  Kill the whole process tree.
+                import subprocess as _sp
                 try:
-                    self.proc.kill()
+                    _sp.run(
+                        ["taskkill", "/PID", str(pid), "/T", "/F"],
+                        capture_output=True, timeout=10,
+                    )
                 except Exception:
-                    pass
+                    try:
+                        self.proc.kill()
+                    except Exception:
+                        pass
+            else:
+                # Unix: try the process group first (launcher may not have
+                # created a new one), then fall back to descendants.
+                try:
+                    os.killpg(os.getpgid(pid), 9)
+                except Exception:
+                    try:
+                        self.proc.terminate()
+                        await asyncio.wait_for(self.proc.wait(), timeout=10)
+                    except Exception:
+                        try:
+                            self.proc.kill()
+                        except Exception:
+                            pass
+        try:
+            await asyncio.wait_for(self.proc.wait(), timeout=10)
+        except Exception:
+            pass
+        self.proc = None
