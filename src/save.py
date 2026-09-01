@@ -41,6 +41,7 @@ def finalize(part_path: str, final_path: str, metadata: SongMetadata, cover_form
     final = Path(final_path)
     dir_path = final.parent
     song_name = final.name
+    song_stem = final.stem   # filename without the audio extension
 
     if it(Config).download.saveCover and metadata.cover:
         cover_path = dir_path / f"cover.{it(Config).download.coverFormat}"
@@ -50,7 +51,7 @@ def finalize(part_path: str, final_path: str, metadata: SongMetadata, cover_form
         lrc = ttml_convent(metadata.lyrics)
         if lrc:
             if it(Config).download.lyricsFormat == "ttml":
-                lrc_path = dir_path / (song_name + ".ttml")
+                lrc_path = dir_path / (song_stem + ".ttml")
             else:
-                lrc_path = dir_path / (song_name + ".lrc")
+                lrc_path = dir_path / (song_stem + ".lrc")
             lrc_path.write_text(lrc, encoding="utf-8")
