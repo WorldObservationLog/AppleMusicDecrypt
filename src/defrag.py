@@ -170,9 +170,10 @@ def _make_stco(offset: int) -> bytes:
 
 
 def _make_stsc(sample_count: int, desc_index: int = 1) -> bytes:
-    # one chunk, all samples, description index 1, no per-sample desc
+    # one chunk containing all samples, same sample-description index:
+    # entry = (first_chunk, samples_per_chunk, sample_description_index)
     return _full_box(b"stsc", 0, 0,
-                     _u32(1) + _u32(1) + _u32(desc_index) + _u32(sample_count) + _u32(1))
+                     _u32(1) + _u32(1) + _u32(sample_count) + _u32(desc_index))
 
 
 def _patch_box_duration(box: bytes, duration: int) -> bytes:
