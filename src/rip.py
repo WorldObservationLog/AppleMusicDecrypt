@@ -777,8 +777,12 @@ def _cbcs_decrypt_runs(data: bytes, patterns, key: bytes, iv: bytes, cbb: int, s
 
 
 def check_song_integrity(path: str, codec: str) -> bool:
-    """Pure-Python structural integrity check: the output file must parse as a
-    valid fragmented MP4 (init + >=1 fragment)."""
+    """Pure-Python structural integrity check.
+
+    Accepts both layouts produced by the pipeline:
+    - fragmented MP4: init segment + at least one moof/mdat fragment;
+    - progressive MP4: moov with a populated stsz sample table plus mdat.
+    """
     try:
         with open(path, "rb") as f:
             data = f.read()
@@ -788,12 +792,30 @@ def check_song_integrity(path: str, codec: str) -> bool:
         init, off = parse_init(data)
         if init is None:
             return False
+
+        # 1) fragmented layout: init + >=1 fragment
         seq = 0
         while True:
             frag, off = parse_next_fragment(data, off, seq)
             if frag is None:
                 break
             seq += 1
-        return seq > 0
+        if seq > 0:
+            return True
+
+        # 2) progressive layout: stsz sample count > 0 and a top-level mdat.
+        # stsz sits deep in moov/trak/mdia/minf/stbl; binary search is fine
+        # here because the box type bytes are not expected elsewhere in moov.
+        idx = data.find(b"stsz", 0, len(init.moov))
+        if idx < 0:
+            return False
+        # stsz payload: version/flags(4) sample_size(4) sample_count(4)
+        sample_count = struct.unpack(">I", data[idx + 4 + 8: idx + 4 + 12])[0]
+        if sample_count == 0:
+            return False
+        # find top-level mdat after the moov
+        off2 = len(init.ftyp) + len(init.moov)
+        mdat_idx = data.find(b"mdat", off2)
+        return mdat_idx >= 0
     except MP4ParseError:
         return False
