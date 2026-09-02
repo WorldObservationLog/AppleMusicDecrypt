@@ -1,4 +1,6 @@
 import os
+import shutil
+import subprocess
 from pathlib import Path
 from typing import Tuple
 
@@ -33,12 +35,60 @@ def write_metadata_file(path: str, metadata: SongMetadata):
     mp4.save()
 
 
+def ffmpeg_reencapsulate(path: Path) -> bool:
+    """Re-mux an M4A with ffmpeg (stream copy) for better player compatibility.
+
+    v2 observed that M4As encapsulated by our pure-Python ISO-BMFF writer can
+    be mishandled by some players (e.g. Android media framework).  ffmpeg
+    re-encapsulation with ``-c:a copy -c:v copy`` keeps the audio bit-identical
+    while producing a container that Android plays reliably.
+
+    Returns True on success, False if ffmpeg is unavailable or failed (the
+    original file is left untouched in that case).
+    """
+    if shutil.which("ffmpeg") is None:
+        return False
+    tmp = path.with_suffix(path.suffix + ".ffmpeg")
+    try:
+        proc = subprocess.run(
+            [
+                "ffmpeg", "-y", "-v", "error",
+                "-i", str(path),
+                "-fflags", "+bitexact",
+                "-map_metadata", "0",
+                "-c:a", "copy", "-c:v", "copy",
+                str(tmp),
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+        if proc.returncode != 0 or not tmp.exists():
+            return False
+        os.replace(tmp, path)
+        return True
+    except Exception:
+        try:
+            if tmp.exists():
+                tmp.unlink()
+        except OSError:
+            pass
+        return False
+
+
 def finalize(part_path: str, final_path: str, metadata: SongMetadata, cover_format: str):
     """Write metadata into the .part file, rename it to its final name and save
     sidecar cover / lyrics files."""
-    write_metadata_file(part_path, metadata)
-    os.replace(part_path, final_path)
+    part = Path(part_path)
     final = Path(final_path)
+
+    # Re-mux through ffmpeg BEFORE embedding tags (v2 order): ffmpeg normalises
+    # the container so Android and other strict players accept it, then
+    # mutagen writes the tags into the clean container.  ffmpeg_reencapsulate
+    # is a no-op (returns False) when ffmpeg is unavailable.
+    ffmpeg_reencapsulate(part)
+    os.replace(part, final)
+
+    write_metadata_file(str(final), metadata)
     dir_path = final.parent
     song_name = final.name
     song_stem = final.stem   # filename without the audio extension
