@@ -283,14 +283,36 @@ class Ripper:
                 await task.parentDone.try_done()
 
     async def _get_m3u8_url(self, task: Task, codec: str, raw_metadata) -> Optional[str]:
-        if not raw_metadata.attributes.extendedAssetUrls:
-            task.logger.audio_not_exist()
-            return None
-        # All FPS codecs (ALAC/EC3/AAC) use the same enhancedHls master; the
-        # wrapper /m3u8 returns a different (device/download) rendition whose
-        # per-song key is the generic c6 key rather than the codec-specific
-        # c23/c24/c22 key, so we prefer enhancedHls from the web API.
-        return raw_metadata.attributes.extendedAssetUrls.enhancedHls
+        """Return the master playlist URL for this song.
+
+        Preference order:
+        1. wrapper /m3u8 (the local account's real device rendition).  The
+           web/API enhancedHls is known to have a "残血" problem: for some
+           tracks it does not offer the highest bitrate/codec rendition, so
+           it is only used as a fallback.
+        2. enhancedHls from the web API (fallback).
+
+        The prefetch pass already warms ``_m3u8_cache`` with wrapper URLs for
+        ALAC, so use that when available.
+        """
+        # 1) wrapper /m3u8, from the prefetch cache when present.
+        cached = self._m3u8_cache.get(task.adamId)
+        if cached:
+            return cached
+        try:
+            wrapper_url = await it(WrapperClient).m3u8(task.adamId)
+            if wrapper_url:
+                self._m3u8_cache[task.adamId] = wrapper_url
+                return wrapper_url
+        except Exception:
+            pass
+
+        # 2) fallback: enhancedHls from the web API.
+        if raw_metadata.attributes.extendedAssetUrls:
+            return raw_metadata.attributes.extendedAssetUrls.enhancedHls
+
+        task.logger.audio_not_exist()
+        return None
 
     # ------------------------------------------------------------------ #
     # Streaming (边下边解) pipeline
