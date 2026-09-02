@@ -394,4 +394,4 @@ class InteractiveShell:
                     await self.command_parser(command)
             finally:
                 if it(Config).localInstance.enable:
-                    self.localInstance.terminate()
+                    await self.localInstance.terminate()
