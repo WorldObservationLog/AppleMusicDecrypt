@@ -22,6 +22,10 @@ from src.utils import check_dep, run_sync, safely_create_task, config_outdated
 from src.wrapper import WrapperClient, WrapperError
 
 
+class _LegacyExit(BaseException):
+    """Internal control-flow signal used to leave the legacy REPL cleanly."""
+
+
 class InteractiveShell:
     loop: asyncio.AbstractEventLoop
     parser: argparse.ArgumentParser
@@ -354,7 +358,10 @@ class InteractiveShell:
         if app is not None and app.is_running:
             app.exit()
             return
-        self.loop.stop()
+        # Legacy REPL: raise a private exception to unwind start_legacy's
+        # with patch_stdout() cleanly.  loop.stop() here would abort the
+        # event loop before prompt_toolkit restores the terminal.
+        raise _LegacyExit()
 
     async def start(self):
         """Entry point — legacy REPL or full-screen TUI."""
@@ -388,10 +395,13 @@ class InteractiveShell:
                         command = await session.prompt_async()
                     except (EOFError, KeyboardInterrupt):
                         self.handle_exit()
-                        return
+                        return   # leave with patch_stdout() so the terminal
+                                 # is restored before the process exits
                     if command.strip() == '':
                         continue
                     await self.command_parser(command)
+            except _LegacyExit:
+                return   # Ctrl+C/F10 exit path also unwinds cleanly
             finally:
                 if it(Config).localInstance.enable:
                     await self.localInstance.terminate()
