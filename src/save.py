@@ -48,7 +48,9 @@ def ffmpeg_reencapsulate(path: Path) -> bool:
     """
     if shutil.which("ffmpeg") is None:
         return False
-    tmp = path.with_suffix(path.suffix + ".ffmpeg")
+    # The temp output must keep a container extension ffmpeg can infer
+    # (.ffmpeg is unknown); v2 used '<name>_fixed.m4a'.
+    tmp = path.with_name(path.stem + "_fixed" + path.suffix)
     try:
         proc = subprocess.run(
             [
