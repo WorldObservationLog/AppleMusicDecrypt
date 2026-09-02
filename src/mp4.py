@@ -1611,15 +1611,62 @@ def parse_fragment_timing(moof: bytes) -> tuple[int | None, int | None]:
                 track_id = _u32(tfhd, 12)
         for tfdt_box, _, _ in _find_child_boxes(moof, tstart + 8, tend, b"tfdt"):
             if len(tfdt_box) >= 12:
-                vaf = _u32(tfdt_box, 0)
+                # tfdt_box is a full box: size(4) type(4) ver/flags(4) value(4/8)
+                vaf = _u32(tfdt_box, 8)
                 version = vaf >> 24
                 if version == 0 and len(tfdt_box) >= 16:
-                    tfdt = _u32(tfdt_box, 4)
+                    tfdt = _u32(tfdt_box, 12)
                 elif version == 1 and len(tfdt_box) >= 20:
-                    tfdt = _u64(tfdt_box, 4)
+                    tfdt = _u64(tfdt_box, 12)
         if track_id is not None:
             return track_id, tfdt
     return None, None
+
+
+def patch_tfdt_delta(moof: bytes, delta: int) -> bytes:
+    """Rewrite every ``traf/tfdt`` decode time in one moof by subtracting
+    *delta* (used to normalise the first fragment to timestamp 0).
+
+    Handles tfdt v0 (32-bit) and v1 (64-bit).  If *delta* is 0 the moof is
+    returned unchanged.
+
+    This implementation scans for literal b"tfdt" inside the moof and writes
+    the baseMediaDecodeTime field in place; it is simpler and more robust than
+    navigating the nested box tree (the box type string does not appear as a
+    plain value inside valid tfdt payloads).
+    """
+    if delta == 0:
+        return moof
+    out = bytearray(moof)
+    search_from = 0
+    while True:
+        i = out.find(b"tfdt", search_from)
+        if i < 0:
+            break
+        # i points at the type field.  A full box is:
+        #   size(4) "tfdt"(4) version+flags(4) value(4 or 8)
+        # Verify the size field makes sense before touching it.
+        if i >= 4:
+            size = struct.unpack(">I", out[i - 4:i])[0]
+            if size < 16 or i - 4 + size > len(out):
+                search_from = i + 4
+                continue
+            vaf = _u32(out, i + 4)
+            version = vaf >> 24
+            if version == 0 and size >= 16:
+                value_off = i + 8
+                cur = _u32(out, value_off)
+                struct.pack_into(">I", out, value_off, max(0, cur - delta))
+            elif version == 1 and size >= 20:
+                value_off = i + 8
+                cur = _u64(out, value_off)
+                struct.pack_into(">Q", out, value_off, max(0, cur - delta))
+            search_from = i + 4
+        else:
+            search_from = i + 4
+    return bytes(out)
+
+
 
 
 def patch_tkhd_track_id(trak: bytes, new_id: int) -> bytes:

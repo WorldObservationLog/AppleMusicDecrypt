@@ -22,25 +22,63 @@ from src.mp4 import (parse_init, _box_header, _iter_children, patch_moof_track_i
 class FragmentStore:
     """Disk-backed store of renumbered, decrypted MV fragments.
 
-    ``add(kind, fragment_bytes)`` appends the fragment to a temp file and
-    records (decode_time_sec, kind, offset, length). :meth:`iter_sorted`
-    yields the fragments in decode-time order (kind 0 = video first on ties).
+    ``add(kind, fragment_bytes, time_sec, timescale)`` appends the fragment
+    to a temp file and records decode info. :meth:`iter_sorted` yields the
+    fragments in decode-time order (kind 0 = video first on ties).
+
+    After all fragments are added, call :meth:`normalize_timestamps` to
+    rewrite every tfdt so each stream starts at 0 (Apple MV fragments
+    typically begin ~10s in, which confuses players like VLC).
     """
 
     def __init__(self, temp_path: str):
         self._path = temp_path
         self._f = open(temp_path, "w+b")
-        self._entries = []  # (time_sec, kind, offset, length)
+        self._entries = []  # (time_sec, kind, offset, length, timescale)
 
-    def add(self, kind: int, fragment_bytes: bytes, time_sec: float):
+    def add(self, kind: int, fragment_bytes: bytes, time_sec: float,
+            timescale: int = 90000):
         off = self._f.tell()
         self._f.write(fragment_bytes)
-        self._entries.append((time_sec, kind, off, len(fragment_bytes)))
+        self._entries.append((time_sec, kind, off, len(fragment_bytes),
+                              timescale))
 
     def iter_sorted(self):
-        for time_sec, kind, off, ln in sorted(self._entries, key=lambda e: (e[0], e[1])):
+        for time_sec, kind, off, ln, _ts in sorted(
+                self._entries, key=lambda e: (e[0], e[1])):
             self._f.seek(off)
             yield time_sec, kind, self._f.read(ln)
+
+    def normalize_timestamps(self) -> None:
+        """Rewrite each stored fragment's tfdt so every stream starts at 0."""
+        from src.mp4 import parse_fragment_timing, patch_tfdt_delta
+
+        # Find the minimum tfdt per stream kind.
+        mins: dict[int, int | None] = {0: None, 1: None}
+        for _t, kind, off, ln, _ts in self._entries:
+            self._f.seek(off)
+            _, tfdt = parse_fragment_timing(self._f.read(ln))
+            if tfdt is not None:
+                cur = mins.get(kind)
+                if cur is None or tfdt < cur:
+                    mins[kind] = tfdt
+
+        # Rewrite every fragment with its stream's delta, recomputing time_sec.
+        new_entries = []
+        for time_sec, kind, off, ln, ts in self._entries:
+            self._f.seek(off)
+            data = self._f.read(ln)
+            base = mins.get(kind)
+            if base:
+                data = patch_tfdt_delta(data, base)
+                ln = len(data)
+                _, tfdt = parse_fragment_timing(data)
+                if tfdt is not None:
+                    time_sec = tfdt / ts
+                self._f.seek(off)
+                self._f.write(data)
+            new_entries.append((time_sec, kind, off, ln, ts))
+        self._entries = new_entries
 
     def close(self):
         self._f.flush()

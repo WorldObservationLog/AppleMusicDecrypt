@@ -227,6 +227,15 @@ class MVRipper:
         a_frags = [f for f in (await asyncio.gather(*[dec(s, a_init, a_content) for s in a_segs])) if f] if a_content else []
         if not v_frags:
             raise RuntimeError("No video fragments downloaded")
+        from src.mp4 import parse_fragment_timing, patch_tfdt_delta
+        # Normalise timestamps per stream so VLC starts at 0.
+        for flist in (v_frags, a_frags):
+            if not flist:
+                continue
+            base = min((parse_fragment_timing(f)[1] or 0) for f in flist)
+            if base:
+                for i, f in enumerate(flist):
+                    flist[i] = patch_tfdt_delta(f, base)
         out = mux_mv(v_init, a_init, v_frags, a_frags)
         await run_sync(_write_bytes, part_path, out)
 
@@ -247,12 +256,15 @@ class MVRipper:
                     if frag is None:
                         return
                     t, _, frag = fragment_entry(frag, old_id, new_id, ts_sec, kind)
-                    store.add(kind, frag, t)
+                    store.add(kind, frag, t, ts_sec)
 
                 tasks = [process(0, s, v_init, v_content, v_old, 1, v_ts) for s in v_media.segments]
                 if a_content is not None and a_media is not None:
                     tasks += [process(1, s, a_init, a_content, a_old, 2, a_ts) for s in a_media.segments]
                 await asyncio.gather(*tasks)
+                # Apple MV fragments start at a non-zero timeline (~10s);
+                # normalise so VLC / players start at 0.
+                store.normalize_timestamps()
                 mux_mv_streamed(v_init, a_init, store, part_path)
             finally:
                 store.close()
