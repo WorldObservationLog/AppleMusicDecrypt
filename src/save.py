@@ -83,12 +83,32 @@ def finalize(part_path: str, final_path: str, metadata: SongMetadata, cover_form
     part = Path(part_path)
     final = Path(final_path)
 
-    # Re-mux through ffmpeg BEFORE embedding tags (v2 order): ffmpeg normalises
-    # the container so Android and other strict players accept it, then
-    # mutagen writes the tags into the clean container.  ffmpeg_reencapsulate
-    # is a no-op (returns False) when ffmpeg is unavailable.
-    ffmpeg_reencapsulate(part)
-    os.replace(part, final)
+    # Android's media framework mishandles fragmented MP4 (our streaming
+    # output).  Rebuild it as a progressive MP4 in pure Python first; if the
+    # input is not fragmented (or conversion fails) fall back to the ffmpeg
+    # re-mux, then to the raw output.
+    converted = False
+    try:
+        from src.defrag import defragment_file
+        with open(part, "rb") as f:
+            data = f.read()
+        if b"moof" in data:
+            prog = defragment_file(str(part))
+            tmp = Path(final_path).with_name(Path(final_path).stem + "_prog" +
+                                             Path(final_path).suffix)
+            tmp.write_bytes(prog)
+            os.replace(tmp, final_path)
+            converted = True
+            # part is no longer needed; remove so the final os.replace
+            # below doesn't clobber the converted file.
+            os.remove(part)
+    except Exception:
+        converted = False
+
+    if not converted:
+        # ffmpeg re-mux fallback (stream copy, no re-encode).
+        ffmpeg_reencapsulate(part)
+        os.replace(part, final)
 
     write_metadata_file(str(final), metadata)
     dir_path = final.parent
