@@ -193,19 +193,34 @@ class MVRipper:
                 await asyncio.sleep(min(2 ** attempt, 15))
         raise RuntimeError("segment download failed")
 
-    async def _decrypt_segment(self, seg: bytes, init, content_key):
-        frag, _ = parse_next_fragment(seg, 0, 0)
-        if frag is None:
-            return None
+    async def _decrypt_segment(self, seg: bytes, init, content_key) -> list[bytes]:
+        """Decrypt every fragment contained in one CDN segment.
+
+        Apple MV media segments are ~6s long and can contain several
+        moof/mdat pairs.  The previous implementation only decrypted the
+        first fragment of each segment, silently dropping ~2/3 of video
+        frames and causing broken seeking / playback in desktop players.
+        """
         ti = list(init.tracks.values())[0]
-        decrypted = []
-        for spec in frag.samples:
-            sample = frag.mdat_payload[spec.offset:spec.offset + spec.length]
-            iv = spec.iv if spec.iv is not None else (ti.constant_iv or b"\x00" * 16)
-            pats = [(p.bytes_of_clear_data, p.bytes_of_protected_data) for p in spec.sub_sample_patterns]
-            decrypted.append(_decrypt_cbcs_sample(sample, iv, content_key, ti, pats))
-            it(Measurer).record_decrypt(len(sample))
-        return rebuild_fragment_bytes(frag, b"".join(decrypted))
+        results: list[bytes] = []
+        offset = 0
+        seq = 0
+        while offset < len(seg):
+            frag, next_offset = parse_next_fragment(seg, offset, seq)
+            if frag is None:
+                break
+            seq += 1
+            offset = next_offset
+            decrypted = []
+            for spec in frag.samples:
+                sample = frag.mdat_payload[spec.offset:spec.offset + spec.length]
+                iv = spec.iv if spec.iv is not None else (ti.constant_iv or b"\x00" * 16)
+                pats = [(p.bytes_of_clear_data, p.bytes_of_protected_data) for p in spec.sub_sample_patterns]
+                decrypted.append(_decrypt_cbcs_sample(sample, iv, content_key, ti, pats))
+                it(Measurer).record_decrypt(len(sample))
+            results.append(rebuild_fragment_bytes(frag, b"".join(decrypted)))
+        return results
+
 
     async def _rip_in_memory(self, logger, v_init, a_init, v_media, a_media,
                              v_content, a_content, part_path):
@@ -223,8 +238,8 @@ class MVRipper:
         async def dec(seg, init, key):
             return await self._decrypt_segment(seg, init, key)
 
-        v_frags = [f for f in (await asyncio.gather(*[dec(s, v_init, v_content) for s in v_segs])) if f]
-        a_frags = [f for f in (await asyncio.gather(*[dec(s, a_init, a_content) for s in a_segs])) if f] if a_content else []
+        v_frags = [f for flist in (await asyncio.gather(*[dec(s, v_init, v_content) for s in v_segs])) for f in flist]
+        a_frags = [f for flist in (await asyncio.gather(*[dec(s, a_init, a_content) for s in a_segs])) for f in flist] if a_content else []
         if not v_frags:
             raise RuntimeError("No video fragments downloaded")
         from src.mp4 import parse_fragment_timing, patch_tfdt_delta
@@ -252,11 +267,10 @@ class MVRipper:
                 async def process(kind, seg, init, content, old_id, new_id, ts_sec):
                     async with sem:
                         data = await self._download_segment(client, seg.absolute_uri, cfg.segmentRetries)
-                    frag = await self._decrypt_segment(data, init, content)
-                    if frag is None:
-                        return
-                    t, _, frag = fragment_entry(frag, old_id, new_id, ts_sec, kind)
-                    store.add(kind, frag, t, ts_sec)
+                    frags = await self._decrypt_segment(data, init, content)
+                    for frag in frags:
+                        t, _, frag = fragment_entry(frag, old_id, new_id, ts_sec, kind)
+                        store.add(kind, frag, t, ts_sec)
 
                 tasks = [process(0, s, v_init, v_content, v_old, 1, v_ts) for s in v_media.segments]
                 if a_content is not None and a_media is not None:

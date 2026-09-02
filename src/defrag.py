@@ -474,3 +474,277 @@ def _patch_stbl(stbl: bytes, stts: bytes, stsc: bytes, stsz: bytes,
 
     struct.pack_into(">I", out, 0, len(out))
     return bytes(out)
+
+
+# ---------------------------------------------------------------------------
+# Multi-track (video + audio MV) progressive conversion
+# ---------------------------------------------------------------------------
+
+def _trak_track_id(trak: bytes) -> int:
+    """Read ``trak/tkhd.track_ID`` from a full trak box."""
+    from src.mp4 import _box_header, _iter_children, _u32
+    try:
+        _, tsize, theader, _ = _box_header(trak, 0, len(trak))
+    except MP4ParseError:
+        return 0
+    for child in _iter_children(trak, theader, tsize):
+        if child.type == b"tkhd":
+            vaf = _u32(trak, child.payload_start)
+            version = vaf >> 24
+            # tkhd payload: ver/flags(4) creation(4/8) modification(4/8)
+            # track_ID(4)
+            off = child.payload_start + 4
+            if version == 1:
+                off += 8 + 8
+            else:
+                off += 4 + 4
+            return _u32(trak, off)
+    return 0
+
+
+def _trak_mdhd_timescale(trak: bytes) -> int:
+    from src.mp4 import read_trak_timescale
+    ts = read_trak_timescale(trak)
+    return ts or 0
+
+
+def _patch_trak_tables(trak: bytes, tables: dict) -> bytes:
+    """Return a patched trak with sample tables replaced by *tables*.
+
+    *tables* keys: stts, stsc, stsz, stco (each already a full box).
+    """
+    out = bytearray()
+    out += struct.pack(">I", 0) + b"trak"
+    for b, ps, pe, hs in _children(trak[8:]):
+        ps += 8
+        pe += 8
+        if b == b"mdia":
+            mdia = trak[ps - hs:pe]
+            out += _patch_mdia_multi(mdia, tables)
+        else:
+            out += trak[ps - hs:pe]
+    struct.pack_into(">I", out, 0, len(out))
+    return bytes(out)
+
+
+def _patch_mdia_multi(mdia: bytes, tables: dict) -> bytes:
+    out = bytearray()
+    out += struct.pack(">I", 0) + b"mdia"
+    for b, ps, pe, hs in _children(mdia[8:]):
+        ps += 8
+        pe += 8
+        if b == b"minf":
+            minf = mdia[ps - hs:pe]
+            out += _patch_minf_multi(minf, tables)
+        else:
+            out += mdia[ps - hs:pe]
+    struct.pack_into(">I", out, 0, len(out))
+    return bytes(out)
+
+
+def _patch_minf_multi(minf: bytes, tables: dict) -> bytes:
+    out = bytearray()
+    out += struct.pack(">I", 0) + b"minf"
+    for b, ps, pe, hs in _children(minf[8:]):
+        ps += 8
+        pe += 8
+        if b == b"stbl":
+            stbl = minf[ps - hs:pe]
+            out += _patch_stbl_multi(stbl, tables)
+        else:
+            out += minf[ps - hs:pe]
+    struct.pack_into(">I", out, 0, len(out))
+    return bytes(out)
+
+
+def _patch_stbl_multi(stbl: bytes, tables: dict) -> bytes:
+    out = bytearray()
+    out += struct.pack(">I", 0) + b"stbl"
+    for b, ps, pe, hs in _children(stbl[8:]):
+        ps += 8
+        pe += 8
+        if b in (b"stts", b"stsc", b"stsz", b"stco", b"co64"):
+            continue  # replaced below
+        out += stbl[ps - hs:pe]
+    for key in (b"stts", b"stsc", b"stsz", b"stco"):
+        if key in tables:
+            out += tables[key]
+    struct.pack_into(">I", out, 0, len(out))
+    return bytes(out)
+
+
+def defragment_bytes_multi(data: bytes) -> bytes:
+    """Rebuild a multi-track fragmented MP4 (MV) as progressive MP4.
+
+    Works like :func:`defragment_bytes` but supports one video and one audio
+    track (the typical MV layout).  All video samples are placed first in a
+    single mdat, followed by audio samples; each track gets its own
+    stts/stsc/stsz/stco.
+    """
+    init, off = parse_init(data)
+    if init is None:
+        raise MP4ParseError("defragment: no init segment found")
+
+    # Collect original trak boxes from init moov.
+    traks: list[tuple[int, bytes]] = []  # (track_id, full trak box)
+    for b, ps, pe, hs in _children(init.moov[8:]):
+        ps += 8
+        pe += 8
+        if b == b"trak":
+            trak = init.moov[ps - hs:pe]
+            traks.append((_trak_track_id(trak), trak))
+
+    # Collect samples per track.
+    track_samples: dict[int, list] = {}
+    track_payload: dict[int, list[bytes]] = {}
+
+    seq = 0
+    while off < len(data):
+        frag, off = parse_next_fragment(data, off, seq)
+        if frag is None:
+            break
+        seq += 1
+        by_track: dict[int, list] = {}
+        for spec in frag.samples:
+            tid = getattr(spec, "track_id", 1)
+            by_track.setdefault(tid, []).append(spec)
+        for tid, specs in by_track.items():
+            payloads = track_payload.setdefault(tid, [])
+            samples = track_samples.setdefault(tid, [])
+            for spec in specs:
+                chunk = frag.mdat_payload[spec.offset:spec.offset + spec.length]
+                payloads.append(chunk)
+                samples.append({
+                    "size": spec.length,
+                    "dur": spec.duration or 0,
+                    "desc_index": spec.desc_index,
+                })
+
+    if not track_samples:
+        raise MP4ParseError("no samples found in fragments")
+
+    # Build sample tables for each track (one chunk per track).
+    table_for: dict[int, dict] = {}
+    track_ts: dict[int, int] = {}
+    for tid, trak in traks:
+        track_ts[tid] = _trak_mdhd_timescale(trak)
+    for tid, samples in track_samples.items():
+        runs = []
+        for smp in samples:
+            d = smp["dur"]
+            if runs and runs[-1][1] == d:
+                runs[-1] = (runs[-1][0] + 1, d)
+            else:
+                runs.append((1, d))
+        stts = _make_stts(runs)
+        stsz = _make_stsz([smp["size"] for smp in samples])
+        stsc = _make_stsc(len(samples), desc_index=samples[0]["desc_index"] or 1)
+        table_for[tid] = {
+            b"stts": stts,
+            b"stsc": stsc,
+            b"stsz": stsz,
+            b"stco": _make_stco(0),
+        }
+
+    # Per-track media duration in media timescale units.
+    track_media_dur: dict[int, int] = {
+        tid: sum(smp["dur"] for smp in samples)
+        for tid, samples in track_samples.items()
+    }
+
+    def _patch_tkhd_mdhd_duration(trak: bytes, media_dur: int) -> bytes:
+        # patch tkhd/mdhd durations using a simple full-box text scan similar
+        # to _patch_box_duration but nested within the trak.
+        out = bytearray(trak)
+        for marker in (b"tkhd", b"mdhd"):
+            idx = out.find(marker)
+            while idx != -1:
+                # idx points at type; size before idx; ensure plausible.
+                if idx >= 4:
+                    size = struct.unpack(">I", out[idx - 4:idx])[0]
+                    if size >= 20 and idx - 4 + size <= len(out):
+                        vaf = struct.unpack(">I", out[idx + 4:idx + 8])[0]
+                        ver = vaf >> 24
+                        if marker == b"mdhd":
+                            # mdhd v0: ver/flags(4) creation(4) mod(4) ts(4) dur(4)
+                            # mdhd v1: ver/flags(4) creation(8) mod(8) ts(4) dur(8)
+                            off = idx + 8 + (8 if ver == 1 else 4) + (8 if ver == 1 else 4) + 4
+                        else:
+                            # tkhd v0: verflags(4) creation(4) mod(4) tid(4) resv(4) dur(4)
+                            # tkhd v1: verflags(4) creation(8) mod(8) tid(4) resv(4) dur(8)
+                            off = idx + 8 + (8 if ver == 1 else 4) + (8 if ver == 1 else 4) + 4 + 4
+                        if ver == 1:
+                            struct.pack_into(">Q", out, off, media_dur)
+                        else:
+                            struct.pack_into(">I", out, off, media_dur)
+                    else:
+                        break
+                idx = out.find(marker, idx + 4)
+        return bytes(out)
+
+    # Build moov without stco offsets first to learn its size.
+    def build_moov(stco_offsets: dict[int, int]) -> bytes:
+        out = bytearray()
+        out += struct.pack(">I", 0) + b"moov"
+        for b, ps, pe, hs in _children(init.moov[8:]):
+            ps += 8
+            pe += 8
+            if b == b"mvex":
+                continue
+            if b == b"mvhd":
+                out += init.moov[ps - hs:pe]
+                continue
+            if b == b"trak":
+                trak = init.moov[ps - hs:pe]
+                tid = _trak_track_id(trak)
+                tbl = dict(table_for.get(tid, {}))
+                if tid in stco_offsets:
+                    tbl[b"stco"] = _make_stco(stco_offsets[tid])
+                if tid in track_media_dur:
+                    trak = _patch_tkhd_mdhd_duration(
+                        trak, track_media_dur[tid])
+                if tbl:
+                    out += _patch_trak_tables(trak, tbl)
+                else:
+                    out += trak
+                continue
+            out += init.moov[ps - hs:pe]
+        struct.pack_into(">I", out, 0, len(out))
+        return bytes(out)
+
+    # First pass: moov with placeholder stco=0.
+    moov = build_moov({tid: 0 for tid in track_samples})
+    ftyp = init.ftyp
+
+    # Layout: ftyp + moov + mdat header + (video samples, audio samples)
+    base_payload = len(ftyp) + len(moov) + 8
+    offsets: dict[int, int] = {}
+    cursor = base_payload
+    ordered_tids = [tid for tid, _ in traks if tid in track_samples]
+    for tid in ordered_tids:
+        offsets[tid] = cursor
+        cursor += sum(len(p) for p in track_payload[tid])
+
+    # Rebuild moov with real offsets (size unchanged).
+    moov = build_moov(offsets)
+
+    if len(moov) != base_payload - len(ftyp) - 8:
+        base_payload = len(ftyp) + len(moov) + 8
+        cursor = base_payload
+        for tid in ordered_tids:
+            offsets[tid] = cursor
+            cursor += sum(len(p) for p in track_payload[tid])
+        moov = build_moov(offsets)
+
+    mdat_payload = b"".join(
+        b"".join(track_payload[tid]) for tid in ordered_tids)
+    mdat = _box(b"mdat", mdat_payload)
+
+    return ftyp + moov + mdat
+
+
+def defragment_file_multi(path: str) -> bytes:
+    """Read a multi-track fMP4 (MV) from *path* and return progressive MP4."""
+    with open(path, "rb") as f:
+        data = f.read()
+    return defragment_bytes_multi(data)

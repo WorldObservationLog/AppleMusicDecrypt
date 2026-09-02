@@ -90,6 +90,7 @@ class SampleSpec:
     sub_sample_patterns: list[SubSamplePattern] = field(default_factory=list)
     duration: int | None = None
     cts: int | None = None
+    track_id: int = 1                # stream track id (1 for audio-only)
 
 
 @dataclass
@@ -1058,7 +1059,8 @@ def _build_specs_abs(moof_start: int, trafs: list[dict]) -> list[SampleSpec]:
                 cts = (dtime + cto) if cto is not None else None
                 specs.append(SampleSpec(
                     desc_index=desc_index, offset=off, length=size, iv=iv,
-                    sub_sample_patterns=ss, duration=dur, cts=cts))
+                    sub_sample_patterns=ss, duration=dur, cts=cts,
+                    track_id=tfhd.get("track_id", 1)))
                 off += size
                 if dur is not None:
                     acc_dur += dur
