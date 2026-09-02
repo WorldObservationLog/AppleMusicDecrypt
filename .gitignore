@@ -166,4 +166,5 @@ config.toml
 /docs/
 /tests/
 qemu/wrapper-lite-qemu.exe
+qemu/*.zip
 qemu/qemu/
