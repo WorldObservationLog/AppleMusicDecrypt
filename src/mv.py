@@ -133,10 +133,9 @@ class MVRipper:
                 if a_key is None:
                     raise RuntimeError("MV audio stream has no Widevine key")
 
-            timeout = float(it(Config).download.downloadTimeout or 60)
-            async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-                v_init_data = (await client.get(v_init_url)).content
-                a_init_data = (await client.get(a_init_url)).content if a_init_url else None
+            client = it(WebAPI)._get_download_client()
+            v_init_data = (await client.get(v_init_url)).content
+            a_init_data = (await client.get(a_init_url)).content if a_init_url else None
 
             logger.decrypting()
             v_content = await it(Decryptor).mv_content_key(url.id, v_key)
@@ -211,16 +210,15 @@ class MVRipper:
     async def _rip_in_memory(self, logger, v_init, a_init, v_media, a_media,
                              v_content, a_content, part_path):
         cfg = it(Config).mv
-        timeout = float(it(Config).download.downloadTimeout or 60)
-        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-            sem = asyncio.Semaphore(cfg.segmentConcurrency)
+        client = it(WebAPI)._get_download_client()
+        sem = asyncio.Semaphore(cfg.segmentConcurrency)
 
-            async def get(seg):
-                async with sem:
-                    return await self._download_segment(client, seg.absolute_uri, cfg.segmentRetries)
+        async def get(seg):
+            async with sem:
+                return await self._download_segment(client, seg.absolute_uri, cfg.segmentRetries)
 
-            v_segs = await asyncio.gather(*[get(s) for s in v_media.segments])
-            a_segs = await asyncio.gather(*[get(s) for s in a_media.segments]) if a_media else []
+        v_segs = await asyncio.gather(*[get(s) for s in v_media.segments])
+        a_segs = await asyncio.gather(*[get(s) for s in a_media.segments]) if a_media else []
 
         async def dec(seg, init, key):
             return await self._decrypt_segment(seg, init, key)
@@ -239,23 +237,22 @@ class MVRipper:
         with tempfile.TemporaryDirectory() as td:
             store = FragmentStore(os.path.join(td, "frags.bin"))
             try:
-                timeout = float(it(Config).download.downloadTimeout or 60)
-                async with httpx.AsyncClient(follow_redirects=True, timeout=timeout) as client:
-                    sem = asyncio.Semaphore(cfg.segmentConcurrency)
+                client = it(WebAPI)._get_download_client()
+                sem = asyncio.Semaphore(cfg.segmentConcurrency)
 
-                    async def process(kind, seg, init, content, old_id, new_id, ts_sec):
-                        async with sem:
-                            data = await self._download_segment(client, seg.absolute_uri, cfg.segmentRetries)
-                        frag = await self._decrypt_segment(data, init, content)
-                        if frag is None:
-                            return
-                        t, _, frag = fragment_entry(frag, old_id, new_id, ts_sec, kind)
-                        store.add(kind, frag, t)
+                async def process(kind, seg, init, content, old_id, new_id, ts_sec):
+                    async with sem:
+                        data = await self._download_segment(client, seg.absolute_uri, cfg.segmentRetries)
+                    frag = await self._decrypt_segment(data, init, content)
+                    if frag is None:
+                        return
+                    t, _, frag = fragment_entry(frag, old_id, new_id, ts_sec, kind)
+                    store.add(kind, frag, t)
 
-                    tasks = [process(0, s, v_init, v_content, v_old, 1, v_ts) for s in v_media.segments]
-                    if a_content is not None and a_media is not None:
-                        tasks += [process(1, s, a_init, a_content, a_old, 2, a_ts) for s in a_media.segments]
-                    await asyncio.gather(*tasks)
+                tasks = [process(0, s, v_init, v_content, v_old, 1, v_ts) for s in v_media.segments]
+                if a_content is not None and a_media is not None:
+                    tasks += [process(1, s, a_init, a_content, a_old, 2, a_ts) for s in a_media.segments]
+                await asyncio.gather(*tasks)
                 mux_mv_streamed(v_init, a_init, store, part_path)
             finally:
                 store.close()
