@@ -15,22 +15,26 @@ class Instance(BaseModel):
 
 class LocalInstance(BaseModel):
     enable: bool = False
-    # wrapper-lite-qemu launcher binary ("" = auto-detect from PATH).
-    # Build it from the wrapper repo:
-    #   c++ -std=c++11 -O2 -o wrapper-lite-qemu wrapper-lite-qemu.cpp
-    # and keep its qemu/ asset dir next to the binary.
+    # Which local wrapper backend to launch:
+    #   "manager" = wrapper-manager-qemu (default; HTTP /login /logout,
+    #               multi-account, wrapper-lite-compatible API)
+    #   "lite"    = wrapper-lite-qemu (single-account; login/logout are
+    #               disabled through the client)
+    wrapperType: str = "manager"
+    # launcher binary ("" = auto-detect from PATH).
+    #   manager: wrapper-manager-qemu(.exe) from WorldObservationLog/wrapper-manager v2
+    #   lite:    wrapper-lite-qemu(.exe) from WorldObservationLog/wrapper
     launcherBin: str = ""
-    hostPort: int = 12340
-    guestPort: int = 12340
+    hostPort: int = 8080
+    guestPort: int = 8080
     # kvm | whpx | hvf | tcg ("" = auto-detect by the launcher)
     hardwareAccelerator: str = ""
-    memorySize: str = "512M"
+    memorySize: str = "1024M"
     smp: int = 2
-    # args forwarded to wrapper-lite (one per line); "" = default boot
-    # (--host 0.0.0.0 --port 12340 --base-dir /data). e.g.:
+    # args forwarded to the wrapper backend (one per line); "" = default boot.
+    # For lite e.g.:
     #   "--login user:pass\n--code-from-file"
     startArgs: str = ""
-
 
 class Region(BaseModel):
     language: str = "zh-Hant-HK"

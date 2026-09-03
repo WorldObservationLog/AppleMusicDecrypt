@@ -51,13 +51,17 @@ class InteractiveShell:
             loop.run_until_complete(it(WrapperClient).init())
             it(WrapperClient).status.cache_invalidate()
             if not loop.run_until_complete(it(WrapperClient).status()).get("regions"):
-                # No account logged in on the wrapper side: the app cannot
-                # rip anything.  Point the user at qemu/login.py and exit.
-                it(GlobalLogger).logger.error(
-                    "No Apple account is logged in on the wrapper instance.\n"
-                    "Run  python qemu/login.py  to log in, then start the app again.")
-                loop.run_until_complete(self.localInstance.terminate())
-                sys.exit(1)
+                # No account logged in: the app cannot rip anything yet.
+                if self._is_manager():
+                    it(GlobalLogger).logger.error(
+                        "No Apple account is logged in on wrapper-manager.\n"
+                        "Type  login  to sign in, then retry the download.")
+                else:
+                    it(GlobalLogger).logger.error(
+                        "No Apple account is logged in on the wrapper-lite instance.\n"
+                        "Run  python qemu/login.py  to log in, then start the app again.")
+                    loop.run_until_complete(self.localInstance.terminate())
+                    sys.exit(1)
         else:
             loop.run_until_complete(it(WrapperClient).init())
 
@@ -115,24 +119,86 @@ class InteractiveShell:
         # Cache regions for the TUI status bar (non-blocking read).
         it(WrapperClient)._last_regions = regions  # type: ignore[attr-defined]
         if not regions:
-            it(GlobalLogger).logger.error(
-                "The current wrapper instance has no available account. Please log in on the wrapper side "
-                "(e.g. run `lite --login user:pass`).")
+            if self._is_manager():
+                it(GlobalLogger).logger.error(
+                    "wrapper-manager has no available account. Type `login` to sign in.")
+            else:
+                it(GlobalLogger).logger.error(
+                    "The current wrapper-lite instance has no available account. Please log in on the wrapper side "
+                    "(e.g. run `lite --login user:pass`).")
         it(GlobalLogger).logger.info(f"Regions available on wrapper instance: {', '.join(regions)}")
         # live task panel
         tasks = list(self.ripper.download_manager.adam_id_task_mapping.values())
         it(GlobalLogger).logger.info(
             f"Active tasks ({len(tasks)}):\n" + status_panel(tasks))
 
+    def _is_manager(self) -> bool:
+        return getattr(it(Config).localInstance, "wrapperType", "manager") == "manager"
+
+    async def _ask(self, prompt: str, password: bool = False) -> str:
+        from prompt_toolkit import PromptSession
+        session = PromptSession()
+        return await session.prompt_async(prompt, is_password=password)
+
     async def login_flow(self):
-        it(GlobalLogger).logger.info(
-            "Login is handled by the wrapper-lite instance itself, not by this client.\n"
-            "For a local wrapper-lite run:  lite --login <user:pass>  (add --code-from-file for 2FA).\n"
-            "For a remote instance, ask its administrator to add your account.")
+        """Login through the wrapper backend.
+
+        - wrapper-manager: uses HTTP POST /login (with 2FA two-phase flow).
+        - wrapper-lite:    login is not supported via this client; prints a
+                           hint pointing at the lite one-shot login helper.
+        """
+        if not self._is_manager():
+            it(GlobalLogger).logger.info(
+                "Login is handled on the wrapper-lite side, not by this client.\n"
+                "For a local wrapper-lite run:  python qemu/login.py  "
+                "(or lite --login <user:pass>).")
+            return
+        try:
+            username = await self._ask("Username: ")
+            password = await self._ask("Password: ", password=True)
+        except (EOFError, KeyboardInterrupt):
+            it(GlobalLogger).logger.warning("Login cancelled.")
+            return
+        try:
+            result = await it(WrapperClient).login(username, password)
+        except WrapperError as e:
+            # code 2 = 2FA code required.  The HTTP helper surfaces code 2 as
+            # WrapperError with msg; detect by message content to prompt code.
+            if "2fa" not in str(e).lower() and "code require" not in str(e).lower():
+                it(GlobalLogger).logger.error(f"Login failed: {e}")
+                return
+            try:
+                code = await self._ask("Two-step code: ")
+            except (EOFError, KeyboardInterrupt):
+                it(GlobalLogger).logger.warning("Login cancelled.")
+                return
+            try:
+                result = await it(WrapperClient).login(username, password, code=code)
+            except WrapperError as e2:
+                it(GlobalLogger).logger.error(f"Login failed: {e2}")
+                return
+        it(GlobalLogger).logger.info("Login success.")
+        it(WrapperClient).status.cache_invalidate()
 
     async def logout_flow(self):
-        it(GlobalLogger).logger.info(
-            "Logout is managed on the wrapper side. Restart the wrapper-lite instance to drop its session.")
+        """Logout through wrapper-manager; unsupported on wrapper-lite."""
+        if not self._is_manager():
+            it(GlobalLogger).logger.info(
+                "Logout is managed on the wrapper-lite side. Restart the "
+                "wrapper-lite instance to drop its session.")
+            return
+        try:
+            username = await self._ask("Username: ")
+        except (EOFError, KeyboardInterrupt):
+            it(GlobalLogger).logger.warning("Logout cancelled.")
+            return
+        try:
+            await it(WrapperClient).logout(username)
+        except WrapperError as e:
+            it(GlobalLogger).logger.error(f"Logout failed: {e}")
+            return
+        it(GlobalLogger).logger.info("Logout success.")
+        it(WrapperClient).status.cache_invalidate()
 
     async def handle_batch_mode(self, args, cmds):
         try:

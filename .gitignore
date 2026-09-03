@@ -168,3 +168,4 @@ config.toml
 qemu/wrapper-lite-qemu.exe
 qemu/*.zip
 qemu/qemu/
+qemu/manager/

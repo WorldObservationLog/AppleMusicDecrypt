@@ -31,8 +31,14 @@ class QemuCrashedException(Exception):
 def _launcher_binary(cfg) -> str:
     if cfg.launcherBin:
         return cfg.launcherBin
-    name = "wrapper-lite-qemu.exe" if os.name == "nt" else "wrapper-lite-qemu"
+    base = "wrapper-manager-qemu" if cfg.wrapperType == "manager" else "wrapper-lite-qemu"
+    name = base + (".exe" if os.name == "nt" else "")
     return shutil.which(name) or name
+
+
+def _manager_mode(cfg) -> bool:
+    """True when the configured local backend is wrapper-manager."""
+    return getattr(cfg, "wrapperType", "manager") == "manager"
 
 
 def _lite_args(start_args: str) -> list[str]:
@@ -47,11 +53,16 @@ def _memory_mb(memory_size: str) -> str:
 
 
 def build_launcher_args(cfg) -> list[str]:
-    """Return the wrapper-lite-qemu argv for the current config."""
+    """Return the wrapper launcher argv for the current config.
+
+    wrapper-manager-qemu only takes QEMU options (no forwarded guest args);
+    wrapper-lite-qemu additionally forwards ``startArgs`` to the lite guest.
+    """
     args = [_launcher_binary(cfg)]
     if cfg.hardwareAccelerator:
         args += ["--accel", cfg.hardwareAccelerator]
-    args += _lite_args(cfg.startArgs)
+    if not _manager_mode(cfg):
+        args += _lite_args(cfg.startArgs)
     return args
 
 
@@ -75,7 +86,7 @@ class QemuInstance:
         args = build_launcher_args(cfg)
         env = build_launcher_env(cfg)
         it(GlobalLogger).logger.info(
-            f"Launching wrapper-lite via {args[0]} (port {cfg.hostPort} -> {cfg.guestPort})")
+            "Launching {} via {} (port {} -> {})".format("wrapper-manager" if _manager_mode(cfg) else "wrapper-lite", args[0], cfg.hostPort, cfg.guestPort))
         # Windows: launch qemu in its own console so it cannot share (and
         # compete for) the interactive console input with the REPL/TUI.
         # Other platforms: /dev/tty stdin inheritance is prevented with
@@ -103,7 +114,7 @@ class QemuInstance:
                     resp = await client.get(status_url)
                     if resp.status_code == 200:
                         if not wait_for_regions:
-                            it(GlobalLogger).logger.info("wrapper-lite is ready")
+                            it(GlobalLogger).logger.info("{} is ready".format("wrapper-manager" if _manager_mode(cfg) else "wrapper-lite"))
                             return
                         # HTTP 200 alone is not enough for login flows: the
                         # wrapper is usable only once an account region exists.
@@ -112,21 +123,22 @@ class QemuInstance:
                         except Exception:
                             regions = []
                         if regions:
-                            it(GlobalLogger).logger.info("wrapper-lite is ready (regions available)")
+                            it(GlobalLogger).logger.info("{} is ready (regions available)".format("wrapper-manager" if _manager_mode(cfg) else "wrapper-lite"))
                             return
             except Exception:
                 pass
             await asyncio.sleep(2)
-        raise QemuCrashedException("timed out waiting for wrapper-lite to become ready")
+        raise QemuCrashedException("timed out waiting for wrapper {} to become ready".format("manager" if _manager_mode(cfg) else "lite"))
 
     async def run_login(self, loop: asyncio.AbstractEventLoop) -> int:
         """Launch wrapper-lite in one-shot login mode and wait for exit.
 
-        The guest entrypoint runs ``wrapper-lite --login`` and exits after
-        caching tokens; it never starts the HTTP service, so we cannot wait
-        for /status.  Returns the launcher's exit code.
+        Only meaningful for ``wrapperType = "lite"``. wrapper-manager has its
+        own HTTP ``/login`` endpoint and does not use a one-shot guest login.
         """
         cfg = it(Config).localInstance
+        if _manager_mode(cfg):
+            raise RuntimeError("wrapper-manager does not support one-shot guest login; use the client's login command")
         args = build_launcher_args(cfg)
         env = build_launcher_env(cfg)
         it(GlobalLogger).logger.info(

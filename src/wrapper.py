@@ -180,6 +180,32 @@ class WrapperClient:
         data = await self._request("GET", "/webplayback", params={"adamId": adam_id})
         return data["m3u8"]
 
+    # -- wrapper-manager management endpoints ------------------------------
+    # These exist on wrapper-manager (HTTP /login /logout).  On a plain
+    # wrapper-lite backend the server returns HTTP 404, which surfaces as a
+    # WrapperError telling the caller that login/logout are unsupported.
+
+    async def login(self, username: str, password: str, code: str | None = None) -> dict:
+        """Start/complete a wrapper-manager login.
+
+        Returns the manager's ``data`` dict (e.g. ``{"loginId": "..."}``).
+        Raises ``WrapperError`` when the backend does not support /login or
+        when the manager rejects the request (code != 0, including
+        code=2 2FA-required which is surfaced as WrapperError with msg).
+        """
+        body = {"username": username, "password": password}
+        if code:
+            body["code"] = code
+        return await self._request("POST", "/login", json=body)
+
+    async def logout(self, username: str) -> dict:
+        """Log an account out of wrapper-manager.
+
+        Raises ``WrapperError`` when the backend does not support /logout or
+        when the manager rejects the request.
+        """
+        return await self._request("POST", "/logout", json={"username": username})
+
     async def license(self, adam_id: str, challenge: str, uri: str) -> str:
         data = await self._request(
             "POST",

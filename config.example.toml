@@ -7,19 +7,28 @@ url = "127.0.0.1:12340"
 secure = false
 
 [localInstance]
-# Launch wrapper-lite locally via the wrapper repo's wrapper-lite-qemu launcher.
+# Launch a local wrapper backend via QEMU.
 # This setting will overwrite instance setting.
 enable = false
-# wrapper-lite-qemu launcher binary ("" = auto-detect from PATH).
+# Backend type:
+#   "manager" (default) = wrapper-manager-qemu, HTTP /login /logout,
+#                         wrapper-lite-compatible API, multi-account.
+#   "lite"              = wrapper-lite-qemu, single-account; the client's
+#                         login/logout commands are disabled.
+wrapperType = "manager"
+# Launcher binary ("" = auto-detect from PATH).
+#   manager: wrapper-manager-qemu(.exe) from WorldObservationLog/wrapper-manager v2
+#   lite:    wrapper-lite-qemu(.exe) from WorldObservationLog/wrapper
 launcherBin = ""
-# Host port forwarded to the guest's wrapper-lite HTTP port.
-hostPort = 12340
-guestPort = 12340
+# Host port forwarded to the guest's HTTP port.
+hostPort = 8080
+guestPort = 8080
 # Hardware accelerator ("" = auto-detect).
 hardwareAccelerator = ""
-memorySize = "512M"
+memorySize = "1024M"
 smp = 2
-# Extra arguments forwarded to wrapper-lite (one per line); "" = default.
+# Extra arguments forwarded to wrapper-lite only (one per line); "" = default.
+# Ignored when wrapperType = "manager".
 startArgs = ""
 
 [region]
