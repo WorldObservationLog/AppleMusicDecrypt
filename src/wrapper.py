@@ -206,6 +206,40 @@ class WrapperClient:
         """
         return await self._request("POST", "/logout", json={"username": username})
 
+    async def is_manager(self) -> bool:
+        """Detect whether the backend is wrapper-manager.
+
+        wrapper-manager's aggregated /status has ``clientCount`` and ``ready``
+        fields; wrapper-lite's /status only has ``regions``.  This works for
+        both local and remote instances without probing /login directly.
+        """
+        try:
+            data = await self.status()
+        except (WrapperError, httpx.HTTPError, ssl.SSLError):
+            return False
+        if not isinstance(data, dict):
+            return False
+        return ("clientCount" in data) or ("ready" in data)
+
+    async def supports_management(self) -> bool:
+        """Check whether the remote backend exposes /login and /logout.
+
+        Uses the /status shape for a fast answer, then falls back to an
+        empty POST /login probe.  The probe intentionally uses the raw
+        client (no retry policy) so wrapper-lite's HTTP 404 is quick.
+        """
+        if await self.is_manager():
+            return True
+        try:
+            response = await self._client.post("/login", json={}, timeout=5.0)
+        except (httpx.HTTPError, ssl.SSLError):
+            return False
+        if response.status_code == 404:
+            return False
+        # 2xx means the endpoint exists (it may still reject the empty body
+        # with a JSON error, but that is a manager-style validation).
+        return response.status_code < 500
+
     async def license(self, adam_id: str, challenge: str, uri: str) -> str:
         data = await self._request(
             "POST",

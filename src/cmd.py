@@ -50,17 +50,20 @@ class InteractiveShell:
             # First access to WrapperClient reads the (mutated) config.
             loop.run_until_complete(it(WrapperClient).init())
             it(WrapperClient).status.cache_invalidate()
-            if not loop.run_until_complete(it(WrapperClient).status()).get("regions"):
-                # No account logged in: the app cannot rip anything yet.
-                if self._is_manager():
+            _start_status = loop.run_until_complete(it(WrapperClient).status())
+            it(WrapperClient)._last_status = _start_status  # type: ignore[attr-defined]
+            if not _start_status.get("regions"):
+                manage = loop.run_until_complete(it(WrapperClient).supports_management())
+                if manage:
                     it(GlobalLogger).logger.error(
                         "No Apple account is logged in on wrapper-manager.\n"
                         "Type  login  to sign in, then retry the download.")
                 else:
                     it(GlobalLogger).logger.error(
-                        "No Apple account is logged in on the wrapper-lite instance.\n"
-                        "Run  python qemu/login.py  to log in, then start the app again.")
-                    loop.run_until_complete(self.localInstance.terminate())
+                        "No Apple account is logged in on the wrapper instance.\n"
+                        "Log in on the wrapper side first.")
+                    if it(Config).localInstance.enable:
+                        loop.run_until_complete(self.localInstance.terminate())
                     sys.exit(1)
         else:
             loop.run_until_complete(it(WrapperClient).init())
@@ -116,15 +119,16 @@ class InteractiveShell:
         it(WrapperClient).status.cache_invalidate()
         st_resp = await it(WrapperClient).status()
         regions = st_resp.get("regions", []) if isinstance(st_resp, dict) else []
-        # Cache regions for the TUI status bar (non-blocking read).
+        # Cache regions and full status for the TUI status bar / manager check.
         it(WrapperClient)._last_regions = regions  # type: ignore[attr-defined]
+        it(WrapperClient)._last_status = st_resp  # type: ignore[attr-defined]
         if not regions:
-            if self._is_manager():
+            if await it(WrapperClient).supports_management():
                 it(GlobalLogger).logger.error(
                     "wrapper-manager has no available account. Type `login` to sign in.")
             else:
                 it(GlobalLogger).logger.error(
-                    "The current wrapper-lite instance has no available account. Please log in on the wrapper side "
+                    "The current wrapper instance has no available account. Please log in on the wrapper side "
                     "(e.g. run `lite --login user:pass`).")
         it(GlobalLogger).logger.info(f"Regions available on wrapper instance: {', '.join(regions)}")
         # live task panel
@@ -133,7 +137,15 @@ class InteractiveShell:
             f"Active tasks ({len(tasks)}):\n" + status_panel(tasks))
 
     def _is_manager(self) -> bool:
-        return getattr(it(Config).localInstance, "wrapperType", "manager") == "manager"
+        """Manager mode if locally configured OR the backend reports manager
+        fields (works for remote instances too)."""
+        local = getattr(it(Config).localInstance, "wrapperType", "manager")
+        if local == "manager":
+            return True
+        data = getattr(it(WrapperClient), "_last_status", None)
+        if isinstance(data, dict) and ("clientCount" in data or "ready" in data):
+            return True
+        return False
 
     async def _ask(self, prompt: str, password: bool = False) -> str:
         from prompt_toolkit import PromptSession
@@ -147,11 +159,10 @@ class InteractiveShell:
         - wrapper-lite:    login is not supported via this client; prints a
                            hint pointing at the lite one-shot login helper.
         """
-        if not self._is_manager():
+        if not await it(WrapperClient).supports_management():
             it(GlobalLogger).logger.info(
-                "Login is handled on the wrapper-lite side, not by this client.\n"
-                "For a local wrapper-lite run:  python qemu/login.py  "
-                "(or lite --login <user:pass>).")
+                "This wrapper instance (lite or legacy) does not expose /login.\n"
+                "Log in on the wrapper side instead (e.g. python qemu/login.py).")
             return
         try:
             username = await self._ask("Username: ")
@@ -182,10 +193,10 @@ class InteractiveShell:
 
     async def logout_flow(self):
         """Logout through wrapper-manager; unsupported on wrapper-lite."""
-        if not self._is_manager():
+        if not await it(WrapperClient).supports_management():
             it(GlobalLogger).logger.info(
-                "Logout is managed on the wrapper-lite side. Restart the "
-                "wrapper-lite instance to drop its session.")
+                "This wrapper instance (lite or legacy) does not expose /logout.\n"
+                "Restart the wrapper instance or log out on the wrapper side.")
             return
         try:
             username = await self._ask("Username: ")
