@@ -145,6 +145,34 @@ def _parse_mvhd_times(moov: bytes):
             "modification": modification, "duration": duration}, timescale
 
 
+def _sample_duration(spec, init) -> int:
+    """Return the media-timeline duration for a sample.
+
+    Apple ALAC (and some other codecs) often omit per-sample trun
+    durations and tfhd default durations.  For ALAC the frame length is
+    stored in the codec-specific 'alac' box, so derive it from there.
+    """
+    dur = spec.duration
+    if dur:
+        return dur
+    track = init.tracks.get(getattr(spec, "track_id", 1))
+    if track is None:
+        return 0
+    codec = track.codec or ""
+    if codec == "alac":
+        params = track.decoder_params or b""
+        # decoder_params is the full 'alac' box (size+type+version+flags+config)
+        # frameLength is the first u32 after size(4)+type(4)+verflags(4).
+        if len(params) >= 16:
+            return struct.unpack(">I", params[12:16])[0]
+        return 4096
+    if codec in ("aac", "aac-binaural", "aac-downmix"):
+        return 1024
+    if codec in ("ec3", "ac3"):
+        return 1536
+    return 0
+
+
 def _make_stts(runs: list[tuple[int, int]]) -> bytes:
     """runs: list of (count, delta)."""
     payload = _u32(len(runs))
@@ -238,7 +266,7 @@ def defragment_bytes(data: bytes) -> bytes:
             chunk = frag.mdat_payload[spec.offset:spec.offset + spec.length]
             payload_parts.append(chunk)
             sample_sizes.append(spec.length)
-            sample_deltas.append(spec.duration or 0)
+            sample_deltas.append(_sample_duration(spec, init))
 
     if not sample_sizes:
         raise MP4ParseError("no samples found in fragments")
@@ -616,7 +644,7 @@ def defragment_bytes_multi(data: bytes) -> bytes:
                 payloads.append(chunk)
                 samples.append({
                     "size": spec.length,
-                    "dur": spec.duration or 0,
+                    "dur": _sample_duration(spec, init),
                     "desc_index": spec.desc_index,
                 })
 
