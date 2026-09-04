@@ -126,8 +126,19 @@ def _lyrics_extra_lines(b, item_key: str, timestamp: str) -> list[str]:
                         out.append(f"[{timestamp}]{text_el.text}")
     if "pronunciation" in it(Config).download.lyricsExtra:
         for transliteration in meta.find_all("transliteration"):
+            # Apple ttmlLocalizations:
+            #   <transliteration xml:lang="ja-Latn">
+            #     <text for="L1"><span ...>word</span> <span ...>word</span></text>
+            #   </transliteration>
             if item_key == transliteration.get("for"):
                 out.append(f"[{timestamp}]{transliteration.text}")
+            else:
+                for text_el in transliteration.find_all("text"):
+                    if item_key == text_el.get("for"):
+                        # Remove span tags but keep spaces between words.
+                        trans_text = "".join(
+                            text_el.get_text() for _ in [0])
+                        out.append(f"[{timestamp}]{trans_text}")
     return out
 
 
