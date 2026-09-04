@@ -1,5 +1,5 @@
 # DO NOT EDIT IT
-version = "0.1.0"
+version = "0.2.0"
 
 [instance]
 # wrapper-lite HTTP instance URL (scheme is decided by `secure`)
@@ -69,6 +69,8 @@ atmosConventToM4a = true
 # If the song integrity check fails, the task will fail and the song will not be saved.
 # Due to the possibility of source file corruption, open with caution.
 failedSongNotPassIntegrityCheck = false
+# Repair known Apple ALAC END-tag defects automatically after saving (default true).
+alacFix = true
 # Follow the Python Format (https://docs.python.org/3/library/string.html#formatstrings)
 # Write the audio information to the songNameFormat and playlistSongNameFormat
 # Only support alac codec

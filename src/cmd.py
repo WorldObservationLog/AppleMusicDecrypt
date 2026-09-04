@@ -41,6 +41,14 @@ class InteractiveShell:
             loop.stop()
             sys.exit()
 
+        # ffmpeg is used for ALAC integrity verification.  It is optional:
+        # when absent, the post-save ffmpeg check is skipped.
+        import shutil as _shutil
+        if _shutil.which("ffmpeg") is None:
+            it(GlobalLogger).logger.warning(
+                "ffmpeg was not found on PATH. ALAC integrity verification "
+                "will be skipped; install ffmpeg to enable it.")
+
         self.loop = loop
         loop.run_until_complete(run_sync(it(WebAPI).init))
         if it(Config).localInstance.enable:

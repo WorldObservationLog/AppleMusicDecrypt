@@ -5,7 +5,7 @@ from creart import exists_module
 from creart.creator import AbstractCreator, CreateTargetInfo
 from pydantic import BaseModel
 
-CONFIG_VERSION = "0.1.0"
+CONFIG_VERSION = "0.2.0"
 
 
 class Instance(BaseModel):
@@ -58,6 +58,10 @@ class Download(BaseModel):
     codecPriority: list[str] = ["alac", "ec3", "ac3", "aac"]
     atmosConventToM4a: bool = True
     failedSongNotPassIntegrityCheck: bool = False
+    # Repair known Apple ALAC END-tag defects automatically after saving.
+    # Enabled by default; only touches files whose decoded packets match the
+    # is_compressed=false missing-END pattern.
+    alacFix: bool = True
     audioInfoFormat: str = ""
     songNameFormat: str = "{disk}-{tracknum:02d} {title}"
     dirPathFormat: str = "downloads/{album_artist}/{album}"
