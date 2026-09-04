@@ -426,6 +426,14 @@ class Ripper:
                 await run_sync(finalize, str(part_path), str(final_path), task.metadata,
                                it(Config).download.coverFormat)
                 ok = await run_sync(check_song_integrity, str(final_path), local_codec)
+                # Known Apple ALAC defect: structurally valid but decode fails
+                # due to missing END tags in uncompressed PCM frames.
+                if not ok and str(local_codec).upper() == "ALAC":
+                    repaired = await run_sync(try_fix_alac, str(final_path))
+                    if repaired:
+                        task.logger.logger.warning(
+                            "ALAC END-tag defect detected and repaired; re-checking integrity...")
+                        ok = await run_sync(check_song_integrity, str(final_path), local_codec)
             else:
                 os.replace(part_path, final_path)
                 ok = final_path.stat().st_size > 0
@@ -513,6 +521,14 @@ class Ripper:
                 await run_sync(finalize, str(part_path), str(final_path), task.metadata,
                                it(Config).download.coverFormat)
                 ok = await run_sync(check_song_integrity, str(final_path), local_codec)
+                # Known Apple ALAC defect: structurally valid but decode fails
+                # due to missing END tags in uncompressed PCM frames.
+                if not ok and str(local_codec).upper() == "ALAC":
+                    repaired = await run_sync(try_fix_alac, str(final_path))
+                    if repaired:
+                        task.logger.logger.warning(
+                            "ALAC END-tag defect detected and repaired; re-checking integrity...")
+                        ok = await run_sync(check_song_integrity, str(final_path), local_codec)
             else:
                 os.replace(part_path, final_path)
                 ok = final_path.stat().st_size > 0
@@ -798,10 +814,93 @@ def _cbcs_decrypt_runs(data: bytes, patterns, key: bytes, iv: bytes, cbb: int, s
     return bytes(out)
 
 
-def check_song_integrity(path: str, codec: str) -> bool:
-    """Pure-Python structural integrity check.
+def _decode_verify_alac(path: str) -> bool:
+    """Actually decode every ALAC packet to verify playability.
 
-    Accepts both layouts produced by the pipeline:
+    Prefers PyAV when installed (a real ffmpeg/libav decode); falls back to
+    the ``ffmpeg`` CLI when available on PATH.  Returns False when any audio
+    packet fails to decode, True on clean full decode, and None when no real
+    decoder is available (caller should fall back to structural checks).
+    """
+    try:
+        import av  # type: ignore
+    except Exception:
+        av = None
+
+    if av is not None:
+        try:
+            container = av.open(path)
+            stream = container.streams.audio[0] if container.streams.audio else None
+            if stream is None:
+                container.close()
+                return None
+            ok = True
+            try:
+                for packet in container.demux(stream):
+                    try:
+                        for _frame in stream.decode(packet):
+                            pass
+                    except Exception:
+                        ok = False
+                        break
+            finally:
+                container.close()
+            return ok
+        except Exception:
+            # If PyAV cannot even open the file, do not treat it as a hard
+            # pass; let the structural fallback decide.
+            pass
+
+    # CLI ffmpeg fallback.
+    import shutil
+    import subprocess
+    ffmpeg = shutil.which("ffmpeg")
+    if ffmpeg:
+        try:
+            proc = subprocess.run(
+                [ffmpeg, "-v", "error", "-i", path, "-map", "0:a:0", "-f", "null", "-"],
+                capture_output=True, timeout=120,
+            )
+            # ffmpeg returns 0 even when packets were dropped with errors;
+            # the relevant signal is non-empty stderr mentioning decode errors.
+            if proc.returncode != 0:
+                return False
+            err = proc.stderr.decode(errors="replace").lower()
+            if ("invalid data" in err or "error" in err
+                    or "not yet implemented" in err or "patches welcome" in err):
+                return False
+            return True
+        except Exception:
+            pass
+    return None
+
+
+def try_fix_alac(path: str) -> bool:
+    """Repair known Apple ALAC END-tag defects in place.
+
+    Returns True if any frame was repaired, False otherwise.  This is a
+    lossless fix (only the missing 3-bit END tag is written).
+    """
+    from src.alac_fix import find_bad_packets, fix_alac_end_tags
+    try:
+        bad = find_bad_packets(path)
+        if not bad:
+            return False
+        fixed, _ = fix_alac_end_tags(path)
+        return fixed > 0
+    except Exception:
+        return False
+
+
+def check_song_integrity(path: str, codec: str) -> bool:
+    """Validate a ripped song.
+
+    For ALAC, perform a real decode pass when a decoder is available so
+    damaged-but-structurally-valid files (e.g. Apple's missing ALAC END-tag
+    frames) are caught.  Other codecs fall back to the pure-Python
+    structural check.
+
+    Structural check accepts both layouts produced by the pipeline:
     - fragmented MP4: init segment + at least one moof/mdat fragment;
     - progressive MP4: moov with a populated stsz sample table plus mdat.
     """
@@ -823,6 +922,12 @@ def check_song_integrity(path: str, codec: str) -> bool:
                 break
             seq += 1
         if seq > 0:
+            # ALAC fragmented files (rare after finalize) still deserve a real
+            # decode pass.
+            if str(codec).upper() == "ALAC":
+                result = _decode_verify_alac(path)
+                if result is not None:
+                    return result
             return True
 
         # 2) progressive layout: stsz sample count > 0 and a top-level mdat.
@@ -838,6 +943,14 @@ def check_song_integrity(path: str, codec: str) -> bool:
         # find top-level mdat after the moov
         off2 = len(init.ftyp) + len(init.moov)
         mdat_idx = data.find(b"mdat", off2)
-        return mdat_idx >= 0
+        if mdat_idx < 0:
+            return False
+
+        # ALAC: real decode validation catches END-tag / damaged frames.
+        if str(codec).upper() == "ALAC":
+            result = _decode_verify_alac(path)
+            if result is not None:
+                return result
+        return True
     except MP4ParseError:
         return False
