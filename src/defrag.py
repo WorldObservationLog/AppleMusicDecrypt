@@ -242,6 +242,125 @@ def defragment_file(path: str) -> bytes:
     return defragment_bytes(data)
 
 
+def defragment_file_streaming(in_path: str, out_path: str) -> int:
+    """Convert a fragmented MP4 to progressive MP4 with bounded memory.
+
+    Uses an mmap for the input (no whole-file Python bytes copy) and writes
+    the output incrementally.  Returns the number of samples written.
+
+    This is the lowMemory-friendly counterpart of :func:`defragment_file`.
+    """
+    import mmap
+    from src.mp4 import parse_next_fragment
+
+    with open(in_path, "rb") as f:
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as data:
+            init, off = parse_init(data)
+            if init is None:
+                raise MP4ParseError("defragment: no init segment found")
+
+            # ---- pass 1: collect sample metadata only --------------------
+            sample_sizes: list[int] = []
+            sample_deltas: list[int] = []
+            fragment_offsets: list[tuple[int, int]] = []  # (mdat payload abs, len)
+            seq = 0
+            while off < len(data):
+                frag, off = parse_next_fragment(data, off, seq)
+                if frag is None:
+                    break
+                seq += 1
+                # frag.mdat_payload is a bytes copy of the whole fragment
+                # payload.  For bounded memory we only need its absolute
+                # offset/size; reconstruct by searching? Instead store the
+                # sample metadata and rely on a second pass re-parsing.
+                # To avoid the copy in pass 1, we re-parse in pass 2.
+                for spec in frag.samples:
+                    sample_sizes.append(spec.length)
+                    sample_deltas.append(_sample_duration(spec, init))
+
+            if not sample_sizes:
+                raise MP4ParseError("no samples found in fragments")
+
+            total_samples = len(sample_sizes)
+            total_duration = sum(sample_deltas)
+
+            # ---- build moov ----------------------------------------------
+            mvhd_info, mvhd_timescale = _parse_mvhd_times(init.moov)
+            media_timescale = _first_trak_timescale(init.moov, mvhd_timescale)
+            runs: list[tuple[int, int]] = []
+            for d in sample_deltas:
+                if runs and runs[-1][1] == d:
+                    runs[-1] = (runs[-1][0] + 1, d)
+                else:
+                    runs.append((1, d))
+            stts = _make_stts(runs)
+            stsz = _make_stsz(sample_sizes)
+            stsc = _make_stsc(total_samples, desc_index=1)
+            if mvhd_timescale and mvhd_timescale != media_timescale:
+                movie_duration = int(total_duration * mvhd_timescale / media_timescale)
+            else:
+                movie_duration = total_duration
+
+            moov = _patch_moov(init.moov, stts, stsc, stsz,
+                               _make_stco(0), movie_duration, total_duration)
+            ftyp = init.ftyp
+            mdat_offset = len(ftyp) + len(moov) + 8
+            stco = _make_stco(mdat_offset)
+            moov = _patch_moov(init.moov, stts, stsc, stsz,
+                               stco, movie_duration, total_duration)
+            if len(moov) != mdat_offset - len(ftyp) - 8:
+                mdat_offset = len(ftyp) + len(moov) + 8
+                moov = _patch_moov(init.moov, stts, stsc, stsz,
+                                   _make_stco(mdat_offset),
+                                   movie_duration, total_duration)
+
+            # ---- write ftyp + moov --------------------------------------
+            total_payload = sum(sample_sizes)
+            with open(out_path, "wb") as out:
+                out.write(ftyp)
+                out.write(moov)
+                if total_payload + 8 < 0xFFFFFFFF:
+                    out.write(struct.pack(">I4s", 8 + total_payload, b"mdat"))
+                else:
+                    out.write(struct.pack(">I4sQ", 1, b"mdat",
+                                          16 + total_payload))
+                # ---- pass 2: stream each fragment's mdat payload -------
+                # Reset to after init and re-parse, writing only the payload.
+                _off = init.next_offset
+                seq = 0
+                while _off < len(data):
+                    frag, _off = parse_next_fragment(data, _off, seq)
+                    if frag is None:
+                        break
+                    seq += 1
+                    # frag.mdat_payload is one fragment copy; writing it
+                    # immediately bounds memory to the largest fragment.
+                    out.write(frag.mdat_payload)
+            return total_samples
+
+
+def _first_trak_timescale(moov: bytes, fallback: int) -> int:
+    """Read the first trak mdhd timescale from a full moov box."""
+    for b, ps, pe, hs in _children(moov[8:]):
+        ps += 8
+        pe += 8
+        if b != b"trak":
+            continue
+        trak = moov[ps - hs:pe]
+        for b2, ps2, pe2, hs2 in _children(trak[8:]):
+            ps2 += 8
+            pe2 += 8
+            if b2 == b"mdia":
+                mdia = trak[ps2 - hs2:pe2]
+                for b3, ps3, pe3, hs3 in _children(mdia[8:]):
+                    ps3 += 8
+                    pe3 += 8
+                    if b3 == b"mdhd":
+                        mdhd = mdia[ps3 - hs3:pe3]
+                        return struct.unpack(">I", mdhd[hs3 + 12:hs3 + 16])[0]
+    return fallback
+
+
 def defragment_bytes(data: bytes) -> bytes:
     """Rebuild a fragmented MP4 (init + fragments) as a progressive MP4.
 

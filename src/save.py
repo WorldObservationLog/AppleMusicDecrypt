@@ -89,19 +89,18 @@ def finalize(part_path: str, final_path: str, metadata: SongMetadata, cover_form
     # re-mux, then to the raw output.
     converted = False
     try:
-        from src.defrag import defragment_file
-        with open(part, "rb") as f:
-            data = f.read()
-        if b"moof" in data:
-            prog = defragment_file(str(part))
-            tmp = Path(final_path).with_name(Path(final_path).stem + "_prog" +
-                                             Path(final_path).suffix)
-            tmp.write_bytes(prog)
-            os.replace(tmp, final_path)
-            converted = True
-            # part is no longer needed; remove so the final os.replace
-            # below doesn't clobber the converted file.
-            os.remove(part)
+        from src.defrag import defragment_file_streaming
+        # Stream the fMP4 -> progressive conversion to a temp file.  This
+        # never reads the whole .part into Python memory; it mmaps the input
+        # and copies each fragment payload as it goes.
+        tmp = Path(final_path).with_name(Path(final_path).stem + "_prog" +
+                                         Path(final_path).suffix)
+        defragment_file_streaming(str(part), str(tmp))
+        os.replace(tmp, final_path)
+        converted = True
+        # part is no longer needed; remove so the final os.replace below
+        # doesn't clobber the converted file.
+        os.remove(part)
     except Exception:
         converted = False
 
