@@ -424,7 +424,7 @@ class Ripper:
             task.update_status(Status.SAVING)
             if not raw_atmos:
                 ok = await run_sync(finalize_and_verify, str(part_path), str(final_path),
-                                    task.metadata, local_codec)
+                                    task.metadata, local_codec, task.logger)
             else:
                 os.replace(part_path, final_path)
                 ok = final_path.stat().st_size > 0
@@ -510,7 +510,7 @@ class Ripper:
             task.update_status(Status.SAVING)
             if not raw_atmos:
                 ok = await run_sync(finalize_and_verify, str(part_path), str(final_path),
-                                    task.metadata, local_codec)
+                                    task.metadata, local_codec, task.logger)
             else:
                 os.replace(part_path, final_path)
                 ok = final_path.stat().st_size > 0
@@ -841,7 +841,8 @@ def try_fix_alac(path: str) -> bool:
         return False
 
 
-def finalize_and_verify(part_path: str, final_path: str, metadata, codec: str):
+def finalize_and_verify(part_path: str, final_path: str, metadata, codec: str,
+                      task_logger=None):
     """Write metadata, run optional ALAC repair, then verify via ffmpeg.
 
     Returns True when the final file is considered good.  ffmpeg absence is
@@ -856,17 +857,16 @@ def finalize_and_verify(part_path: str, final_path: str, metadata, codec: str):
     if str(codec).upper() == "ALAC" and it(Config).download.alacFix:
         repaired = try_fix_alac(final_path)
         if repaired:
-            from src.logger import GlobalLogger
-            it(GlobalLogger).logger.warning(
-                "ALAC END-tag defect detected and repaired in "
-                f"{final_path}")
+            if task_logger is not None:
+                task_logger.logger.warning(
+                    "ALAC END-tag defect detected and repaired")
 
     result = check_song_integrity(final_path, codec)
     if result is True:
         # Only ALAC performs a real ffmpeg decode; report the pass.
-        from src.logger import GlobalLogger
-        it(GlobalLogger).logger.success(
-            f"Song integrity check passed: {final_path}")
+        if task_logger is not None:
+            task_logger.logger.success(
+                "Song integrity check passed")
     # None = ffmpeg unavailable -> skip integrity (startup prints warning).
     return result is not False
 
