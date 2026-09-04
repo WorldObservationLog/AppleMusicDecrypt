@@ -16,7 +16,6 @@ from src.mv import MVRipper
 from src.qemu import QemuInstance
 from src.quality import print_song_quality, print_album_quality, print_playlist_quality, key_to_Headers
 from src.rip import Ripper
-from src.status import status_panel
 from src.url import AppleMusicURL, URLType
 from src.utils import check_dep, run_sync, safely_create_task, config_outdated
 from src.wrapper import WrapperClient, WrapperError
@@ -139,11 +138,6 @@ class InteractiveShell:
                     "The current wrapper instance has no available account. Please log in on the wrapper side "
                     "(e.g. run `lite --login user:pass`).")
         it(GlobalLogger).logger.info(f"Regions available on wrapper instance: {', '.join(regions)}")
-        # live task panel
-        tasks = list(self.ripper.download_manager.adam_id_task_mapping.values())
-        it(GlobalLogger).logger.info(
-            f"Active tasks ({len(tasks)}):\n" + status_panel(tasks))
-
     def _is_manager(self) -> bool:
         """Manager mode if locally configured OR the backend reports manager
         fields (works for remote instances too)."""
