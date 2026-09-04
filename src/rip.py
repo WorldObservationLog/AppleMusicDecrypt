@@ -194,9 +194,17 @@ class Ripper:
                                                                it(Config).download.coverSize))
             lyrics_f = None
             if raw_metadata.attributes.hasTimeSyncedLyrics:
+                # Translations are exposed by Apple through the
+                # syllable-lyrics/ttmlLocalizations endpoint only.  When the
+                # user asks for translation/pronunciation extras, request the
+                # syllable endpoint even if karaoke mode is disabled.
+                cfg_dl = it(Config).download
+                want_extras = bool(
+                    {"translation", "pronunciation"} & set(cfg_dl.lyricsExtra))
+                syllable = cfg_dl.lyricsSyllable or want_extras
                 lyrics_f = asyncio.create_task(it(WrapperClient).lyrics(
                     task.adamId, flags.language, url.storefront,
-                    syllable=it(Config).download.lyricsSyllable))
+                    syllable=syllable))
 
             album_data = await album_f
             task.metadata = SongMetadata.parse_from_song_data(raw_metadata)

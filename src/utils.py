@@ -112,10 +112,18 @@ def _lyrics_extra_lines(b, item_key: str, timestamp: str) -> list[str]:
     if "translation" in it(Config).download.lyricsExtra:
         trans_type = meta.get("type")
         for translation in meta.find_all("translation"):
+            # Apple syllable-lyrics/ttmlLocalizations format:
+            #   <translation type="subtitle" xml:lang="ja-JP">
+            #     <text for="L1">訳</text>
+            #   </translation>
             if item_key == translation.get("for"):
                 if trans_type == "replacement":
                     return [f"[{timestamp}]{translation.text}"]
                 out.append(f"[{timestamp}]{translation.text}")
+            else:
+                for text_el in translation.find_all("text"):
+                    if item_key == text_el.get("for"):
+                        out.append(f"[{timestamp}]{text_el.text}")
     if "pronunciation" in it(Config).download.lyricsExtra:
         for transliteration in meta.find_all("transliteration"):
             if item_key == transliteration.get("for"):
