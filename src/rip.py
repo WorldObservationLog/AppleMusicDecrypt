@@ -862,6 +862,11 @@ def finalize_and_verify(part_path: str, final_path: str, metadata, codec: str):
                 f"{final_path}")
 
     result = check_song_integrity(final_path, codec)
+    if result is True:
+        # Only ALAC performs a real ffmpeg decode; report the pass.
+        from src.logger import GlobalLogger
+        it(GlobalLogger).logger.success(
+            f"Song integrity check passed: {final_path}")
     # None = ffmpeg unavailable -> skip integrity (startup prints warning).
     return result is not False
 
