@@ -856,6 +856,7 @@ def finalize_and_verify(part_path: str, final_path: str, metadata, codec: str):
     if str(codec).upper() == "ALAC" and it(Config).download.alacFix:
         repaired = try_fix_alac(final_path)
         if repaired:
+            from src.logger import GlobalLogger
             it(GlobalLogger).logger.warning(
                 "ALAC END-tag defect detected and repaired in "
                 f"{final_path}")
