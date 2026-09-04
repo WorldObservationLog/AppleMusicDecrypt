@@ -17,6 +17,15 @@ Affected packets are identified generically:
 
 Repair is lossless: write the missing 3-bit END tag into the last two
 bytes of the packet (the last 9 bits are ``[END:3][padding:6]``).
+
+Verified against the real affected file used in ALAC修复可能性论证.md:
+- original: 4 damaged packets (#996 #1251 #1252 #1878)
+- a 4-byte partial repair still leaves decode errors and a short PCM
+  output (32,956,568 bytes);
+- the complete repair changes exactly 7 bytes (three packets need two
+  bytes, one packet needs one byte because its LSB is already set) and
+  produces the reference clean file MD5 CE9D0547... with 0 decode
+  errors and full PCM length 33,005,720 bytes.
 """
 
 from __future__ import annotations
@@ -166,6 +175,10 @@ def fix_alac_end_tags(path: str, dry_run: bool = False) -> tuple[int, bool]:
 
     Returns ``(fixed_count, modified)``.  The file is rewritten only when
     ``dry_run`` is False.
+
+    Note: for the canonical 16-bit/44.1kHz stereo case this touches exactly
+    7 bytes in total (three packets x 2 bytes + one packet x 1 byte).  A
+    partial fix that touches only 4 bytes leaves the file still damaged.
     """
     p = Path(path)
     if not p.exists():
