@@ -59,8 +59,12 @@ def _alac_cookie_info(decoder_params: bytes | None):
     return frame_length, channels, bit_depth
 
 
-def _sample_tables_and_cookie(path: Path):
-    """Return (sizes, chunk_offset, cookie_info) for the first audio track."""
+def _sample_tables_and_cookie(data, cookie=None):
+    """Return (sizes, chunk_offset, cookie_info) from in-memory/mmap bytes.
+
+    *data* is a bytes-like object (mmap or bytes).  *cookie* may be supplied
+    from TrackInfo to avoid an extra parse.
+    """
     import sys
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from src.mp4 import (
@@ -71,7 +75,6 @@ def _sample_tables_and_cookie(path: Path):
         parse_init,
     )
 
-    data = path.read_bytes()
     init, _ = parse_init(data)
     if init is None:
         return None
@@ -82,11 +85,12 @@ def _sample_tables_and_cookie(path: Path):
         return None
 
     # Gather TrackInfo for the first alac track (for decoder_params).
-    alac_params = None
-    for tid, track in init.tracks.items():
-        if track.codec == "alac":
-            alac_params = _alac_cookie_info(track.decoder_params)
-            break
+    alac_params = cookie
+    if alac_params is None:
+        for tid, track in init.tracks.items():
+            if track.codec == "alac":
+                alac_params = _alac_cookie_info(track.decoder_params)
+                break
 
     for trak, ts, te in _find_child_boxes(moov, mh, msize, b"trak"):
         for mdia, ms, me in _find_child_boxes(moov, ts + 8, te, b"mdia"):
@@ -135,28 +139,26 @@ def find_bad_packets(path: str) -> list[int]:
     previously observed 16388-byte 16-bit stereo packets.
     """
     p = Path(path)
-    result = _sample_tables_and_cookie(p)
-    if result is None:
-        return []
-    sizes, chunk_offset, cookie_info = result
-    if not cookie_info:
-        return []
-    expected = _expected_uncompressed_size(cookie_info)
-    data = p.read_bytes()
-    bad = []
-    offset = chunk_offset
-    for idx, size in enumerate(sizes):
-        if size == expected and size >= 2:
-            pkt = data[offset:offset + size]
-            if len(pkt) < 2:
+    import mmap
+    with open(p, "rb") as f:
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as data:
+            result = _sample_tables_and_cookie(data)
+            if result is None:
+                return []
+            sizes, chunk_offset, cookie_info = result
+            if not cookie_info:
+                return []
+            expected = _expected_uncompressed_size(cookie_info)
+            bad = []
+            offset = chunk_offset
+            for idx, size in enumerate(sizes):
+                if size == expected and size >= 2:
+                    b0 = data[offset + size - 2]
+                    b1 = data[offset + size - 1]
+                    if not ((b0 & _END_FIRST) and (b1 & _END_REST) == _END_REST):
+                        bad.append(idx)
                 offset += size
-                continue
-            b0 = pkt[-2]
-            b1 = pkt[-1]
-            if not ((b0 & _END_FIRST) and (b1 & _END_REST) == _END_REST):
-                bad.append(idx)
-        offset += size
-    return bad
+            return bad
 
 
 def fix_alac_end_tags(path: str, dry_run: bool = False) -> tuple[int, bool]:
@@ -172,20 +174,24 @@ def fix_alac_end_tags(path: str, dry_run: bool = False) -> tuple[int, bool]:
     if not bad:
         return 0, False
 
-    result = _sample_tables_and_cookie(p)
-    sizes, chunk_offset, _ = result
-    data = bytearray(p.read_bytes())
-    offset = chunk_offset
-    index = 0
+    import mmap
     fixed = 0
-    for size in sizes:
-        if index in bad:
-            data[offset - 2 + size] |= _END_FIRST   # penultimate byte
-            data[offset - 1 + size] |= _END_REST    # last byte
-            fixed += 1
-        offset += size
-        index += 1
-
-    if not dry_run:
-        p.write_bytes(bytes(data))
+    # Re-open read/write mmap and patch only the two-byte END locations.
+    with open(p, "r+b") as f:
+        with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_WRITE) as data:
+            result = _sample_tables_and_cookie(data)
+            if result is None:
+                return 0, False
+            sizes, chunk_offset, _ = result
+            offset = chunk_offset
+            index = 0
+            for size in sizes:
+                if index in bad:
+                    data[offset - 2 + size] = (
+                        data[offset - 2 + size] | _END_FIRST)
+                    data[offset - 1 + size] = (
+                        data[offset - 1 + size] | _END_REST)
+                    fixed += 1
+                offset += size
+                index += 1
     return fixed, True
