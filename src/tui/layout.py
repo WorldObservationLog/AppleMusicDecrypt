@@ -66,7 +66,7 @@ def build_layout(
 
     def _task_frame():
         return Frame(
-            body=task_list.pane,
+            body=task_list.window,
             title=" TASKS ",
             width=D(preferred=get_sidebar_width() + 4,
                     max=get_sidebar_width() + 4,

@@ -18,15 +18,24 @@ def _safe_print(msg):
         sys.__stderr__.flush()
 
 
+def _format(record):
+    extra = record.get("extra", {})
+    item_type = extra.get("item_type")
+    tag = extra.get("tag")
+    if item_type and tag:
+        return ("<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
+                + f" | <b>{item_type}</b> | <b>{tag}</b>"
+                + " | <level>{level}</level> - <level>{message}\n</level>")
+    return ("<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
+            + " | <level>{level}</level> - <level>{message}\n</level>")
+
+
 class GlobalLogger:
     def __init__(self):
         logger.remove()
-        self.logger = copy.deepcopy(logger)
-        self.logger.add(lambda msg: _safe_print(msg), colorize=True,
-                        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
-                               + " | <level>{level}</level>"
-                               + " - <level>{message}</level>",
-                        level="INFO")
+        self.logger = logger
+        logger.add(lambda msg: _safe_print(msg), colorize=True,
+                   format=_format, level="INFO")
 
 
 class LoggerCreator(AbstractCreator):
@@ -52,15 +61,8 @@ class RipLogger:
     def __init__(self, _type: str, item_id: str):
         self.item_type = _type
         self.item_id = urllib.parse.quote(item_id)
-        logger.remove()
-        self.logger = copy.deepcopy(logger)
-        self.logger.add(lambda msg: _safe_print(msg), colorize=True,
-                        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
-                               + f" | <b>{self.item_type.upper()}</b>"
-                               + f" | <b>{self.item_id}</b>"
-                               + " | <level>{level}</level>"
-                               + " - <level>{message}</level>",
-                        level="INFO")
+        self.full_name = self.item_id
+        self.logger = logger.bind(item_type=self.item_type.upper(), tag=self.item_id)
 
     def create(self):
         self.logger.info(f"Start ripping...")
@@ -70,15 +72,8 @@ class RipLogger:
             self.full_name = artist
         else:
             self.full_name = f"{artist} - {name}"
-        self.full_name = self.full_name.replace("<", "\\<").replace(">", "\\>")
-        self.logger.remove()
-        self.logger.add(lambda msg: _safe_print(msg), colorize=True,
-                        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
-                               + f" | <b>{self.item_type.upper()}</b>"
-                               + f" | <b>{self.full_name}</b>"
-                               + " | <level>{level}</level>"
-                               + " - <level>{message}</level>",
-                        level="INFO")
+        clean_name = self.full_name.replace("<", "\\<").replace(">", "\\>")
+        self.logger = logger.bind(item_type=self.item_type.upper(), tag=clean_name)
 
     def not_exist(self):
         self.logger.error(

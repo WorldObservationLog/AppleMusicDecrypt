@@ -28,3 +28,6 @@ dependencies = [
 dev = [
     "pytest>=7.4",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]

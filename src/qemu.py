@@ -77,6 +77,17 @@ def build_launcher_env(cfg) -> dict:
     return env
 
 
+def kill_all_qemu():
+    """Forcibly terminate any lingering wrapper or QEMU processes."""
+    if os.name == "nt":
+        import subprocess as _sp
+        for name in ("wrapper-lite-qemu.exe", "wrapper-manager-qemu.exe", "qemu-system-x86_64.exe"):
+            try:
+                _sp.run(["taskkill", "/IM", name, "/T", "/F"], capture_output=True, timeout=5)
+            except Exception:
+                pass
+
+
 class QemuInstance:
     proc = None
 
@@ -131,11 +142,7 @@ class QemuInstance:
         raise QemuCrashedException("timed out waiting for wrapper {} to become ready".format("manager" if _manager_mode(cfg) else "lite"))
 
     async def run_login(self, loop: asyncio.AbstractEventLoop) -> int:
-        """Launch wrapper-lite in one-shot login mode and wait for exit.
-
-        Only meaningful for ``wrapperType = "lite"``. wrapper-manager has its
-        own HTTP ``/login`` endpoint and does not use a one-shot guest login.
-        """
+        """Launch wrapper-lite in one-shot login mode with interactive console stdio."""
         cfg = it(Config).localInstance
         if _manager_mode(cfg):
             raise RuntimeError("wrapper-manager does not support one-shot guest login; use the client's login command")
@@ -143,19 +150,20 @@ class QemuInstance:
         env = build_launcher_env(cfg)
         it(GlobalLogger).logger.info(
             f"Running one-shot login via {args[0]} (port {cfg.hostPort} -> {cfg.guestPort})")
-        creationflags = 0
-        if os.name == "nt":
-            import subprocess as _sp
-            creationflags = _sp.CREATE_NO_WINDOW
-        self.proc = await asyncio.create_subprocess_exec(
-            *args, env=env,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
-            creationflags=creationflags,
-        )
-        await asyncio.wait_for(self.proc.wait(), timeout=300)
-        return self.proc.returncode
+
+        import subprocess as _sp
+
+        def _exec():
+            # Inherit stdin, stdout, and stderr so the user can interact directly
+            # with the guest serial console when prompted for 2FA.
+            self.proc = _sp.Popen(args, env=env)
+            try:
+                return self.proc.wait(timeout=300)
+            finally:
+                self.proc = None
+
+        return await loop.run_in_executor(None, _exec)
+
 
     def running(self) -> bool:
         return self.proc is not None and self.proc.returncode is None

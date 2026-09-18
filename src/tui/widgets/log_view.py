@@ -170,11 +170,15 @@ class LogView:
         # prompt_toolkit will scroll the Window content automatically;
         # we hand it *all* lines and let the Window clip.
         # When in scroll mode we want to anchor the view so that the
-        # line at _offset from the bottom is at the *bottom* of the
-        # visible area.  We achieve this by trimming the tail.
+        # Slicing window: a terminal log window rarely shows more than 40 lines.
+        # Slicing the most recent ~120 lines prevents running regex conversions on
+        # all 2,000 buffered lines every frame tick.
         if not self._tail and self._offset > 0:
             end = max(1, len(lines) - self._offset + 1)
-            lines = lines[:end]
+            start = max(0, end - 120)
+            lines = lines[start:end]
+        else:
+            lines = lines[-120:]
 
         result: StyleAndTextTuples = []
         for raw in lines:

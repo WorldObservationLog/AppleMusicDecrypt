@@ -24,7 +24,6 @@ from __future__ import annotations
 from prompt_toolkit.formatted_text import StyleAndTextTuples
 from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.containers import Window
-from prompt_toolkit.layout import ScrollablePane
 from prompt_toolkit.layout.dimension import Dimension as D
 
 from src.tui.task_tree import TaskTree, TreeNode, NodeKind, NodeStatus
@@ -77,64 +76,29 @@ class TaskListWidget:
             return _orig_mouse(mouse_event)
 
         self._inner_control.mouse_handler = _mouse_handler
-        # Inner Window: height = len(rendered lines); ScrollablePane clips it.
-        self._inner_window = Window(
+        # Standard Window without off-screen ScrollablePane rendering.
+        # Long lines are clipped cleanly to avoid expensive per-character re-wrapping
+        # across thousands of nodes.
+        self.window = Window(
             content=self._inner_control,
-            wrap_lines=True,   # long names wrap instead of being clipped
+            wrap_lines=False,
             dont_extend_width=False,
         )
-        # ScrollablePane supports keyboard scrolling when its content is
-        # focused; we also add explicit scroll() for mouse/keys below.
-        self.pane = ScrollablePane(
-            content=self._inner_window,
-            show_scrollbar=True,
-        )
+        self._inner_window = self.window
+        self.pane = self.window   # backwards compatibility for layout / callers
         self._scroll_offset = 0
+        self._total_lines = 0
 
     def focusable_window(self):
-        return self.pane
+        return self.window
 
     def scroll(self, lines: int) -> None:
         """Scroll the sidebar by *lines* (negative = up)."""
-        # Use the FULL (un-clipped) rendered lines as the scroll bound;
-        # _render() applies _scroll_offset, so calling it here would shrink
-        # the bound as we scroll and make up-scrolling impossible.
-        total = max(0, len(self._full_render_lines()) - 1)
-        self._scroll_offset = max(0, min(self._scroll_offset + lines, total))
-        self._apply_scroll()
+        max_offset = max(0, self._total_lines - 1)
+        self._scroll_offset = max(0, min(self._scroll_offset + lines, max_offset))
 
     def scroll_to_top(self) -> None:
         self._scroll_offset = 0
-        self._apply_scroll()
-
-    def _full_render_lines(self) -> list[str]:
-        """Render without applying the scroll offset (for bounds)."""
-        roots = self._tree.snapshot()
-        if not roots:
-            return []
-        out: StyleAndTextTuples = []
-        for node in roots:
-            self._render_node(node, out, depth=0, last=True)
-        return self._lines_from_fragments(out)
-
-    def _render_lines(self) -> list[str]:
-        frag = self._render()
-        lines, buf = [], ""
-        for _, txt in frag:
-            buf += txt
-            if txt.endswith("\n"):
-                lines.append(buf.rstrip("\n"))
-                buf = ""
-        if buf:
-            lines.append(buf)
-        return lines
-
-    def _apply_scroll(self) -> None:
-        # ScrollablePane has no direct setter; emulate by adjusting the
-        # inner window's height with a leading spacer is complex.  Instead
-        # rely on prompt_toolkit's focus+up/down keys (bound in app.py via
-        # event.app.layout focused window's built-in scroll).
-        pass
 
     # ------------------------------------------------------------------ #
     # Renderer
@@ -143,33 +107,33 @@ class TaskListWidget:
     def _render(self) -> StyleAndTextTuples:
         roots = self._tree.snapshot()
         if not roots:
+            self._total_lines = 0
             return [("class:log.text", "  (no tasks)\n")]
 
         out: StyleAndTextTuples = []
-        for node in roots:
-            self._render_node(node, out, depth=0, last=True)
+        line_idx = 0
+        offset = self._scroll_offset
+        limit = 60
 
-        if self._scroll_offset:
-            rendered = self._lines_from_fragments(out)
-            out = self._fragments_from_lines(rendered[self._scroll_offset:])
+        def _visit_node(node: TreeNode, depth: int, last: bool) -> None:
+            nonlocal line_idx
+            idx = line_idx
+            line_idx += 1
+            if offset <= idx < offset + limit:
+                self._render_node(node, out, depth=depth, last=last)
+
+            if node.children and node.expanded:
+                for i, child in enumerate(node.children):
+                    _visit_node(child, depth + 1, (i == len(node.children) - 1))
+
+        for root_node in roots:
+            _visit_node(root_node, depth=0, last=True)
+
+        self._total_lines = line_idx
+        if self._scroll_offset >= self._total_lines:
+            self._scroll_offset = max(0, self._total_lines - 1)
+
         return out
-
-    def _lines_from_fragments(self, frag: StyleAndTextTuples) -> list[str]:
-        lines, buf = [], ""
-        for _, txt in frag:
-            buf += txt
-            if txt.endswith("\n"):
-                lines.append(buf.rstrip("\n"))
-                buf = ""
-        if buf:
-            lines.append(buf)
-        return lines
-
-    def _fragments_from_lines(self, lines: list[str]) -> StyleAndTextTuples:
-        result: StyleAndTextTuples = []
-        for line in lines:
-            result.append(("", line + "\n"))
-        return result
 
     def _render_node(
         self,
