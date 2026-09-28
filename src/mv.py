@@ -2,8 +2,10 @@
 
 MV streams are delivered as separate video + audio HLS playlists (each a
 fragmented MP4 with an ``#EXT-X-MAP`` init segment and ``.m4s`` fragments),
-encrypted with Widevine ``cbcs``. We download both, decrypt with the Widevine
-content key from the wrapper's ``/license`` (pure-Python AES-CBC cbcs, matched
+encrypted with Widevine ``cbcs``. Video variants whose ``ALLOWED-CPC`` only
+admits PlayReady ``SL3000`` (e.g. 4K) use the PlayReady key instead, acquired
+with the SL3000 device in ``assets/pr_device.json``. We download both, decrypt
+with the content key from the wrapper's ``/license`` (pure-Python AES-CBC cbcs, matched
 then remux them into one MP4 with the pure-Python muxer.
 
 Default keeps fragments in memory (fine for most MVs). With ``[download]
@@ -57,6 +59,33 @@ def _find_widevine_key(media) -> Optional[str]:
         if u.startswith("data:") and "UTF-16" not in u and "base64," in u:
             return u
     return None
+
+
+def _find_playready_key(media) -> Optional[str]:
+    for k in media.keys:
+        if k.keyformat == "com.microsoft.playready" and k.uri:
+            return k.uri
+    return None
+
+
+def _allowed_cpc(master_txt: str, variant_uri: str) -> str:
+    """``ALLOWED-CPC`` of the ``#EXT-X-STREAM-INF`` whose URI is ``variant_uri``.
+
+    The m3u8 library does not parse this attribute, so read the raw text.
+    """
+    attrs = None
+    for raw in master_txt.splitlines():
+        line = raw.strip()
+        if line.startswith("#EXT-X-STREAM-INF:"):
+            attrs = line
+            continue
+        if attrs is None or not line or line.startswith("#"):
+            continue
+        if line == variant_uri:
+            m = re.search(r'ALLOWED-CPC="([^"]*)"', attrs)
+            return m.group(1) if m else ""
+        attrs = None
+    return ""
 
 
 def _select_video_variant(master, max_height: int):
@@ -154,9 +183,19 @@ class MVRipper:
             low_memory = it(Config).download.lowMemory
 
             master_url = await it(WrapperClient).webplayback(url.id)
-            master = m3u8.loads(await it(WebAPI).download_m3u8(master_url), uri=master_url)
+            # Fetched without the browser User-Agent of the API client: with a
+            # browser UA Apple omits the 4K (PlayReady SL3000) variants.
+            master_resp = await it(WebAPI)._get_download_client().get(master_url)
+            master_resp.raise_for_status()
+            master_txt = master_resp.text
+            master = m3u8.loads(master_txt, uri=master_url)
             vv = _select_video_variant(master, cfg.maxHeight)
             logger.logger.info(f"Selected video: {_describe_video(vv)}")
+            # SL3000-only variants (e.g. 4K) have no software Widevine key:
+            # decrypt them with the PlayReady SL3000 device instead.
+            use_playready = "SL3000" in _allowed_cpc(master_txt, vv.uri).upper()
+            if use_playready:
+                logger.logger.info("Video DRM: PlayReady")
             audio_alt = _select_audio_alternative(master, cfg.audioType)
             if audio_alt is not None:
                 logger.logger.info(f"Selected audio: {_describe_audio(audio_alt)}")
@@ -166,9 +205,14 @@ class MVRipper:
             v_txt = await it(WebAPI).download_m3u8(vv.absolute_uri)
             v_media = m3u8.loads(v_txt, uri=vv.absolute_uri)
             v_init_url = _find_map_url(v_txt, vv.absolute_uri)
-            v_key = _find_widevine_key(v_media)
-            if v_key is None:
-                raise RuntimeError("MV video stream has no Widevine key")
+            if use_playready:
+                v_key = _find_playready_key(v_media)
+                if v_key is None:
+                    raise RuntimeError("MV video stream has no PlayReady key")
+            else:
+                v_key = _find_widevine_key(v_media)
+                if v_key is None:
+                    raise RuntimeError("MV video stream has no Widevine key")
 
             a_media = a_init_url = a_key = None
             if audio_alt is not None:
@@ -183,7 +227,10 @@ class MVRipper:
             v_init_data = (await client.get(v_init_url)).content
             a_init_data = (await client.get(a_init_url)).content if a_init_url else None
 
-            v_content = await it(Decryptor).mv_content_key(url.id, v_key)
+            if use_playready:
+                v_content = await it(Decryptor).mv_playready_content_key(url.id, v_key)
+            else:
+                v_content = await it(Decryptor).mv_content_key(url.id, v_key)
             a_content = await it(Decryptor).mv_content_key(url.id, a_key) if a_key else None
 
             v_init, _ = parse_init(v_init_data)

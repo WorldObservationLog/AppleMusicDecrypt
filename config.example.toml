@@ -143,7 +143,9 @@ embedMetadata = ["title", "artist", "album", "album_artist", "composer", "album_
 # Directory where music videos are saved
 saveDir = "downloads/music-videos"
 # Maximum video height to download (0 = best available)
-maxHeight = 1080
+# 4K (2160) variants are PlayReady SL3000-only and are decrypted with
+# the PlayReady device in assets/pr_device.json
+maxHeight = 2160
 # MV audio rendition: atmos | ac3 | aac
 audioType = "atmos"
 # Concurrent segment downloads per MV stream

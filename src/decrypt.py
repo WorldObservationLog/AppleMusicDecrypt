@@ -24,6 +24,7 @@ import temari
 
 from src.config import Config
 from src.legacy.decrypt import WidevineDecrypt
+from src.legacy.playready import PlayReadyDecrypt, build_wrm_header
 from src.wrapper import WrapperClient
 
 # Template for this key is content-independent: one fetch is reused for all songs.
@@ -167,6 +168,27 @@ class Decryptor:
             if k.type == "CONTENT":
                 return k.key
         raise RuntimeError(f"No content key found in MV license for {adam_id}")
+
+    async def mv_playready_content_key(self, adam_id: str, key_uri: str) -> bytes:
+        """Acquire the PlayReady content key for an MV stream (SL3000 variants).
+
+        ``key_uri`` is the ``KEYFORMAT="com.microsoft.playready"`` EXT-X-KEY
+        URI (a UTF-16 PlayReady Object, or a bare KID). The challenge is built
+        with the SL3000 device in ``assets/pr_device.json`` and the license is
+        fetched from the wrapper ``/license`` with ``drm-type=pr``.
+        """
+        wrm_header, license_uri = build_wrm_header(key_uri)
+        pr = PlayReadyDecrypt()
+        try:
+            challenge = pr.generate_challenge(wrm_header)
+            license_b64 = await self._wrapper.license(adam_id, challenge, license_uri, drm_type="pr")
+            keys = pr.generate_key(license_b64)
+        finally:
+            pr.close()
+        for k in keys:
+            if k.key:
+                return k.key
+        raise RuntimeError(f"No content key found in MV PlayReady license for {adam_id}")
 
     def close(self):
         for t in self._templates.values():
