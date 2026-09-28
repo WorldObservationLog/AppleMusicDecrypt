@@ -186,7 +186,15 @@ class MVRipper:
     async def _download_segment(self, client, url: str, retries: int) -> bytes:
         for attempt in range(retries + 1):
             try:
-                return (await client.get(url)).content
+                # Stream so the status bar's download speed reflects MV
+                # segment traffic (a plain .get() bypasses the Measurer).
+                buf = bytearray()
+                async with client.stream("GET", url) as response:
+                    response.raise_for_status()
+                    async for chunk in response.aiter_bytes(WebAPI.DOWNLOAD_CHUNK_SIZE):
+                        it(Measurer).record_download(len(chunk))
+                        buf.extend(chunk)
+                return bytes(buf)
             except httpx.HTTPError:
                 if attempt >= retries:
                     raise
