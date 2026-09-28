@@ -14,6 +14,7 @@ import asyncio
 import os
 import shlex
 import shutil
+import sys
 
 import httpx
 from creart import it
@@ -102,6 +103,7 @@ class QemuInstance:
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
             creationflags=creationflags,
+            start_new_session=os.name != "nt",
         )
 
         status_url = f"http://127.0.0.1:{cfg.hostPort}/status"
@@ -149,10 +151,11 @@ class QemuInstance:
             creationflags = _sp.CREATE_NO_WINDOW
         self.proc = await asyncio.create_subprocess_exec(
             *args, env=env,
-            stdin=asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.DEVNULL,
-            stderr=asyncio.subprocess.PIPE,
+            stdin=None,  # inherit terminal so the guest's interactive 2FA prompt works
+            stdout=sys.stdout,
+            stderr=sys.stdout,
             creationflags=creationflags,
+            start_new_session=os.name != "nt",
         )
         await asyncio.wait_for(self.proc.wait(), timeout=300)
         return self.proc.returncode
