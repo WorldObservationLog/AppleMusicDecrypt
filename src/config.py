@@ -97,7 +97,7 @@ class Metadata(BaseModel):
 class MV(BaseModel):
     saveDir: str = "downloads/music-videos"
     # Maximum video height to download (0 = best available).
-    maxHeight: int = 1080
+    maxHeight: int = 2160
     # MV audio rendition: atmos | ac3 | aac
     audioType: str = "atmos"
     # Concurrent segment downloads per stream (D2).

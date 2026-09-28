@@ -240,12 +240,12 @@ class WrapperClient:
         # with a JSON error, but that is a manager-style validation).
         return response.status_code < 500
 
-    async def license(self, adam_id: str, challenge: str, uri: str) -> str:
-        data = await self._request(
-            "POST",
-            "/license",
-            json={"adamId": adam_id, "challenge": challenge, "uri": uri},
-        )
+    async def license(self, adam_id: str, challenge: str, uri: str, drm_type: str = "wv") -> str:
+        """``drm_type`` is ``wv`` (Widevine, wrapper default) or ``pr`` (PlayReady)."""
+        body = {"adamId": adam_id, "challenge": challenge, "uri": uri}
+        if drm_type != "wv":
+            body["drm-type"] = drm_type
+        data = await self._request("POST", "/license", json=body)
         return data["license"]
 
     async def close(self) -> None:

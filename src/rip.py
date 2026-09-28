@@ -38,7 +38,7 @@ from src.mp4 import (StreamingMP4Parser, patch_mvhd_times, mac_epoch_to_datetime
 from src.save import prepare_paths, finalize
 from src.task import Task, Status
 from src.types import Codec, ParentDoneHandler
-from src.url import Song, Album, URLType, Playlist
+from src.url import Song, Album, URLType, Playlist, MusicVideo, Track, parse_track
 from src.wrapper import WrapperClient
 from src.utils import (get_codec_from_codec_id, check_song_existence, check_song_exists,
                        if_raw_atmos, check_album_existence, playlist_write_song_index, run_sync,
@@ -289,6 +289,46 @@ class Ripper:
             task.update_status(task.status)
             if task.parentDone:
                 await task.parentDone.try_done()
+
+    async def rip_track(self, url: Track, codec: str, flags: Flags = Flags(),
+                        parent_done: ParentDoneHandler = None, playlist: PlaylistInfo = None,
+                        group_node_id: str = ""):
+        """Rip one album/playlist track, which is either a song or a music video."""
+        if isinstance(url, MusicVideo):
+            # Saved beside the songs, in the album (or playlist) folder.
+            await self.rip_music_video(url, flags, parent_done, group_node_id=group_node_id,
+                                       codec=codec, playlist=playlist,
+                                       album_id=None if playlist else group_node_id)
+        else:
+            await self.rip_song(url, codec, flags, parent_done, playlist=playlist,
+                                group_node_id=group_node_id)
+
+    async def rip_music_video(self, url: MusicVideo, flags: Flags = Flags(),
+                              parent_done: ParentDoneHandler = None, group_node_id: str = "",
+                              codec: Optional[str] = None, playlist: PlaylistInfo = None,
+                              album_id: Optional[str] = None):
+        from src.mv import MVRipper  # src.mv imports src.rip
+        # Show the node (under its album/playlist) while it waits for a slot.
+        try:
+            from creart import it as _it
+            from src.tui.task_tree import TaskTree
+            _it(TaskTree).register_mv(url.id, url.id, parent_id=group_node_id)
+        except Exception:
+            pass
+        try:
+            # Share the song task limit so an album full of MVs doesn't
+            # start every MV download at once.
+            async with self.download_manager.task_lock:
+                it(Measurer).record_task_start()
+                try:
+                    await MVRipper().rip(url, flags, codec=codec, playlist=playlist, album_id=album_id)
+                finally:
+                    it(Measurer).record_task_finish()
+        except Exception:
+            pass  # MVRipper already logged it and marked the node failed
+        finally:
+            if parent_done:
+                await parent_done.try_done()
 
     async def _get_m3u8_url(self, task: Task, codec: str, raw_metadata) -> Optional[str]:
         """Return the master playlist URL for this song.
@@ -640,13 +680,13 @@ class Ripper:
             if parent_done:
                 await parent_done.try_done()
 
-        done_handler = ParentDoneHandler(len(album_info.data[0].relationships.tracks.data), on_children_done)
-        tracks = album_info.data[0].relationships.tracks.data
-        safely_create_task(self._prefetch_batch([t.id for t in tracks], url.storefront, codec, flags.language))
+        tracks = self._parse_tracks(album_info.data[0].relationships.tracks.data, url.storefront, logger)
+        done_handler = ParentDoneHandler(len(tracks), on_children_done)
+        safely_create_task(self._prefetch_batch([t.id for t in tracks if isinstance(t, Song)],
+                                                url.storefront, codec, flags.language))
         for track in tracks:
-            song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
-            safely_create_task(self.rip_song(song, codec, flags, done_handler,
-                                             group_node_id=url.id))
+            safely_create_task(self.rip_track(track, codec, flags, done_handler,
+                                              group_node_id=url.id))
 
     async def rip_artist(self, url: Album, codec: str, flags: Flags = Flags()):
         artist_info = await it(WebAPI).get_artist_info(url.id, url.storefront, flags.language)
@@ -697,14 +737,25 @@ class Ripper:
         async def on_children_done():
             logger.done()
 
-        done_handler = ParentDoneHandler(len(playlist_info.data[0].relationships.tracks.data), on_children_done)
-        tracks = playlist_info.data[0].relationships.tracks.data
-        safely_create_task(self._prefetch_batch([t.id for t in tracks], url.storefront, codec, flags.language))
+        tracks = self._parse_tracks(playlist_info.data[0].relationships.tracks.data, url.storefront, logger)
+        done_handler = ParentDoneHandler(len(tracks), on_children_done)
+        safely_create_task(self._prefetch_batch([t.id for t in tracks if isinstance(t, Song)],
+                                                url.storefront, codec, flags.language))
         for track in tracks:
-            song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
-            safely_create_task(self.rip_song(song, codec, flags, done_handler,
-                                             playlist=playlist_info,
-                                             group_node_id=url.id))
+            safely_create_task(self.rip_track(track, codec, flags, done_handler,
+                                              playlist=playlist_info,
+                                              group_node_id=url.id))
+
+    @staticmethod
+    def _parse_tracks(raw_tracks, storefront: str, logger: RipLogger) -> list[Track]:
+        tracks = []
+        for raw in raw_tracks:
+            track = parse_track(raw.id, raw.type, storefront)
+            if track is None:
+                logger.logger.warning(f"Skipping track {raw.id}: unsupported type '{raw.type}'")
+                continue
+            tracks.append(track)
+        return tracks
 
 
 # ---------------------------------------------------------------------- #

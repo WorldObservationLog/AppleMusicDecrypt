@@ -52,6 +52,8 @@ class RipLogger:
     def __init__(self, _type: str, item_id: str):
         self.item_type = _type
         self.item_id = urllib.parse.quote(item_id)
+        # What is being ripped, for the per-item messages below.
+        self.noun = "Music video" if _type == "music-video" else "Song"
         logger.remove()
         self.logger = copy.deepcopy(logger)
         self.logger.add(lambda msg: _safe_print(msg), colorize=True,
@@ -89,13 +91,13 @@ class RipLogger:
             f"Selected language {current_language} does not exist in region {region.upper()}, falling back to {default_language}")
 
     def already_exist(self):
-        self.logger.info(f"Song already exists")
+        self.logger.info(f"{self.noun} already exists")
 
     def lyrics_not_exist(self):
         self.logger.warning("Lyrics do not exist")
 
     def audio_not_exist(self):
-        self.logger.error("Failed to download song. Audio does not exist")
+        self.logger.error(f"Failed to download {self.noun.lower()}. Audio does not exist")
 
     def lossless_audio_not_exist(self):
         self.logger.error("Failed to download song. Lossless audio does not exist")
@@ -103,20 +105,20 @@ class RipLogger:
     def lossless_audio_not_exist_aac(self):
         self.logger.warning("Lossless audio does not exist. Using aac-legacy to rip")
 
-    def downloading(self):
-        self.logger.info("Downloading song...")
+    def downloading(self, detail: str = ""):
+        self.logger.info(f"Downloading {self.noun.lower()}{f' ({detail})' if detail else ''}...")
 
     def decrypting(self):
-        self.logger.info("Decrypting song...")
+        self.logger.info(f"Decrypting {self.noun.lower()}...")
 
     def failed_integrity(self, error_Level: bool):
         if error_Level:
-            self.logger.error(f"Song did not pass the integrity check!")
+            self.logger.error(f"{self.noun} did not pass the integrity check!")
         else:
-            self.logger.warning(f"Song did not pass the integrity check!")
+            self.logger.warning(f"{self.noun} did not pass the integrity check!")
 
     def saved(self):
-        self.logger.success("Song saved!")
+        self.logger.success(f"{self.noun} saved!")
 
     def done(self):
         self.logger.success(f"Finished ripping")

@@ -19,6 +19,7 @@ Scroll behaviour
 from __future__ import annotations
 
 import re
+from functools import lru_cache
 from typing import Callable
 
 from prompt_toolkit.data_structures import Point
@@ -53,6 +54,7 @@ _SGR_TO_STYLE: dict[str, str] = {
 }
 
 
+@lru_cache(maxsize=4096)
 def _ansi_to_tuples(raw: str) -> StyleAndTextTuples:
     """Convert a loguru-formatted ANSI string to prompt_toolkit tuples."""
     result: StyleAndTextTuples = []
@@ -175,6 +177,17 @@ class LogView:
         if not self._tail and self._offset > 0:
             end = max(1, len(lines) - self._offset + 1)
             lines = lines[:end]
+
+        # Only the tail can ever be visible (the view is anchored at the
+        # bottom), and every logical line takes >= 1 row.  Handing the Window
+        # all ~2000 lines made each redraw re-wrap the whole buffer, which
+        # is slow enough in Windows cmd to look like a hang.
+        try:
+            from prompt_toolkit.application.current import get_app
+            max_lines = get_app().output.get_size().rows
+        except Exception:
+            max_lines = 200
+        lines = lines[-max(1, max_lines):]
 
         result: StyleAndTextTuples = []
         for raw in lines:

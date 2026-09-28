@@ -294,18 +294,25 @@ class TaskTree:
         self,
         mv_id:        str,
         display_name: str,
+        parent_id:    str = "",
     ) -> TreeNode:
-        """Register a music-video node (no children, progress tracked via _status)."""
+        """Register a music-video node (no children, progress tracked via _status),
+        optionally under a parent group.  Re-registering updates the name."""
         if mv_id in self._by_id:
-            return self._by_id[mv_id]
+            node = self._by_id[mv_id]
+            node.display_name = display_name
+            return node
         node = TreeNode(
             node_id=mv_id,
             kind=NodeKind.MV,
             display_name=display_name,
             _status=NodeStatus.WAITING,
         )
-        self._roots.insert(0, node)   # newest MV on top
         self._by_id[mv_id] = node
+        if parent_id and parent_id in self._by_id:
+            self._by_id[parent_id].children.append(node)
+        else:
+            self._roots.insert(0, node)   # newest MV on top
         return node
 
     def update_mv_status(self, mv_id: str, status: NodeStatus,

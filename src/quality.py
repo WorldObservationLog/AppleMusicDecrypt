@@ -10,7 +10,7 @@ from src.config import Config
 from src.logger import _safe_print
 from src.metadata import SongMetadata
 from src.utils import get_codec_from_codec_id, safely_create_task, playlist_write_song_index
-from src.url import Song, Album, URLType, Playlist
+from src.url import Song, Album, URLType, Playlist, TrackType
 from src.wrapper import WrapperClient
 
 Headers = [
@@ -69,6 +69,8 @@ async def print_playlist_quality(url: Playlist, show_fields: list[str]):
     playlist_info = await it(WebAPI).get_playlist_info_and_tracks(url.id, url.storefront, it(Config).region.language)
     playlist_info = playlist_write_song_index(playlist_info)
     for track in playlist_info.data[0].relationships.tracks.data:
+        if track.type != TrackType.Song:  # music videos have no audio quality listing
+            continue
         song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
         safely_create_task(print_song_quality(song, show_fields))
 
@@ -76,6 +78,8 @@ async def print_playlist_quality(url: Playlist, show_fields: list[str]):
 async def print_album_quality(url: Album, show_fields: list[str]):
     album_info = await it(WebAPI).get_album_info(url.id, url.storefront, it(Config).region.language)
     for track in album_info.data[0].relationships.tracks.data:
+        if track.type != TrackType.Song:  # music videos have no audio quality listing
+            continue
         song = Song(id=track.id, storefront=url.storefront, url="", type=URLType.Song)
         safely_create_task(print_song_quality(song, show_fields))
 
