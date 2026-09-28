@@ -1,3 +1,4 @@
+from typing import Optional
 from urllib.parse import urlparse, parse_qs
 
 import regex
@@ -72,3 +73,23 @@ class Artist(AppleMusicURL):
 
 class MusicVideo(AppleMusicURL):
     ...
+
+
+class TrackType:
+    """``type`` of an item in an album/playlist ``tracks`` relationship."""
+    Song = "songs"
+    MusicVideo = "music-videos"
+
+
+# An album/playlist track is either a song or a music video.
+Track = Song | MusicVideo
+
+
+def parse_track(track_id: str, track_type: str, storefront: str) -> Optional[Track]:
+    """Build the URL object for an album/playlist track, or None for an unknown type."""
+    match track_type:
+        case TrackType.Song:
+            return Song(id=track_id, storefront=storefront, url="", type=URLType.Song)
+        case TrackType.MusicVideo:
+            return MusicVideo(id=track_id, storefront=storefront, url="", type=URLType.MusicVideo)
+    return None

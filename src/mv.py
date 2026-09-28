@@ -30,12 +30,13 @@ from src.config import Config
 from src.decrypt import Decryptor
 from src.logger import RipLogger
 from src.measurer import Measurer
+from src.metadata import SongMetadata
 from src.mp4 import (MP4ParseError, parse_init, parse_next_fragment, rebuild_fragment_bytes)
 from src.mux import (FragmentStore, build_container, fragment_entry, mux_mv, mux_mv_streamed)
 from src.rip import _decrypt_cbcs_sample
 from src.url import URLType, MusicVideo
 from src.wrapper import WrapperClient
-from src.utils import get_valid_filename, run_sync
+from src.utils import get_valid_filename, get_song_name_and_dir_path, run_sync
 
 
 def _write_bytes(path, data: bytes):
@@ -85,11 +86,41 @@ def _select_audio_alternative(master, audio_type: str):
                if re.search(r"(\d+)$", a.group_id or "") else 0)
 
 
+def _describe_video(variant) -> str:
+    """e.g. ``1920x1080, 8.52 Mbps, avc1.640028``."""
+    info = variant.stream_info
+    parts = ["x".join(map(str, info.resolution))]
+    if info.bandwidth:
+        parts.append(f"{info.bandwidth / 1_000_000:.2f} Mbps")
+    if info.codecs:
+        video_codecs = [c for c in info.codecs.split(",") if not c.startswith(("mp4a", "ec-3", "ac-3"))]
+        parts.append(",".join(video_codecs) or info.codecs)
+    return ", ".join(parts)
+
+
+def _describe_audio(media) -> str:
+    """e.g. ``audio-atmos, 16/JOC channels``."""
+    desc = media.group_id or media.name or "unknown"
+    if media.channels:
+        desc += f", {media.channels} channels"
+    return desc
+
+
 class MVRipper:
-    async def rip(self, url: MusicVideo, flags=None):
+    async def rip(self, url: MusicVideo, flags=None, codec: Optional[str] = None,
+                  playlist=None, album_id: Optional[str] = None):
+        """Download one music video.
+
+        ``codec`` is set when the MV is ripped as a track of an album or
+        playlist: it is then saved beside the songs (song dir/name formats,
+        ``codec`` filling ``{codec}``), in the context of ``playlist`` or of
+        album ``album_id``.  Otherwise it goes to ``[mv] saveDir``.
+        """
         logger = RipLogger(URLType.MusicVideo, url.id)
+        force_save = bool(flags and flags.force_save)
+        language = flags.language if flags else it(Config).region.language
         try:
-            manifest = await self._fetch_manifest(url)
+            manifest = await self._fetch_manifest(url, language)
             attrs = manifest["data"][0]["attributes"]
             artist_name = attrs.get("artistName") or ""
             mv_name = attrs.get("name") or url.id
@@ -106,17 +137,32 @@ class MVRipper:
                 _mv_tree = None
 
             cfg = it(Config).mv
+            final_path = None
+            if codec:
+                final_path = await self._track_path(manifest, url, language, codec, playlist, album_id)
+            as_track = final_path is not None
+            if final_path is None:
+                safe = get_valid_filename(f"{artist_name} - {mv_name}")
+                final_path = Path(cfg.saveDir) / f"{safe}.m4v"
+            save_dir = final_path.parent
+            part_path = final_path.with_name(final_path.name + ".part")
+            if not force_save and final_path.exists():
+                logger.already_exist()
+                if _mv_tree is not None:
+                    _mv_tree.update_mv_status(url.id, NodeStatus.EXIST)
+                return
             low_memory = it(Config).download.lowMemory
 
             master_url = await it(WrapperClient).webplayback(url.id)
             master = m3u8.loads(await it(WebAPI).download_m3u8(master_url), uri=master_url)
             vv = _select_video_variant(master, cfg.maxHeight)
-            logger.logger.info(f"Selected video: {vv.stream_info.resolution} ({vv.stream_info.bandwidth} bps)")
+            logger.logger.info(f"Selected video: {_describe_video(vv)}")
             audio_alt = _select_audio_alternative(master, cfg.audioType)
             if audio_alt is not None:
-                logger.logger.info(f"Selected audio: {audio_alt.group_id}")
+                logger.logger.info(f"Selected audio: {_describe_audio(audio_alt)}")
+            else:
+                logger.logger.warning("No audio stream found, saving video only")
 
-            logger.downloading()
             v_txt = await it(WebAPI).download_m3u8(vv.absolute_uri)
             v_media = m3u8.loads(v_txt, uri=vv.absolute_uri)
             v_init_url = _find_map_url(v_txt, vv.absolute_uri)
@@ -137,7 +183,6 @@ class MVRipper:
             v_init_data = (await client.get(v_init_url)).content
             a_init_data = (await client.get(a_init_url)).content if a_init_url else None
 
-            logger.decrypting()
             v_content = await it(Decryptor).mv_content_key(url.id, v_key)
             a_content = await it(Decryptor).mv_content_key(url.id, a_key) if a_key else None
 
@@ -148,12 +193,13 @@ class MVRipper:
             if a_content is not None and a_init is None:
                 raise MP4ParseError("MV audio init segment did not parse")
 
-            save_dir = Path(cfg.saveDir)
             save_dir.mkdir(parents=True, exist_ok=True)
-            safe = get_valid_filename(f"{artist_name} - {mv_name}")
-            final_path = save_dir / f"{safe}.m4v"
-            part_path = save_dir / f"{safe}.m4v.part"
 
+            # Segments are decrypted as they arrive, so this covers both.
+            segments = f"{len(v_media.segments)} video"
+            if a_content is not None:
+                segments += f" + {len(a_media.segments)} audio"
+            logger.downloading(f"{segments} segments")
             if low_memory:
                 await self._rip_low_memory(logger, v_init, a_init, v_media, a_media,
                                            v_content, a_content, part_path)
@@ -161,10 +207,11 @@ class MVRipper:
                 await self._rip_in_memory(logger, v_init, a_init, v_media, a_media,
                                           v_content, a_content, part_path)
 
-            final_path, cover = await self._save(part_path, final_path, mv_name, artist_name, attrs)
+            final_path, cover = await self._save(part_path, final_path, mv_name, artist_name, attrs,
+                                                 save_cover_file=not as_track)
             logger.saved()
         except Exception as e:
-            logger.logger.exception(f"MV download failed: {e}")
+            logger.logger.exception(f"Failed to download music video: {e}")
             try:
                 from creart import it as _it
                 from src.tui.task_tree import TaskTree, NodeStatus
@@ -251,6 +298,7 @@ class MVRipper:
             if base:
                 for i, f in enumerate(flist):
                     flist[i] = patch_tfdt_delta(f, base)
+        logger.logger.info("Muxing video and audio...")
         out = mux_mv(v_init, a_init, v_frags, a_frags)
         await run_sync(_write_bytes, part_path, out)
 
@@ -279,17 +327,47 @@ class MVRipper:
                 # Apple MV fragments start at a non-zero timeline (~10s);
                 # normalise so VLC / players start at 0.
                 store.normalize_timestamps()
+                logger.logger.info("Muxing video and audio...")
                 mux_mv_streamed(v_init, a_init, store, part_path)
             finally:
                 store.close()
 
-    async def _fetch_manifest(self, url: MusicVideo):
+    async def _fetch_manifest(self, url: MusicVideo, language: str):
         resp = await it(WebAPI)._request(
             "GET", f"https://amp-api.music.apple.com/v1/catalog/{url.storefront}/music-videos/{url.id}",
-            params={"include": "artists,albums", "l": it(Config).region.language})
+            params={"include": "artists,albums", "l": language})
         return resp.json()
 
-    async def _save(self, part_path, final_path, mv_name, artist_name, attrs):
+    async def _track_path(self, manifest, url: MusicVideo, language: str, codec: str,
+                          playlist=None, album_id: Optional[str] = None) -> Optional[Path]:
+        """Path of an album/playlist MV, built like its songs' paths.
+
+        None when the MV has no album to take the metadata from.
+        """
+        data = manifest["data"][0]
+        albums = ((data.get("relationships") or {}).get("albums") or {}).get("data") or []
+        if not albums:
+            return None
+        album = next((a for a in albums if a["id"] == album_id), albums[0])
+        album_attrs = album.get("attributes") or {}
+        attrs = data["attributes"]
+        metadata = SongMetadata(
+            song_id=data["id"], title=attrs.get("name"), artist=attrs.get("artistName"),
+            album_id=album["id"], album=album_attrs.get("name") or attrs.get("albumName"),
+            album_artist=album_attrs.get("artistName") or attrs.get("albumArtistName"),
+            album_created=album_attrs.get("releaseDate"), composer=attrs.get("composerName"),
+            genre=attrs.get("genreNames"), created=attrs.get("releaseDate"),
+            track=attrs.get("name"), tracknum=attrs.get("trackNumber") or 0,
+            disk=attrs.get("discNumber") or 1, copyright=album_attrs.get("copyright"),
+            record_company=album_attrs.get("recordLabel"), upc=album_attrs.get("upc"),
+            isrc=attrs.get("isrc"))
+        metadata.parse_from_album_data(await it(WebAPI).get_album_info(album["id"], url.storefront, language))
+        if playlist:
+            metadata.set_playlist_index(playlist.songIdIndexMapping.get(url.id))
+        name, dir_path = get_song_name_and_dir_path(codec.upper(), metadata, playlist)
+        return dir_path / f"{name}.m4v"
+
+    async def _save(self, part_path, final_path, mv_name, artist_name, attrs, save_cover_file=True):
         tags = {}
         embed = it(Config).metadata.embedMetadata
         if "title" in embed:
@@ -323,6 +401,7 @@ class MVRipper:
         # mutagen rewrites the whole file (CPU+IO); run off the event loop.
         await run_sync(mp4.save)
         os.replace(part_path, final_path)
-        if cover:
+        # In an album folder, cover.<fmt> is the album's (written by its songs).
+        if cover and save_cover_file:
             final_path.parent.joinpath(f"cover.{it(Config).download.coverFormat}").write_bytes(cover)
         return final_path, cover
