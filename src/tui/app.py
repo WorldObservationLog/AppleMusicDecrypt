@@ -15,6 +15,7 @@ Tab        focus log pane <-> input bar
 Up/Down    scroll log (log focused) / command history (input focused)
 End        log auto-follow after scrolling
 F1         help
+Ctrl+V     paste from the system clipboard (right-click does the same)
 F10/Ctrl+C exit (two-step confirm while tasks run)
 Ctrl+D/Esc submit / cancel the batch panel
 
@@ -41,6 +42,7 @@ from src.wrapper import WrapperClient
 from src.tui import log_sink
 from src.tui.style import TUI_STYLE
 from src.tui.task_tree import TaskTree
+from src.tui.win_console import disable_quick_edit, get_clipboard_text
 from src.tui.layout import build_layout
 from src.tui.widgets.log_view   import LogView
 from src.tui.widgets.task_list  import TaskListWidget
@@ -75,6 +77,54 @@ def _get_regions() -> list[str]:
     except Exception:
         pass
     return []
+
+
+def _read_clipboard() -> str:
+    """System clipboard text; falls back to prompt_toolkit's in-app one."""
+    text = get_clipboard_text()
+    if not text:
+        try:
+            from prompt_toolkit.application.current import get_app
+            text = get_app().clipboard.get_data().text or ""
+        except Exception:
+            text = ""
+    return text
+
+
+def _paste_into(buffer) -> None:
+    """Insert clipboard text into ``buffer`` and focus it.
+
+    Single-line buffers get newlines folded to spaces, otherwise every
+    line would act as Enter and submit a separate command.
+    """
+    text = _read_clipboard().replace("\r\n", "\n").replace("\r", "\n")
+    if not buffer.multiline():
+        text = " ".join(part.strip() for part in text.split("\n") if part.strip())
+    if not text:
+        return
+    buffer.insert_text(text)
+    try:
+        from prompt_toolkit.application.current import get_app
+        get_app().layout.focus(buffer)
+    except Exception:
+        pass
+
+
+def _install_right_click_paste(control, buffer) -> None:
+    """Wrap ``control.mouse_handler``: right-click pastes, everything else
+    falls through to the original handler (cursor placement, scrolling)."""
+    from prompt_toolkit.mouse_events import MouseButton, MouseEventType
+
+    orig = control.mouse_handler
+
+    def _handler(mouse_event):
+        if mouse_event.button == MouseButton.RIGHT:
+            if mouse_event.event_type == MouseEventType.MOUSE_DOWN:
+                _paste_into(buffer)
+            return None
+        return orig(mouse_event)
+
+    control.mouse_handler = _handler
 
 
 # ---------------------------------------------------------------------------
@@ -178,37 +228,17 @@ async def run_tui(shell: "InteractiveShell") -> None:
         is_batch=is_batch,
     )
 
-    # Right-click paste: when mouse_support is on, the terminal forwards the
-    # right button to the app instead of the emulator's paste action.  Read
-    # the app clipboard and insert into the focused TextArea.
-    from prompt_toolkit.mouse_events import MouseButton, MouseEventType
-
-    def _right_click_paste(mouse_event):
-        if (mouse_event.event_type == MouseEventType.MOUSE_DOWN
-                and mouse_event.button == MouseButton.RIGHT):
-            try:
-                # Use the Application clipboard (set by the OS integration);
-                # no pyperclip dependency.
-                from prompt_toolkit.application.current import get_app
-                text = get_app().clipboard.get_data().text or ""
-                if text:
-                    buf = input_bar._textarea.buffer
-                    buf.insert_text(text)
-            except Exception:
-                pass
-            return None
-        return NotImplemented
-
-    # Attach to the input bar window's control mouse_handler (preserve default
-    # by only handling right-click; other events fall through).
-    input_bar._textarea.control.mouse_handler = _right_click_paste
-
     batch_panel = BatchPanel(
         is_active=is_batch,
         on_submit=_on_batch_submit,
         on_cancel=_on_batch_cancel,
         get_cmd_prefix=lambda: _batch_args_cmd[0],
     )
+
+    # Right-click paste: with mouse_support on, the terminal forwards the
+    # right button to the app instead of doing its own paste action.
+    _install_right_click_paste(input_bar._textarea.control, input_bar._textarea.buffer)
+    _install_right_click_paste(batch_panel._textarea.control, batch_panel._textarea.buffer)
 
     # ── 4. layout ─────────────────────────────────────────────────────────
     layout, floats = build_layout(
@@ -246,9 +276,13 @@ async def run_tui(shell: "InteractiveShell") -> None:
     shell._tui_app = app  # type: ignore[attr-defined]
 
     # ── 7. run ────────────────────────────────────────────────────────────
+    # Windows cmd: a QuickEdit selection blocks console writes and freezes
+    # the event loop, so turn QuickEdit off while the TUI owns the console.
+    restore_console = disable_quick_edit()
     try:
         await app.run_async()
     finally:
+        restore_console()
         log_sink.uninstall()
         if it(Config).localInstance.enable:
             await shell.localInstance.terminate()
@@ -377,6 +411,15 @@ def _build_keybindings(
                 event.app.layout.focus(batch_panel.window)
             except Exception:
                 pass
+
+    # ── paste (Ctrl+V) from the system clipboard ────────────────────────
+    @kb.add("c-v")
+    def _paste(event):
+        if is_batch():
+            _paste_into(batch_panel._textarea.buffer)
+        else:
+            _paste_into(input_bar._textarea.buffer)
+        invalidate()
 
     # ── sidebar width (Ctrl+Left / Ctrl+Right) ──────────────────────────
     @kb.add("c-left")
