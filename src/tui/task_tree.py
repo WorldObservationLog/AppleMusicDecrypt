@@ -29,6 +29,10 @@ from dataclasses import dataclass, field
 from enum import Enum, auto
 from typing import TYPE_CHECKING, Optional
 
+from rich.cells import cell_len
+
+from src.tui import glyphs
+
 if TYPE_CHECKING:
     from src.task import Task
 
@@ -58,14 +62,7 @@ class NodeStatus(Enum):
                         NodeStatus.PARTIAL)
 
     def icon(self) -> str:
-        return {
-            NodeStatus.WAITING:  "⏳",
-            NodeStatus.RUNNING:  "🔄",
-            NodeStatus.DONE:     "✅",
-            NodeStatus.EXIST:    "✔",
-            NodeStatus.FAILED:   "❌",
-            NodeStatus.PARTIAL:  "⚠",
-        }[self]
+        return glyphs.status_icon(self.name)
 
     def icon_padded(self) -> str:
         """Status icon padded to a fixed 2-cell display width so the
@@ -99,6 +96,11 @@ class TreeNode:
     children:     list["TreeNode"] = field(default_factory=list, repr=False)
     expanded:     bool             = True
 
+    # Whether a fully-finished group may be folded automatically.  Cleared
+    # once the user expands the group by hand, so that a deliberate look at a
+    # finished album is not undone on the next frame.
+    auto_collapse: bool            = True
+
     # Set when node first reaches a terminal state (for ``cl`` pruning).
     finished_at:  Optional[float]  = None
 
@@ -111,7 +113,10 @@ class TreeNode:
 
     @property
     def status(self) -> NodeStatus:
-        # Leaf or MV: read from Task or _status.
+        # Pure read: this used to set ``expanded = False`` for finished
+        # groups, which meant a manual expand was reverted by the very next
+        # render — the group could never be opened.  The collapse policy now
+        # lives in ``TaskTree.collapse_finished``, which runs once per tick.
         if not self.children:
             if self._status is not None:
                 return self._status
@@ -122,12 +127,8 @@ class TreeNode:
         if any(s == NodeStatus.RUNNING  for s in statuses):
             return NodeStatus.RUNNING
         if all(s in (NodeStatus.DONE, NodeStatus.EXIST) for s in statuses):
-            # Auto-collapse finished groups: once every child is terminal,
-            # the group folds to a single summary line.
-            self.expanded = False
             return NodeStatus.DONE
         if all(s.is_terminal() for s in statuses):
-            self.expanded = False
             return NodeStatus.PARTIAL if any(
                 s == NodeStatus.FAILED for s in statuses) else NodeStatus.DONE
         return NodeStatus.WAITING
@@ -139,6 +140,92 @@ class TreeNode:
     # ------------------------------------------------------------------ #
     # Progress (leaves only)
     # ------------------------------------------------------------------ #
+
+    @property
+    def total_bytes(self) -> int:
+        """Expected size of the media stream (sum over children for a group)."""
+        if self.task:
+            return self.task.total_bytes
+        return sum(c.total_bytes for c in self.children)
+
+    @property
+    def progress(self) -> Optional[float]:
+        """Download progress as a fraction in ``[0, 1]``, or ``None``.
+
+        ``None`` rather than 0.0 when something below this node has no known
+        size: a group whose remaining tracks have not started downloading yet
+        would otherwise report a misleadingly high percentage.
+        """
+        if not self.children:
+            return self.task.progress if self.task else None
+        if self.status in (NodeStatus.DONE, NodeStatus.EXIST):
+            # Finished groups are complete by definition, even if the size of
+            # some member never became known.
+            return 1.0
+        totals = [c.total_bytes for c in self.children]
+        if not totals or any(t <= 0 for t in totals):
+            return None
+        return min(1.0, self.downloaded_bytes / sum(totals))
+
+    def counts(self) -> "tuple[int, int]":
+        """``(settled, total)`` leaf count below this node.
+
+        "Settled" means terminal — done, already existed *or* failed.  This is
+        the progress measure: a track that failed is still a track that will
+        not run again, so a finished album reaches 100% even if some of it
+        failed.
+        """
+        if not self.children:
+            return (1 if self.status.is_terminal() else 0), 1
+        done = total = 0
+        for child in self.children:
+            child_done, child_total = child.counts()
+            done += child_done
+            total += child_total
+        return done, total
+
+    def breakdown(self) -> "tuple[int, int, int]":
+        """``(succeeded, failed, total)`` leaf counts below this node.
+
+        Deliberately *not* what :meth:`counts` reports: a group row reads
+        ``2/4 ⚠2`` — two tracks succeeded out of four, two of them failed —
+        and ``4/4 ⚠2`` would say the same thing twice while looking like a
+        contradiction.  The row's own status icon only says "some failed", and
+        a finished group folds to one line the user has no reason to open.
+        """
+        if not self.children:
+            status = self.status
+            succeeded = 1 if status in (NodeStatus.DONE, NodeStatus.EXIST) else 0
+            failed = 1 if status == NodeStatus.FAILED else 0
+            return succeeded, failed, 1
+        succeeded = failed = total = 0
+        for child in self.children:
+            child_ok, child_failed, child_total = child.breakdown()
+            succeeded += child_ok
+            failed += child_failed
+            total += child_total
+        return succeeded, failed, total
+
+    def size_gap(self) -> "tuple[int, int]":
+        """``(leaves with a known size, unsettled leaves still without one)``.
+
+        The second number is the ETA's blind spot: at the start of an album
+        only the first few tracks have been through the m3u8, so
+        ``TreeStats.expected`` covers a fraction of the real total.  Measured
+        on a 14-track album, the first sample knew about 102 MB of what turned
+        out to be 388 MB.
+        """
+        if not self.children:
+            if self.total_bytes > 0:
+                return 1, 0
+            # A settled track will not need a size any more.
+            return (0, 0) if self.status.is_terminal() else (0, 1)
+        known = gap = 0
+        for child in self.children:
+            child_known, child_gap = child.size_gap()
+            known += child_known
+            gap += child_gap
+        return known, gap
 
     @property
     def downloaded_bytes(self) -> int:
@@ -173,13 +260,7 @@ class TreeNode:
     # ------------------------------------------------------------------ #
 
     def kind_icon(self) -> str:
-        return {
-            NodeKind.ALBUM:    "💿",
-            NodeKind.PLAYLIST: "📋",
-            NodeKind.ARTIST:   "🎤",
-            NodeKind.MV:       "🎬",
-            NodeKind.SONG:     "🎵",
-        }[self.kind]
+        return glyphs.kind_icon(self.kind.name)
 
     def kind_style(self) -> str:
         return {
@@ -192,30 +273,20 @@ class TreeNode:
 
 
 def _display_width(s: str) -> int:
-    """Approximate terminal cell width of a string.
+    """Display width of *s* in terminal cells.
 
-    Every emoji used by the TUI (⏳🔄✅✔❌⚠ + kind icons) renders as
-    exactly 2 columns on modern terminals, so we count any char in the
-    emoji / East-Asian-wide ranges as 2 cells and everything else as 1.
+    Delegates to Rich, which is the same measurement the renderer itself uses.
+    The previous hand-rolled version counted the whole ``0x2600-0x27BF`` block
+    as double-width, but ``✔`` (U+2714, ALREADY_EXIST) and ``⚠`` (U+26A0,
+    PARTIAL) occupy a single cell — so those two rows came out one column
+    short and their labels did not line up with the rest of the list.
     """
-    import unicodedata
-    w = 0
-    for ch in s:
-        if 0x1F000 <= ord(ch) <= 0x1FAFF:      # emoji plane
-            w += 2
-        elif unicodedata.east_asian_width(ch) in ("W", "F"):
-            w += 2
-        elif 0x2600 <= ord(ch) <= 0x27BF:      # misc symbols (✔ ⚠ ⬇ …)
-            w += 2
-        else:
-            w += 1
-    return w
+    return cell_len(s)
 
 
 def _pad_to_width(s: str, width: int) -> str:
     """Right-pad *s* with spaces so its display width == *width*."""
-    pad = width - _display_width(s)
-    return s + " " * max(0, pad)
+    return s + " " * max(0, width - cell_len(s))
 
 
 def _task_to_node_status(task: Optional["Task"]) -> NodeStatus:
@@ -237,6 +308,57 @@ def _task_to_node_status(task: Optional["Task"]) -> NodeStatus:
 # ---------------------------------------------------------------------------
 # TaskTree singleton
 # ---------------------------------------------------------------------------
+
+@dataclass
+class TreeStats:
+    """Aggregate view of the whole tree, for the status bar.
+
+    Two independent progress notions live here on purpose:
+
+    * ``done``/``total`` count *tracks that have settled* — done, already
+      existed or failed — which is what a user waiting on an album is actually
+      counting, and which reaches 100% even when part of the batch failed;
+    * ``downloaded``/``expected`` count *bytes*, which is what the ETA needs.
+
+    ``expected`` only covers the tracks whose size is known so far, so
+    ``known`` and ``unknown`` record how complete that picture is and
+    :attr:`remaining_bytes` extrapolates from it.
+    """
+
+    done: int = 0
+    total: int = 0
+    downloaded: int = 0
+    expected: int = 0
+    # Leaves whose size arrived, and unsettled leaves still waiting for one.
+    known: int = 0
+    unknown: int = 0
+    # Tracks that failed.
+    failed: int = 0
+
+    @property
+    def track_percent(self) -> Optional[float]:
+        """Fraction of tracks settled, or ``None`` when the tree is empty."""
+        if not self.total:
+            return None
+        return self.done / self.total
+
+    @property
+    def average_track_bytes(self) -> int:
+        """Mean size of the tracks that have reported one (0 when none has)."""
+        if self.known <= 0:
+            return 0
+        return self.expected // self.known
+
+    @property
+    def remaining_bytes(self) -> int:
+        """Bytes still to fetch, extrapolated for tracks that have no size yet.
+
+        Without the extrapolation the ETA is optimistic exactly when it is most
+        read — the first seconds of a large album.
+        """
+        outstanding = max(0, self.expected - self.downloaded)
+        return outstanding + self.unknown * self.average_track_bytes
+
 
 class TaskTree:
     """Registry and snapshot source for the TUI task panel."""
@@ -332,15 +454,74 @@ class TaskTree:
         """Return a shallow copy of the root list for the widget to render."""
         return list(self._roots)
 
+    def stats(self) -> TreeStats:
+        """Aggregate track and byte counters over the whole tree."""
+        stats = TreeStats()
+        for root in self._roots:
+            done, total = root.counts()
+            stats.done += done
+            stats.total += total
+            stats.downloaded += root.downloaded_bytes
+            stats.expected += root.total_bytes
+            known, gap = root.size_gap()
+            stats.known += known
+            stats.unknown += gap
+            stats.failed += root.breakdown()[1]
+        return stats
+
     def clear_done(self) -> int:
         """Remove all terminal nodes (and their children).  Returns count removed."""
         before = len(self._roots)
         self._roots = [n for n in self._roots if not n.status.is_terminal()]
         # Rebuild lookup (simpler than surgical removal).
+        self._reindex()
+        return before - len(self._roots)
+
+    def remove(self, node_id: str) -> bool:
+        """Detach one node (and everything below it).  Returns whether it existed.
+
+        Used by the sidebar's delete key.  Removal is purely cosmetic — it
+        edits the view model, not the download — so callers must check that
+        the node is finished before offering it.
+        """
+        node = self._by_id.get(node_id)
+        if node is None:
+            return False
+        parent = self._parent_of(node_id)
+        if parent is None:
+            self._roots = [n for n in self._roots if n.node_id != node_id]
+        else:
+            parent.children = [c for c in parent.children if c.node_id != node_id]
+        self._reindex()
+        return True
+
+    def _parent_of(self, node_id: str) -> Optional[TreeNode]:
+        for node in self._by_id.values():
+            if any(child.node_id == node_id for child in node.children):
+                return node
+        return None
+
+    def _reindex(self) -> None:
         self._by_id = {}
         for root in self._roots:
             self._index(root)
-        return before - len(self._roots)
+
+    def set_all_expanded(self, expanded: bool) -> int:
+        """Open or fold every group.  Returns how many groups were touched.
+
+        Expanding by hand also clears ``auto_collapse``: "expand all" is an
+        explicit instruction, and having finished groups snap shut again on
+        the next tick would make the key look broken.
+        """
+        touched = 0
+        for node in self._by_id.values():
+            if not node.children:
+                continue
+            node.expanded = expanded
+            if expanded:
+                node.auto_collapse = False
+            touched += 1
+        return touched
 
     def _index(self, node: TreeNode) -> None:
         self._by_id[node.node_id] = node
@@ -351,6 +532,27 @@ class TaskTree:
         node = self._by_id.get(node_id)
         if node and node.children:
             node.expanded = not node.expanded
+            # Opening a group by hand is a deliberate act: opt it out of the
+            # automatic fold so the next tick does not shut it again.
+            if node.expanded:
+                node.auto_collapse = False
+
+    def collapse_finished(self) -> int:
+        """Fold every fully-finished group the user has not opened.
+
+        Returns how many groups were folded.  This is deliberately a method
+        driven by the UI tick instead of a side effect inside
+        :attr:`TreeNode.status`: state changes then happen at one explicit
+        point per frame, and a group the user expanded stays open.
+        """
+        folded = 0
+        for node in self._by_id.values():
+            if not node.children or not node.expanded or not node.auto_collapse:
+                continue
+            if all(child.status.is_terminal() for child in node.children):
+                node.expanded = False
+                folded += 1
+        return folded
 
 
 # ---------------------------------------------------------------------------

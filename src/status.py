@@ -25,7 +25,16 @@ def status_panel(tasks: Iterable[Task]) -> str:
             continue  # skip quietly-finished tasks unless they failed
         stage = t.status.value
         name = t.display_name
-        dl = f"dl {_fmt_bytes(t.downloaded_bytes)}" if t.downloaded_bytes else ""
+        dl = ""
+        if t.downloaded_bytes:
+            progress = t.progress
+            if progress is not None:
+                # A known stream size turns the byte counter into a percentage
+                # with the absolute figures kept alongside it.
+                dl = (f"dl {int(progress * 100)}% "
+                      f"({_fmt_bytes(t.downloaded_bytes)}/{_fmt_bytes(t.total_bytes)})")
+            else:
+                dl = f"dl {_fmt_bytes(t.downloaded_bytes)}"
         dec = f"dec {_fmt_bytes(t.decrypted_bytes)}" if t.decrypted_bytes else ""
         extra = " ".join(x for x in (dl, dec) if x)
         line = f"  [{stage:<12}] {name}"

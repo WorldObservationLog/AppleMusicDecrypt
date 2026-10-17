@@ -98,17 +98,27 @@ class WrapperClient:
     _semaphore: asyncio.Semaphore
     _base_url: str
 
-    def __init__(self, url: str, secure: bool):
+    def __init__(self, url: str, secure: bool, m3u8_concurrency: int | None = None):
         self._base_url = f"{'https' if secure else 'http'}://{url}"
+        wrapper_timeout = httpx.Timeout(10.0, connect=10.0, read=30.0, write=10.0, pool=60.0)
+        wrapper_limits = httpx.Limits(max_connections=64, max_keepalive_connections=16, keepalive_expiry=60.0)
         self._client = httpx.AsyncClient(
             base_url=self._base_url,
-            timeout=(10, 30),
+            timeout=wrapper_timeout,
+            limits=wrapper_limits,
             http2=False,
         )
         self._semaphore = asyncio.Semaphore(64)
         # wrapper/lite's /m3u8 cannot serve many concurrent requests; keep
-        # the batch prefetch from overwhelming it.
-        self._m3u8_semaphore = asyncio.Semaphore(4)
+        # the batch prefetch from overwhelming it. A local lite instance
+        # runs a single Android VM, so 2 concurrent requests avoids queueing.
+        if m3u8_concurrency is None:
+            try:
+                cfg = it(Config)
+                m3u8_concurrency = 2 if getattr(cfg.localInstance, "wrapperType", "manager") == "lite" else 4
+            except Exception:
+                m3u8_concurrency = 2
+        self._m3u8_semaphore = asyncio.Semaphore(m3u8_concurrency)
 
     async def __aenter__(self) -> "WrapperClient":
         return self
@@ -145,10 +155,29 @@ class WrapperClient:
         """
         return await self._request("GET", "/status")
 
-    async def m3u8(self, adam_id: str) -> str:
-        async with self._m3u8_semaphore:
-            data = await self._request("GET", "/m3u8", params={"adamId": adam_id})
-            return data["m3u8"]
+    async def m3u8(self, adam_id: str, timeout: float = 10.0) -> str:
+        """Fetch the master playlist URL for ``adam_id``.
+
+        Uses a fast timeout (default 10s) and at most 1 retry, without holding
+        the semaphore across backoff sleep, so callers can fall back quickly to
+        web API enhancedHls if the wrapper is overwhelmed or unavailable.
+        """
+        async def _attempt() -> str:
+            async with self._m3u8_semaphore:
+                req_timeout = httpx.Timeout(timeout, connect=min(5.0, timeout), read=timeout)
+                data = await self._request_once(
+                    "GET", "/m3u8", params={"adamId": adam_id}, timeout=req_timeout
+                )
+                return data["m3u8"]
+
+        for attempt in range(2):
+            try:
+                return await _attempt()
+            except WrapperError as e:
+                if attempt == 0 and "no such account" not in str(e):
+                    await asyncio.sleep(0.5)
+                    continue
+                raise
 
     async def key_template(self, adam_id: str, uri: str) -> dict:
         """Return the full ``data`` dict of GET /key (ctx/state/registers).
@@ -251,20 +280,11 @@ class WrapperClient:
     async def close(self) -> None:
         await self._client.aclose()
 
-    @retry(
-        retry=_retry_policy(),
-        wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
-        stop=stop_after_attempt(it(Config).download.retryTime),
-        reraise=True,
-        before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"),
-    )
-    async def _request(self, method: str, path: str, **kwargs) -> dict:
+    async def _request_once(self, method: str, path: str, **kwargs) -> dict:
         """Send one request, acquire the semaphore and validate the envelope.
 
-        Returns the ``data`` object of the envelope. Raises
-        :class:`WrapperError` for transport failures, HTTP 404
-        (endpoint not available on this wrapper), non-JSON bodies, unexpected
-        envelopes and ``code != 0`` responses.
+        Unlike ``_request``, this method is not wrapped with tenacity retries,
+        allowing callers (like ``m3u8()``) to apply tailored retry/timeout logic.
         """
         async with self._semaphore:
             try:
@@ -274,6 +294,17 @@ class WrapperClient:
                     f"{method} {path} transport error at {self._base_url}: {e!r}"
                 ) from e
             return self._decode_response(method, path, response)
+
+    @retry(
+        retry=_retry_policy(),
+        wait=wait_random_exponential(multiplier=1, max=it(Config).download.maxWaitTime),
+        stop=stop_after_attempt(it(Config).download.retryTime),
+        reraise=True,
+        before_sleep=before_sleep_log(it(GlobalLogger).logger, "WARNING"),
+    )
+    async def _request(self, method: str, path: str, **kwargs) -> dict:
+        """Send one request with global tenacity retry policy."""
+        return await self._request_once(method, path, **kwargs)
 
     @staticmethod
     def _decode_response(method: str, path: str, response: httpx.Response) -> dict:

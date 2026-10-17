@@ -5,7 +5,6 @@ import os
 import sys
 
 from creart import it
-from prompt_toolkit.completion import NestedCompleter
 
 from src.api import WebAPI
 from src.config import Config
@@ -149,9 +148,39 @@ class InteractiveShell:
         return False
 
     async def _ask(self, prompt: str, password: bool = False) -> str:
-        from prompt_toolkit import PromptSession
-        session = PromptSession()
-        return await session.prompt_async(prompt, is_password=password)
+        """Ask the user for one line of input.
+
+        Which prompt is used follows the active UI:
+
+        * full-screen TUI — a Textual modal screen, because the app owns the
+          terminal (the old code built a second ``PromptSession`` inside the
+          running app, so two frameworks fought over the same tty);
+        * legacy REPL — ``input()`` / ``getpass`` on the plain terminal, owned
+          by ``src.tui.legacy.LegacyConsole``;
+        * headless — a bare stdlib read, so the flows stay scriptable.
+
+        Cancellation always surfaces as ``EOFError``, which is what the
+        ``except (EOFError, KeyboardInterrupt)`` guards around the login and
+        logout flows already expect.
+        """
+        app = getattr(self, "_tui_app", None)
+        if app is not None and getattr(app, "is_running", False):
+            value = await app.ask_text(prompt, password=password)
+            if value is None:
+                raise EOFError("input cancelled")
+            return value
+
+        console = getattr(self, "_legacy_console", None)
+        if console is not None:
+            value = await console.read_line(prompt=prompt, password=password)
+            if value is None:
+                raise EOFError("input cancelled")
+            return value
+
+        if password:
+            import getpass
+            return await asyncio.to_thread(getpass.getpass, prompt)
+        return await asyncio.to_thread(input, prompt)
 
     async def login_flow(self):
         """Login through the wrapper backend.
@@ -266,6 +295,41 @@ class InteractiveShell:
                 safely_create_task(self.do_quality(args.url, args))
 
     def print_help(self):
+        # The two UIs do not share a keyboard: the full-screen app owns Tab /
+        # F-keys / mouse, while the legacy REPL leaves line editing to the
+        # terminal and only understands Ctrl+C / Ctrl+D plus the '?' suffix.
+        if self.legacy_ui:
+            extra = (
+                "Keys:\n"
+                "  Ctrl+C / Ctrl+D  quit (press again within 5s when tasks are running)\n"
+                "  <command> ?      list the words valid at that point, e.g. 'dl --codec ?';\n"
+                "                   line editing and history come from your terminal\n"
+            )
+            cl_hint = "clear finished tasks"
+        else:
+            extra = (
+                "Keys:\n"
+                "  Tab         move focus: log <-> task sidebar <-> input\n"
+                "  Ctrl+Left/Right  resize the task sidebar\n"
+                "  Up/Down     scroll log (log focused) / command history (input focused)\n"
+                "  End         re-enable log auto-follow after scrolling\n"
+                "  F1          help panel (keys, commands, examples)\n"
+                "  F2          cycle the log level floor: all -> WARNING+ -> ERROR+\n"
+                "  F3          filter the log by substring; Esc clears it\n"
+                "  F4          cycle the colour theme\n"
+                "  F5/F6       expand / fold every group in the sidebar\n"
+                "  F7          copy the highlighted task's name\n"
+                "  Delete      remove the highlighted task, once it has finished\n"
+                "  Ctrl+P      command palette\n"
+                "  F10/Ctrl+C  quit (press again within 5s when tasks are running)\n"
+                "  Ctrl+D      submit batch panel; Esc cancels it\n"
+                "\n"
+                "Mouse: click a pane to focus it, wheel scrolls. Tasks appear as a tree\n"
+                "in the sidebar (album -> tracks); 'cl' prunes finished ones. Errors are\n"
+                "also raised as a notification, so one that scrolls past is not missed."
+            )
+            cl_hint = "clear finished tasks from the sidebar"
+
         it(GlobalLogger).logger.info(
             "Commands:\n"
             "  dl <url...> [-c codec] [-f] [-b] [-l lang] [--include-participate-songs]  Download\n"
@@ -276,22 +340,12 @@ class InteractiveShell:
             "     -l lang     metadata language, e.g. en-US, zh-Hant-HK, ja\n"
             "  qa <url...> [--invert] [--codec-id] [--codec] [--bitrate] ...   Show quality\n"
             "  status        wrapper status + available regions\n"
-            "  cl            clear finished tasks from the sidebar\n"
+            f"  cl            {cl_hint}\n"
             "  login/logout  login is handled on the wrapper side\n"
             "  help          this help\n"
             "  exit          quit\n"
-            "\n"
-            "Keys:\n"
-            "  Tab         move focus: log <-> task sidebar <-> input\n"
-            "  Ctrl+Left/Right  resize the task sidebar\n"
-            "  Up/Down     scroll log (log focused) / command history (input focused)\n"
-            "  End         re-enable log auto-follow after scrolling\n"
-            "  F1          this help\n"
-            "  F10/Ctrl+C  quit (press again within 5s when tasks are running)\n"
-            "  Ctrl+D      submit batch panel; Esc cancels it\n"
-            "\n"
-            "Mouse: click a pane to focus it, wheel scrolls. Tasks appear as a tree\n"
-            "in the sidebar (album -> tracks); 'cl' prunes finished ones.")
+            "\n" + extra
+        )
 
     async def do_clear_tasks(self):
         try:
@@ -300,6 +354,23 @@ class InteractiveShell:
             it(GlobalLogger).logger.info(f"Cleared {removed} finished task(s) from the sidebar.")
         except Exception as e:
             it(GlobalLogger).logger.warning(f"cl: {e}")
+
+    async def retry_task(self, task) -> bool:
+        """Run a finished task again from its recorded request.
+
+        Returns whether it could be retried at all.  The work goes back through
+        ``do_download`` rather than straight to the ripper, so a retry goes down
+        exactly the same path as the original command — same URL parsing, same
+        codec handling, same register / de-duplicate logic.
+        """
+        request = getattr(task, "request", None)
+        if request is None:
+            return False
+        await self.do_download(
+            [request.url], request.codec, request.force,
+            request.language or it(Config).region.language, request.include,
+        )
+        return True
 
     async def do_download(self, raw_urls: list[str], codec: str, force_download: bool, language: str,
                           include: bool = False):
@@ -366,8 +437,13 @@ class InteractiveShell:
     def bottom_toolbar(self):
         return f"Download Speed: {it(Measurer).download_speed()}, Decrypt Speed: {it(Measurer).decrypt_speed()}, Tasks: {it(Measurer).tasks_count()}"
 
-    def completer(self):
-        mycompleter = {
+    def completion_tree(self) -> dict:
+        """Nested command grammar.
+
+        Framework-independent: the full-screen TUI feeds it to its Textual
+        suggester, and the legacy REPL walks it to answer a ``?`` query.
+        """
+        return {
             "dl": {
                 "--batch": None,
                 "--codec": {
@@ -410,7 +486,6 @@ class InteractiveShell:
             "cl": None,
             "clear": None,
         }
-        return NestedCompleter.from_nested_dict(mycompleter)
 
     async def confirm_and_exit(self):
         """Two-step confirm: first press logs a warning; pressing again
@@ -429,58 +504,32 @@ class InteractiveShell:
 
     def handle_exit(self):
         it(GlobalLogger).logger.info("Exit.")
-        # In the full-screen TUI, ask prompt_toolkit to exit normally so it
-        # restores the terminal (alternate screen, raw mode, mouse tracking).
-        # os._exit would skip that cleanup and leave the terminal broken
-        # (wheel / input garbage) after quitting.
+        # In the full-screen TUI, ask Textual to exit normally so it restores
+        # the terminal (alternate screen, raw mode, mouse tracking).  os._exit
+        # would skip that cleanup and leave the terminal broken (wheel / input
+        # garbage) after quitting.
         app = getattr(self, "_tui_app", None)
         if app is not None and app.is_running:
             app.exit()
             return
-        # Legacy REPL: raise a private exception to unwind start_legacy's
-        # with patch_stdout() cleanly.  loop.stop() here would abort the
-        # event loop before prompt_toolkit restores the terminal.
+        # Legacy REPL: raise a private exception so run_legacy_repl() unwinds
+        # from the read loop cleanly.  loop.stop() here would abort the event
+        # loop mid-frame.
         raise _LegacyExit()
 
     async def start(self):
         """Entry point — legacy REPL or full-screen TUI."""
         if self.legacy_ui:
-            await self.start_legacy()
+            from src.tui.legacy import run_legacy_repl
+            await run_legacy_repl(self)
             return
         from src.tui.app import run_tui
         await run_tui(self)
 
     async def start_legacy(self):
-        """v2-style REPL (PromptSession) for simple terminals.
+        """Deprecated alias — kept for callers that used the old name.
 
-        Mirrors the v2 UI: a plain "> " prompt with a bottom speed
-        toolbar and Tab completion; no full-screen alternate buffer.
+        The implementation moved to :func:`src.tui.legacy.run_legacy_repl`.
         """
-        from prompt_toolkit import PromptSession
-        from prompt_toolkit.patch_stdout import patch_stdout
-
-        # Keep session creation inside patch_stdout exactly like v2: the
-        # stdout proxy must be active before PromptSession captures stdout.
-        with patch_stdout():
-            session = PromptSession(
-                "> ",
-                bottom_toolbar=self.bottom_toolbar,
-                completer=self.completer(),
-                refresh_interval=1,
-            )
-            try:
-                while True:
-                    try:
-                        command = await session.prompt_async()
-                    except (EOFError, KeyboardInterrupt):
-                        self.handle_exit()
-                        return   # leave with patch_stdout() so the terminal
-                                 # is restored before the process exits
-                    if command.strip() == '':
-                        continue
-                    await self.command_parser(command)
-            except _LegacyExit:
-                return   # Ctrl+C/F10 exit path also unwinds cleanly
-            finally:
-                if it(Config).localInstance.enable:
-                    await self.localInstance.terminate()
+        from src.tui.legacy import run_legacy_repl
+        await run_legacy_repl(self)

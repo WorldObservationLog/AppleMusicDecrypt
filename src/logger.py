@@ -5,28 +5,47 @@ from typing import Type
 
 from creart import AbstractCreator, CreateTargetInfo, exists_module
 from loguru import logger
-from prompt_toolkit import print_formatted_text, ANSI
+from rich.console import Console
+from rich.text import Text
+
+# Console used for log output *outside* the full-screen TUI (legacy REPL and
+# headless runs).  Inside the TUI every line is captured by ``src.tui.log_sink``
+# instead, so this path is never used there.
+#
+# ``soft_wrap`` keeps the terminal's own wrapping and ``markup=False`` stops
+# Rich from interpreting square brackets; loguru already emits ANSI colour
+# codes, which ``Text.from_ansi`` turns into styled text.
+_console = Console(highlight=False, soft_wrap=True, markup=False)
 
 
 def _safe_print(msg):
     """Print a formatted log line; fall back to stderr when there is no
     interactive console (headless / CI runs)."""
     try:
-        print_formatted_text(ANSI(msg), end="")
+        _console.print(Text.from_ansi(msg), end="")
     except Exception:
         sys.__stderr__.write(msg)
         sys.__stderr__.flush()
 
 
+def _format(record):
+    extra = record.get("extra", {})
+    item_type = extra.get("item_type")
+    tag = extra.get("tag")
+    if item_type and tag:
+        return ("<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
+                + f" | <b>{item_type}</b> | <b>{tag}</b>"
+                + " | <level>{level}</level> - <level>{message}\n</level>")
+    return ("<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
+            + " | <level>{level}</level> - <level>{message}\n</level>")
+
+
 class GlobalLogger:
     def __init__(self):
         logger.remove()
-        self.logger = copy.deepcopy(logger)
-        self.logger.add(lambda msg: _safe_print(msg), colorize=True,
-                        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
-                               + " | <level>{level}</level>"
-                               + " - <level>{message}</level>",
-                        level="INFO")
+        self.logger = logger
+        logger.add(lambda msg: _safe_print(msg), colorize=True,
+                   format=_format, level="INFO")
 
 
 class LoggerCreator(AbstractCreator):
@@ -54,15 +73,8 @@ class RipLogger:
         self.item_id = urllib.parse.quote(item_id)
         # What is being ripped, for the per-item messages below.
         self.noun = "Music video" if _type == "music-video" else "Song"
-        logger.remove()
-        self.logger = copy.deepcopy(logger)
-        self.logger.add(lambda msg: _safe_print(msg), colorize=True,
-                        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
-                               + f" | <b>{self.item_type.upper()}</b>"
-                               + f" | <b>{self.item_id}</b>"
-                               + " | <level>{level}</level>"
-                               + " - <level>{message}</level>",
-                        level="INFO")
+        self.full_name = self.item_id
+        self.logger = logger.bind(item_type=self.item_type.upper(), tag=self.item_id)
 
     def create(self):
         self.logger.info(f"Start ripping...")
@@ -72,15 +84,8 @@ class RipLogger:
             self.full_name = artist
         else:
             self.full_name = f"{artist} - {name}"
-        self.full_name = self.full_name.replace("<", "\\<").replace(">", "\\>")
-        self.logger.remove()
-        self.logger.add(lambda msg: _safe_print(msg), colorize=True,
-                        format="<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green>"
-                               + f" | <b>{self.item_type.upper()}</b>"
-                               + f" | <b>{self.full_name}</b>"
-                               + " | <level>{level}</level>"
-                               + " - <level>{message}</level>",
-                        level="INFO")
+        clean_name = self.full_name.replace("<", "\\<").replace(">", "\\>")
+        self.logger = logger.bind(item_type=self.item_type.upper(), tag=clean_name)
 
     def not_exist(self):
         self.logger.error(

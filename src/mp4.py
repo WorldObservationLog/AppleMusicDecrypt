@@ -1224,6 +1224,11 @@ def _rebuild_moof_bytes(data, moof_box: _Box) -> bytes:
 def parse_init(data: bytes, offset: int = 0) -> tuple[InitInfo | None, int]:
     """Parse the init segment (``ftyp`` + ``moov``) starting at *offset*.
 
+    ``free`` / ``skip`` padding boxes between ``ftyp`` and ``moov`` are
+    skipped (same policy as the fragment path in :func:`parse_next_fragment`),
+    so an init segment written by FFmpeg with a leading ``free`` box parses
+    normally.
+
     Returns ``(InitInfo, next_offset)`` or ``(None, offset)`` when there is no
     ``ftyp`` box at *offset* (EOF / not an init segment here).
     """
@@ -1237,11 +1242,20 @@ def parse_init(data: bytes, offset: int = 0) -> tuple[InitInfo | None, int]:
         return None, offset
     ftyp = bytes(data[offset:offset + size])
     offset += size
-    try:
-        btype, size, header_size, usertype = _box_header(data, offset, len(data))
-    except MP4ParseError:
-        return None, offset
-    if btype != b"moov":
+    while True:
+        try:
+            btype, size, header_size, usertype = _box_header(data, offset, len(data))
+        except MP4ParseError:
+            return None, offset
+        if btype == b"moov":
+            break
+        if btype in (b"free", b"skip"):
+            # free / skip: padding boxes, skip them like the fragment path does
+            if offset + size > len(data):
+                raise MP4ParseError(
+                    f"box '{_type_str(btype)}' at offset {offset} overruns data end")
+            offset += size
+            continue
         raise MP4ParseError(
             f"expected 'moov' after 'ftyp' at offset {offset}, got '{_type_str(btype)}'")
     if offset + size > len(data):

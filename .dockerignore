@@ -1,0 +1,42 @@
+# Build context for extras/telegram_bot/Dockerfile is the repo root; keep the
+# image lean by excluding dev/CI/OS cruft. The bot only needs `src`, `assets`,
+# `pyproject.toml`, `uv.lock`, and its own `extras/telegram_bot` package.
+
+# VCS / CI
+.git
+.github
+.gitignore
+
+# Python caches & build artifacts
+__pycache__
+*.py[cod]
+*.egg-info/
+.eggs
+build/
+dist/
+.pytest_cache
+.mypy_cache
+.ruff_cache
+
+# Virtualenvs & tooling
+.venv
+venv
+env/
+.python-version
+
+# IDE
+.idea
+.vscode
+*.iml
+
+# Tests / docs / misc dev dirs (not needed at runtime)
+tests/
+docs/
+downloads/
+qemu/
+android-deploy.md
+
+# Never bake credentials into the image; runtime mounts them.
+config.toml
+extras/telegram_bot/config.toml
+.env

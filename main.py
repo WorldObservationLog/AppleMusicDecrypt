@@ -7,7 +7,7 @@ parser = argparse.ArgumentParser(description="AppleMusicDecrypt")
 parser.add_argument(
     "--legacy-ui",
     action="store_true",
-    help="use the v2-style simple REPL instead of the full-screen TUI",
+    help="use the plain-terminal REPL instead of the full-screen TUI",
 )
 args, _ = parser.parse_known_args()
 

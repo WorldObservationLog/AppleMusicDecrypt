@@ -15,8 +15,11 @@ Affected packets are identified generically:
   END / padding);
 - the 3 END bits at the end of the packet are not set to ``111``.
 
-Repair is lossless: write the missing 3-bit END tag into the last two
-bytes of the packet (the last 9 bits are ``[END:3][padding:6]``).
+Repair restores *decodability*, not the original audio: writing the
+missing 3-bit END tag into the last two bytes of the packet (the last
+9 bits are ``[END:3][padding:6]``) makes the frame parseable again,
+but the final samples of each affected frame were already overwritten
+by heap metadata at pack time and remain wrong.
 
 Verified against the real affected file used in ALAC修复可能性论证.md:
 - original: 4 damaged packets (#996 #1251 #1252 #1878)
@@ -164,7 +167,12 @@ def find_bad_packets(path: str) -> list[int]:
                 if size == expected and size >= 2:
                     b0 = data[offset + size - 2]
                     b1 = data[offset + size - 1]
-                    if not ((b0 & _END_FIRST) and (b1 & _END_REST) == _END_REST):
+                    # The END tag is the 3 bits ``111``; every bit after it in the
+                    # final byte is padding and must be zero.  Checking the whole
+                    # byte (rather than just the two END bits) also catches frames
+                    # whose padding was overwritten upstream: those decode without
+                    # error but their last sample is still wrong (#136).
+                    if not ((b0 & _END_FIRST) and b1 == _END_REST):
                         bad.append(idx)
                 offset += size
             return bad
@@ -176,9 +184,11 @@ def fix_alac_end_tags(path: str, dry_run: bool = False) -> tuple[int, bool]:
     Returns ``(fixed_count, modified)``.  The file is rewritten only when
     ``dry_run`` is False.
 
-    Note: for the canonical 16-bit/44.1kHz stereo case this touches exactly
-    7 bytes in total (three packets x 2 bytes + one packet x 1 byte).  A
-    partial fix that touches only 4 bytes leaves the file still damaged.
+    Note: the final byte of each affected frame is rewritten **in full**
+    (``111`` END tag + zero padding), not merely OR'd with the END bits --
+    a frame whose padding was overwritten upstream needs both to be correct,
+    otherwise its last sample still decodes to a wrong value (#136).  A
+    partial fix that touches only the END bits can leave the frame damaged.
     """
     p = Path(path)
     if not p.exists():
@@ -189,7 +199,7 @@ def fix_alac_end_tags(path: str, dry_run: bool = False) -> tuple[int, bool]:
 
     import mmap
     fixed = 0
-    # Re-open read/write mmap and patch only the two-byte END locations.
+    # Re-open read/write mmap and patch the END tag + padding of each bad frame.
     with open(p, "r+b") as f:
         with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_WRITE) as data:
             result = _sample_tables_and_cookie(data)
@@ -202,8 +212,10 @@ def fix_alac_end_tags(path: str, dry_run: bool = False) -> tuple[int, bool]:
                 if index in bad:
                     data[offset - 2 + size] = (
                         data[offset - 2 + size] | _END_FIRST)
-                    data[offset - 1 + size] = (
-                        data[offset - 1 + size] | _END_REST)
+                    # Assign the whole final byte: END ``11`` in the top two
+                    # bits, zero padding in the remaining six.  OR-ing the END
+                    # bits alone would leave overwritten padding in place.
+                    data[offset - 1 + size] = _END_REST
                     fixed += 1
                 offset += size
                 index += 1

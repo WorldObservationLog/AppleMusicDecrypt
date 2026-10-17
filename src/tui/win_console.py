@@ -1,15 +1,15 @@
 """Windows console helpers for the TUI.
 
-* ``get_clipboard_text()`` reads the *system* clipboard (CF_UNICODETEXT)
-  via ctypes.  prompt_toolkit's ``Application.clipboard`` is an
-  ``InMemoryClipboard`` that never sees the OS clipboard, so right-click /
-  Ctrl+V paste needs this.
+* ``get_clipboard_text()`` / ``set_clipboard_text()`` read and write the
+  *system* clipboard (CF_UNICODETEXT) via ctypes.  A terminal-side clipboard
+  protocol (OSC 52) covers copying in some terminals but has no read side at
+  all, so pasting needs this.
 * ``disable_quick_edit()`` turns off the console's QuickEdit mode.  While a
   QuickEdit selection is active conhost blocks every console write; the
   TUI redraws from the asyncio thread, so a stray selection freezes the
   whole app (UI, key handling and downloads) until Esc/Enter is pressed.
 
-Both are no-ops on non-Windows platforms.
+All are no-ops on non-Windows platforms.
 """
 
 from __future__ import annotations
@@ -21,6 +21,7 @@ _CF_UNICODETEXT = 13
 _STD_INPUT_HANDLE = -10
 _ENABLE_QUICK_EDIT_MODE = 0x0040
 _ENABLE_EXTENDED_FLAGS = 0x0080
+_GMEM_MOVEABLE = 0x0002
 
 
 def get_clipboard_text() -> str:
@@ -74,6 +75,72 @@ def get_clipboard_text() -> str:
             user32.CloseClipboard()
     except Exception:
         return ""
+
+
+def set_clipboard_text(text: str) -> bool:
+    """Put *text* on the Windows clipboard.  Returns True on success."""
+    if sys.platform != "win32":
+        return False
+    try:
+        import ctypes
+        import time
+        from ctypes import wintypes
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+        user32.OpenClipboard.argtypes = [wintypes.HWND]
+        user32.OpenClipboard.restype = wintypes.BOOL
+        user32.EmptyClipboard.argtypes = []
+        user32.EmptyClipboard.restype = wintypes.BOOL
+        user32.SetClipboardData.argtypes = [wintypes.UINT, wintypes.HANDLE]
+        user32.SetClipboardData.restype = wintypes.HANDLE
+        user32.CloseClipboard.argtypes = []
+        user32.CloseClipboard.restype = wintypes.BOOL
+        kernel32.GlobalAlloc.argtypes = [wintypes.UINT, ctypes.c_size_t]
+        kernel32.GlobalAlloc.restype = wintypes.HGLOBAL
+        kernel32.GlobalLock.argtypes = [wintypes.HGLOBAL]
+        kernel32.GlobalLock.restype = ctypes.c_void_p
+        kernel32.GlobalUnlock.argtypes = [wintypes.HGLOBAL]
+        kernel32.GlobalUnlock.restype = wintypes.BOOL
+        kernel32.GlobalFree.argtypes = [wintypes.HGLOBAL]
+        kernel32.GlobalFree.restype = wintypes.HGLOBAL
+
+        # CF_UNICODETEXT is a NUL-terminated UTF-16 buffer.
+        payload = text.encode("utf-16-le") + b"\x00\x00"
+        handle = kernel32.GlobalAlloc(_GMEM_MOVEABLE, len(payload))
+        if not handle:
+            return False
+        ptr = kernel32.GlobalLock(handle)
+        if not ptr:
+            kernel32.GlobalFree(handle)
+            return False
+        ctypes.memmove(ptr, payload, len(payload))
+        kernel32.GlobalUnlock(handle)
+
+        for _ in range(5):
+            if user32.OpenClipboard(None):
+                break
+            time.sleep(0.01)
+        else:
+            kernel32.GlobalFree(handle)
+            return False
+
+        transferred = False
+        try:
+            user32.EmptyClipboard()
+            # On success the system owns the block — freeing it here would
+            # leave the clipboard pointing at released memory.
+            if user32.SetClipboardData(_CF_UNICODETEXT, handle):
+                transferred = True
+                return True
+            return False
+        finally:
+            if not transferred:
+                kernel32.GlobalFree(handle)
+            user32.CloseClipboard()
+    except Exception:
+        return False
 
 
 def disable_quick_edit() -> Callable[[], None]:

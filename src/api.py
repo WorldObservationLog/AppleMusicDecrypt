@@ -1,7 +1,7 @@
 import asyncio
 from io import BytesIO
 from ssl import SSLError
-from typing import AsyncIterator, Optional, Type
+from typing import AsyncIterator, Callable, Optional, Type
 
 import httpx
 import regex
@@ -56,9 +56,13 @@ class WebAPI:
 
     def __init__(self, proxy: str, parallel_num: int):
         self._set_token()
+        api_timeout = httpx.Timeout(connect=15.0, read=30.0, write=15.0, pool=60.0)
+        api_limits = httpx.Limits(max_connections=128, max_keepalive_connections=32, keepalive_expiry=60.0)
         self.client = AsyncClient(headers={"Authorization": f"Bearer {self.token}",
                                            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
                                            "Origin": "https://music.apple.com"},
+                                  timeout=api_timeout,
+                                  limits=api_limits,
                                   proxy=proxy if proxy else None)
         # Shared streaming client for CDN downloads.  Lazily created on the
         # first stream_song call (needs a running loop for the transport);
@@ -69,7 +73,9 @@ class WebAPI:
         self.download_client = None
         self.download_proxy = proxy if proxy else None
         self.download_lock = asyncio.Semaphore(parallel_num)
-        self.request_lock = asyncio.Semaphore(256)
+        self.request_lock = asyncio.Semaphore(64)
+        self._cover_cache: dict[str, bytes] = {}
+        self._cover_pending: dict[str, asyncio.Future] = {}
 
     def _get_download_client(self) -> httpx.AsyncClient:
         """Return the shared CDN download client, creating it on first use."""
@@ -131,7 +137,8 @@ class WebAPI:
             return await self._download_song_internal(url)
 
     async def stream_song(self, url: str, resume_from: int = 0,
-                          extra_headers: dict = None) -> AsyncIterator[bytes]:
+                          extra_headers: dict = None,
+                          on_total: Optional[Callable[[int], None]] = None) -> AsyncIterator[bytes]:
         """Stream the encrypted media file from the Apple CDN (边下边解).
 
         Applies CDN IP pinning, holds the download semaphore for the whole
@@ -140,6 +147,11 @@ class WebAPI:
         last complete box boundary by passing ``resume_from`` (a byte offset).
         ``extra_headers`` may carry an explicit ``Range`` (byte-range media
         segments). A ``416`` on a resume request means the file is fully read.
+
+        ``on_total`` is called once per response with the full expected size of
+        the stream (already-fetched bytes included), so the caller can show a
+        percentage rather than a bare byte count.  It is never called when the
+        server does not advertise a length.
         """
         async with self.download_lock:
             client = self._get_download_client()
@@ -150,6 +162,12 @@ class WebAPI:
                 if response.status_code == 416 and (resume_from or "Range" in headers):
                     return
                 response.raise_for_status()
+                if on_total is not None:
+                    # A resumed request advertises only the remainder, so add
+                    # back the offset to report the size of the whole stream.
+                    length = response.headers.get("Content-Length")
+                    if length and length.isdigit():
+                        on_total(int(length) + resume_from)
                 async for chunk in response.aiter_bytes(self.DOWNLOAD_CHUNK_SIZE):
                     it(Measurer).record_download(len(chunk))
                     yield chunk
@@ -198,11 +216,27 @@ class WebAPI:
             tracks.extend(next_tracks)
         return tracks
 
-    async def get_cover(self, url: str, cover_format: str, cover_size: str):
-        async with self.request_lock:
-            formatted_url = regex.sub('bb.jpg', f'bb.{cover_format}', url)
-            req = await self._request("GET", formatted_url.replace("{w}x{h}", cover_size))
-            return req.content
+    async def get_cover(self, url: str, cover_format: str, cover_size: str) -> bytes:
+        formatted_url = regex.sub('bb.jpg', f'bb.{cover_format}', url)
+        target_url = formatted_url.replace("{w}x{h}", cover_size)
+        if target_url in self._cover_cache:
+            return self._cover_cache[target_url]
+        pending = self._cover_pending.get(target_url)
+        if pending is not None:
+            return await pending
+        fut = asyncio.get_running_loop().create_future()
+        self._cover_pending[target_url] = fut
+        try:
+            req = await self._request("GET", target_url)
+            content = req.content
+            self._cover_cache[target_url] = content
+            fut.set_result(content)
+            return content
+        except Exception as e:
+            fut.set_exception(e)
+            raise
+        finally:
+            self._cover_pending.pop(target_url, None)
 
     async def get_song_info(self, song_id: str, storefront: str, lang: str):
         req = await self._request("GET", f"https://amp-api.music.apple.com/v1/catalog/{storefront}/songs/{song_id}",

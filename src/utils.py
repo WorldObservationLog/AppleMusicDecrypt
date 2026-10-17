@@ -360,7 +360,8 @@ def check_dep():
     are importable. No external binaries are needed in v3."""
     import importlib
 
-    deps = ["httpx", "regex", "pydantic", "loguru", "m3u8", "tenacity", "prompt_toolkit",
+    deps = ["httpx", "regex", "pydantic", "loguru", "m3u8", "tenacity",
+            "textual", "rich",
             "mutagen", "temari", "async_lru", "tabulate", "creart"]
     for dep in deps:
         try:

@@ -161,6 +161,10 @@ cython_debug/
 #.idea/
 
 config.toml
+# Command history and UI preferences for the full-screen TUI (written next to
+# config.toml).
+.applemusicdecrypt_history
+.applemusicdecrypt_tui
 .python-version
 .vscode/*
 /docs/
@@ -169,3 +173,53 @@ qemu/wrapper-lite-qemu.exe
 qemu/*.zip
 qemu/qemu/
 qemu/manager/
+
+# Ad-hoc exploration / probe scripts and their dumps (not part of the project)
+_probe_*
+_pr_review/
+
+# Log exports written by the TUI's Ctrl+S.
+applemusicdecrypt-*.log
+
+# Local AI-tooling config, kept out of the repository.
+.agents/
+.claude/
+skills-lock.json
+
+
+# whale 工程系统：忽略的判据是**含不含机器相关信息**，不是"能不能重建"。
+#
+# ⚠️ 这条判据改过一次，原因是实测发现"能不能重建"会漏掉一整类：
+#
+#   原来按"丢了能一键重建"忽略四项（env.sh / bin/ / templates/ / roles/）。
+#   后果：**工作区里没有 .whale/roles/ 与 .whale/templates/** ——
+#   因为工作区只检出被追踪的文件。而任务席的角色定义就在 roles/ 里，
+#   任务书模板就在 templates/ 里。于是 AGENTS.md 里那句
+#   「你的角色定义：.whale/roles/coordinator.md」**在工作区里是坏的指令**。
+#   （实测：RainbowIsland 的 RI-0010 等工作区里这两个目录确实不存在。）
+#
+#   而 `env.sh` / `bin/` 才是真正该忽略的 —— 它们**含本机绝对路径**，
+#   提交它们等于把机器信息带进历史，而且换台机器就错。
+#
+# 所以现在的判据：
+#   · **含机器相关信息**（绝对路径、本机生成的守卫）→ 忽略
+#   · **纯内容**（角色提示词、模板）→ **追踪**，否则席读不到
+#
+# 角色与模板是"副本"这件事不变 —— `--upgrade` 仍然覆盖它们，
+# 只是覆盖之后**会产生一个 git diff，需要提交**。这是对的：
+# 规则跟着提交走，席才看得到。
+.whale/env.sh
+.whale/bin/
+# `--upgrade` 的备份。**必须忽略** —— 它们是副本的旧版快照，
+# 提交进去只会污染历史、并在每次升级后堆一层。
+# （实测踩过：备份目录以 `??` 未跟踪状态出现在 git status 里，
+#   下一次 `git add -A` 就会把它们一起提交。）
+.whale/.upgrade-backup-*/
+.whale/locks/
+AGENTS.md.bak-*
+
+# DSH 会话与进度产物：本机独有、含会话信息，不进版本控制。
+# 判据与上面一致 —— 忽略的是"含机器/会话相关信息"的东西，不是"可重建"的东西：
+# 这两个目录里的内容是某次会话的产物，公开仓库没有保留它们的理由。
+.dsh-progress/
+.dsh-uploads/

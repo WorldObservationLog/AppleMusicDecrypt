@@ -1,38 +1,71 @@
-"""Task-list widget — tree-structured sidebar.
+"""Task sidebar — a wrapped, multi-line list mirroring :class:`TaskTree`.
 
-Reads from ``TaskTree.snapshot()`` on every render tick (driven by
-``Application(refresh_interval=0.5)`` plus explicit ``app.invalidate()``
-calls from status changes) and emits a ``StyleAndTextTuples`` list that
-prompt_toolkit renders inside a ``ScrollablePane``.
+Why not a ``Tree``
+------------------
+The sidebar used to be a Textual ``Tree``.  Two things made that the wrong
+widget for this panel:
 
-Tree chrome
------------
-  ▼ 💿 Album Name
-      ├─ 🔄 Artist - Song A  4.2MB ⬇
-      ├─ ✅ Artist - Song B
-      └─ ❌ Artist - Song C  ERR:...
+* **Rows are one line each and the tree never wraps.**  A long
+  ``artist - title`` widened the virtual canvas, so narrow terminals got a
+  horizontal scrollbar instead of readable text.  ``Tree`` renders one
+  ``Strip`` per node, so wrapping cannot be enabled from the outside.
+* **``TreeNode.add()`` defaults to ``allow_expand=True``.**  Every node —
+  including a song leaf with no children — therefore drew an expand chevron,
+  and the labels drawn by this module added a second one on top of it.
 
-Scroll
+``ListView`` fixes both: a ``ListItem`` is ``height: auto`` and each of its
+children wraps to the width it is given, so a long title flows onto as many
+lines as it needs and the list never scrolls sideways.
+
+Layout
 ------
-The pane scrolls independently of the log pane (mouse wheel) and never
-receives keyboard focus (no Tab stop).  Names are never truncated:
-long lines soft-wrap.
+One ``ListItem`` per *visible* model node (children of a collapsed group are
+flattened away).  Each item holds a fixed-width arrow cell and a flexible
+label cell, so a wrapped title stays aligned under the text rather than
+running back under the indent::
+
+    ▼ 🔄 💿 Artist - Album Title
+      ▶ ⏳ 🎵 Another Artist - A Very Long Song
+              Title That Wraps
+
+Only nodes with children get an arrow; leaves render two spaces so the
+columns stay aligned.
+
+Sync model
+----------
+``TaskTree`` is the source of truth and is mutated from the ripper's
+coroutines (``rip.py`` / ``mv.py``), so the panel mirrors it on a timer.
+Each tick:
+
+* new model nodes are inserted at the model's position (groups go to the top,
+  matching ``TaskTree``'s "newest first" ordering);
+* changed labels are updated in place;
+* nodes pruned from the model (``cl``) are removed;
+* children of a collapsed node are not mounted at all.
+
+Label diffing keeps the highlight and scroll position stable — only
+genuinely changed nodes are touched, and the highlighted node is restored by
+id across reordering.
 """
 
 from __future__ import annotations
 
-from prompt_toolkit.formatted_text import StyleAndTextTuples
-from prompt_toolkit.layout.controls import FormattedTextControl
-from prompt_toolkit.layout.containers import Window
-from prompt_toolkit.layout import ScrollablePane
-from prompt_toolkit.layout.dimension import Dimension as D
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Optional
 
-from src.tui.task_tree import TaskTree, TreeNode, NodeKind, NodeStatus
+from rich.text import Text
+from textual.widgets import ListItem, ListView, Static
 
-# Column width reserved for the sidebar (set in layout.py via preferred).
-# Preferred sidebar width. The layout gives it up to 45% of the screen
-# width (preferred 52), so long artist - title lines are not clipped.
+from src.tui.style import rich_style
+from src.tui.task_tree import NodeStatus
+
+if TYPE_CHECKING:
+    from src.tui.task_tree import TaskTree, TreeNode as MTreeNode
+
+# Sidebar width bounds (the initial width lives in TUI_CSS).
 SIDEBAR_WIDTH = 52
+SIDEBAR_MIN = 20
+SIDEBAR_MAX = 90
 
 
 def _fmt_bytes(n: int) -> str:
@@ -43,200 +76,253 @@ def _fmt_bytes(n: int) -> str:
     return f"{n}B"
 
 
-class TaskListWidget:
-    """Scrollable tree-view of all registered TaskTree nodes."""
+@dataclass
+class _Row:
+    """A mounted list row plus the state used to diff it against the model."""
 
-    def __init__(self, tree: TaskTree) -> None:
-        self._tree       = tree
-        self._scroll_pos = 0   # handled by ScrollablePane
+    item: ListItem
+    arrow: Static
+    label: Static
+    mnode: "MTreeNode"
+    depth: int
+    fingerprint: tuple
 
-        self._inner_control = FormattedTextControl(
-            text=self._render,
-            focusable=True,
-            show_cursor=False,
-        )
-        # Click-to-focus for the sidebar (FormattedTextControl has no
-        # built-in focus_on_click like BufferControl does).
-        from prompt_toolkit.mouse_events import MouseEventType
-        from prompt_toolkit.application.current import get_app as _get_app
 
-        _orig_mouse = self._inner_control.mouse_handler
+class TaskPanel(ListView):
+    """Wrapping task list: one row per visible ``TaskTree`` node."""
 
-        def _mouse_handler(mouse_event):
-            if mouse_event.event_type == MouseEventType.MOUSE_UP:
-                if _get_app().layout.current_control != self._inner_control:
-                    _get_app().layout.current_control = self._inner_control
-                    _get_app().invalidate()   # refresh focused-frame highlight
-                    return None
-            elif mouse_event.event_type == MouseEventType.SCROLL_DOWN:
-                self.scroll(3)
-                return None
-            elif mouse_event.event_type == MouseEventType.SCROLL_UP:
-                self.scroll(-3)
-                return None
-            return _orig_mouse(mouse_event)
+    def __init__(self, task_tree: "TaskTree", **kwargs) -> None:
+        super().__init__(**kwargs)
+        self._model = task_tree
+        # model node_id → row
+        self._rows: dict[str, _Row] = {}
+        # node_ids in display order (mirrors the mounted children)
+        self._order: list[str] = []
 
-        self._inner_control.mouse_handler = _mouse_handler
-        # Inner Window: height = len(rendered lines); ScrollablePane clips it.
-        self._inner_window = Window(
-            content=self._inner_control,
-            wrap_lines=True,   # long names wrap instead of being clipped
-            dont_extend_width=False,
-        )
-        # ScrollablePane supports keyboard scrolling when its content is
-        # focused; we also add explicit scroll() for mouse/keys below.
-        self.pane = ScrollablePane(
-            content=self._inner_window,
-            show_scrollbar=True,
-        )
-        self._scroll_offset = 0
-
-    def focusable_window(self):
-        return self.pane
-
-    def scroll(self, lines: int) -> None:
-        """Scroll the sidebar by *lines* (negative = up)."""
-        # Use the FULL (un-clipped) rendered lines as the scroll bound;
-        # _render() applies _scroll_offset, so calling it here would shrink
-        # the bound as we scroll and make up-scrolling impossible.
-        total = max(0, len(self._full_render_lines()) - 1)
-        self._scroll_offset = max(0, min(self._scroll_offset + lines, total))
-        self._apply_scroll()
-
-    def scroll_to_top(self) -> None:
-        self._scroll_offset = 0
-        self._apply_scroll()
-
-    def _full_render_lines(self) -> list[str]:
-        """Render without applying the scroll offset (for bounds)."""
-        roots = self._tree.snapshot()
-        if not roots:
-            return []
-        out: StyleAndTextTuples = []
-        for node in roots:
-            self._render_node(node, out, depth=0, last=True)
-        return self._lines_from_fragments(out)
-
-    def _render_lines(self) -> list[str]:
-        frag = self._render()
-        lines, buf = [], ""
-        for _, txt in frag:
-            buf += txt
-            if txt.endswith("\n"):
-                lines.append(buf.rstrip("\n"))
-                buf = ""
-        if buf:
-            lines.append(buf)
-        return lines
-
-    def _apply_scroll(self) -> None:
-        # ScrollablePane has no direct setter; emulate by adjusting the
-        # inner window's height with a leading spacer is complex.  Instead
-        # rely on prompt_toolkit's focus+up/down keys (bound in app.py via
-        # event.app.layout focused window's built-in scroll).
-        pass
+    def on_mount(self) -> None:
+        # Show anything registered before the panel mounted; the app's tick
+        # keeps it in sync from here on.
+        self.sync()
 
     # ------------------------------------------------------------------ #
-    # Renderer
+    # Mirroring TaskTree
     # ------------------------------------------------------------------ #
 
-    def _render(self) -> StyleAndTextTuples:
-        roots = self._tree.snapshot()
-        if not roots:
-            return [("class:log.text", "  (no tasks)\n")]
+    def sync(self) -> None:
+        """Bring the list in line with the current ``TaskTree`` snapshot."""
+        flat: list[tuple[MTreeNode, int]] = []
+        _flatten(self._model.snapshot(), 0, flat)
 
-        out: StyleAndTextTuples = []
-        for node in roots:
-            self._render_node(node, out, depth=0, last=True)
+        # Remember which node the cursor sits on: rows may be inserted above
+        # it (a new group lands on top) or removed underneath it.
+        cursor_node = self._highlighted_node_id()
 
-        if self._scroll_offset:
-            rendered = self._lines_from_fragments(out)
-            out = self._fragments_from_lines(rendered[self._scroll_offset:])
-        return out
+        seen: set[str] = set()
+        self._order = []
+        for index, (mnode, depth) in enumerate(flat):
+            node_id = mnode.node_id
+            seen.add(node_id)
+            self._order.append(node_id)
 
-    def _lines_from_fragments(self, frag: StyleAndTextTuples) -> list[str]:
-        lines, buf = [], ""
-        for _, txt in frag:
-            buf += txt
-            if txt.endswith("\n"):
-                lines.append(buf.rstrip("\n"))
-                buf = ""
-        if buf:
-            lines.append(buf)
-        return lines
+            row = self._rows.get(node_id)
+            if row is None:
+                row = self._create_row(mnode, depth)
+                self._rows[node_id] = row
+                self._mount_row(index, row.item)
+                continue
 
-    def _fragments_from_lines(self, lines: list[str]) -> StyleAndTextTuples:
-        result: StyleAndTextTuples = []
-        for line in lines:
-            result.append(("", line + "\n"))
-        return result
+            row.mnode = mnode
+            if row.depth != depth:
+                row.depth = depth
+                self._indent(row)
+            fingerprint = self._fingerprint(mnode)
+            if row.fingerprint != fingerprint:
+                row.fingerprint = fingerprint
+                self._render_row(row)
 
-    def _render_node(
-        self,
-        node: TreeNode,
-        out:  StyleAndTextTuples,
-        depth: int,
-        last: bool,
-    ) -> None:
-        status = node.status
+        # Drop rows the model no longer knows about (e.g. after `cl`), and any
+        # node that just fell out of view because its parent collapsed.
+        for node_id in [n for n in self._rows if n not in seen]:
+            self._rows.pop(node_id).item.remove()
 
-        # ── indentation & tree branch ────────────────────────────────────
-        if depth == 0:
-            indent = ""
+        self._restore_cursor(cursor_node)
+
+    def _create_row(self, mnode: "MTreeNode", depth: int) -> _Row:
+        arrow = Static(self._arrow(mnode), classes="arrow", expand=True)
+        label = Static(self._label(mnode, depth), classes="label", expand=True)
+        item = ListItem(arrow, label)
+        row = _Row(item, arrow, label, mnode, depth, self._fingerprint(mnode))
+        self._indent(row)
+        return row
+
+    def _mount_row(self, index: int, item: ListItem) -> None:
+        """Insert *item* at *index*, appending when it belongs at the end."""
+        if index < len(self.children):
+            self.insert(index, [item])
         else:
-            connector = "└─ " if last else "├─ "
-            indent = "  " * (depth - 1) + connector
+            self.append(item)
 
-        # ── expand / collapse chevron (parent nodes only) ────────────────
-        if node.children:
-            chevron = "▼ " if node.expanded else "▶ "
-        else:
-            chevron = ""
+    def _indent(self, row: _Row) -> None:
+        row.item.styles.padding = (0, 0, 0, row.depth * 2)
 
-        # ── status icon (padded so columns align) ────────────────────────
-        icon       = status.icon_padded()
-        icon_style = status.style_class()
+    def _render_row(self, row: _Row) -> None:
+        row.arrow.update(self._arrow(row.mnode))
+        row.label.update(self._label(row.mnode, row.depth))
 
-        # ── name (full text; the Window wraps long lines) ────────────────
-        name         = node.resolved_name
+    # ------------------------------------------------------------------ #
+    # Cursor
+    # ------------------------------------------------------------------ #
 
-        name_style = node.kind_style() if depth == 0 else "class:task.kind.song"
+    def _highlighted_node_id(self) -> Optional[str]:
+        index = self.index
+        if index is None or not (0 <= index < len(self.children)):
+            return None
+        item = self.children[index]
+        for node_id, row in self._rows.items():
+            if row.item is item:
+                return node_id
+        return None
 
-        # ── progress / error suffix ───────────────────────────────────────
-        suffix_parts: list[str] = []
-        if status == NodeStatus.RUNNING:
-            dl  = node.downloaded_bytes
-            dec = node.decrypted_bytes
-            if dl:
-                suffix_parts.append(f"{_fmt_bytes(dl)} ⬇")
-            if dec:
-                suffix_parts.append(f"{_fmt_bytes(dec)} 🔓")
-        elif status == NodeStatus.FAILED and node.error:
-            err = str(node.error)[:18]
-            suffix_parts.append(f"ERR:{err}")
+    def highlighted_node(self) -> "Optional[MTreeNode]":
+        """The model node under the cursor, if any."""
+        node_id = self._highlighted_node_id()
+        if node_id is None:
+            return None
+        row = self._rows.get(node_id)
+        return row.mnode if row is not None else None
 
-        # ── assemble line ─────────────────────────────────────────────────
-        if indent:
-            out.append(("class:task.tree", indent))
-        if chevron:
-            out.append(("class:task.heading", chevron))
-        out.append((icon_style, icon + " "))
-        # Kind icon on every node (album/playlist/artist/MV/song).
-        out.append((node.kind_style(), node.kind_icon() + " "))
-        out.append((name_style, name))
+    def _restore_cursor(self, node_id: Optional[str]) -> None:
+        if node_id is not None and node_id in self._order:
+            self.index = self._order.index(node_id)
+        elif self.index is not None and self.index >= len(self.children):
+            self.index = len(self.children) - 1 if self.children else None
 
-        if suffix_parts:
-            suffix = "  " + " ".join(suffix_parts)
-            style  = "class:task.error" if status == NodeStatus.FAILED else "class:task.progress"
-            out.append((style, suffix))
+    def on_list_view_selected(self, event: ListView.Selected) -> None:
+        """Enter / click on a group folds it; on a leaf it does nothing."""
+        event.stop()
+        index = event.index
+        if index is None or not (0 <= index < len(self._order)):
+            return
+        mnode = self._rows[self._order[index]].mnode
+        if mnode.children:
+            self._model.toggle_expand(mnode.node_id)
+            self.sync()
 
-        out.append(("", "\n"))
+    # ------------------------------------------------------------------ #
+    # Labels
+    # ------------------------------------------------------------------ #
 
-        # ── children ─────────────────────────────────────────────────────
-        if node.children and node.expanded:
-            for i, child in enumerate(node.children):
-                self._render_node(
-                    child, out,
-                    depth=depth + 1,
-                    last=(i == len(node.children) - 1),
-                )
+    def _fingerprint(self, mnode: "MTreeNode") -> tuple:
+        """Cheap key reflecting everything that is rendered into the row.
+
+        ``counts()`` is included because a group row prints its own finished /
+        total track count: without it a group whose children changed state
+        would keep showing a stale ``8/12``, since nothing about the group
+        node itself moved.
+        """
+        status = mnode.status
+        done, failed, total = mnode.breakdown()
+        return (
+            mnode.resolved_name,
+            status,
+            mnode.downloaded_bytes,
+            mnode.decrypted_bytes,
+            mnode.total_bytes,
+            done,
+            failed,
+            total,
+            str(mnode.error)[:12] if status == NodeStatus.FAILED else "",
+            len(mnode.children),
+            mnode.expanded,
+        )
+
+    def _arrow(self, mnode: "MTreeNode") -> Text:
+        """Expand indicator, or blank padding for a node that cannot expand."""
+        if not mnode.children:
+            return Text("  ")
+        glyph = "▼ " if mnode.expanded else "▶ "
+        return Text(glyph, style=rich_style("task.heading"))
+
+    def _label(self, mnode: "MTreeNode", depth: int) -> Text:
+        status = mnode.status
+        text = Text()
+
+        text.append(status.icon_padded() + " ", style=rich_style(status.style_class()))
+        text.append(mnode.kind_icon() + " ", style=rich_style(mnode.kind_style()))
+
+        name_style = mnode.kind_style() if depth == 0 else "class:task.kind.song"
+        text.append(mnode.resolved_name, style=rich_style(name_style))
+
+        suffix = self._progress_suffix(mnode, status)
+        if suffix is not None:
+            body, token = suffix
+            text.append("  " + body, style=rich_style(token))
+
+        return text
+
+    def _progress_suffix(
+        self, mnode: "MTreeNode", status: NodeStatus
+    ) -> Optional[tuple[str, str]]:
+        """Progress text for a row, or ``None`` when there is nothing to add.
+
+        Two measures, because they answer different questions:
+
+        * a **group** counts tracks (``8/12``) — that is what someone waiting
+          on an album is actually counting, and it stays meaningful even when
+          a track's size never becomes known;
+        * a **track** counts percent (``45%``), falling back to a plain byte
+          count while the stream size is still unknown.
+
+        Both are deliberately terse.  The sidebar is 35-50 columns wide and a
+        long title already wraps; spelling out ``2.8MB/6.2MB``, or appending a
+        percentage to the track count, pushed the suffix onto a line of its
+        own and made every running row twice as tall.  The absolute figures
+        live in the status bar and in the ``status`` command instead.
+        """
+        if status == NodeStatus.FAILED:
+            if mnode.error:
+                # Short on purpose: the full text (and the traceback context)
+                # is in the log pane and in the error toast.
+                return f"ERR:{str(mnode.error)[:12]}", "class:task.error"
+            return None
+
+        if mnode.children:
+            done, failed, total = mnode.breakdown()
+            if not total:
+                return None
+            if status == NodeStatus.RUNNING:
+                return f"{done}/{total}", "class:task.progress"
+            # A finished group folds to one line, and the row's own status
+            # icon only says "some failed".  Spell out how many, or the count
+            # is the same whether everything worked or half the album broke.
+            if failed:
+                # Any failure is worth colouring, whether it took the whole
+                # album down or one track.
+                return f"{done}/{total} ⚠{failed}", "class:task.error"
+            return None
+
+        if status != NodeStatus.RUNNING:
+            return None
+
+        parts: list[str] = []
+        progress = mnode.progress
+        if progress is not None:
+            parts.append(f"{int(progress * 100)}%")
+        elif mnode.downloaded_bytes:
+            parts.append(f"{_fmt_bytes(mnode.downloaded_bytes)} ⬇")
+        if mnode.decrypted_bytes:
+            parts.append(f"🔓 {_fmt_bytes(mnode.decrypted_bytes)}")
+
+        return (" ".join(parts), "class:task.progress") if parts else None
+
+
+def _flatten(
+    nodes: list["MTreeNode"],
+    depth: int,
+    out: list[tuple["MTreeNode", int]],
+) -> None:
+    """Depth-first walk of the *visible* nodes (collapsed groups are skipped)."""
+    for mnode in nodes:
+        out.append((mnode, depth))
+        if mnode.children and mnode.expanded:
+            _flatten(mnode.children, depth + 1, out)
