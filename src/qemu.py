@@ -113,6 +113,11 @@ class QemuInstance:
             stdout=asyncio.subprocess.DEVNULL,
             stderr=asyncio.subprocess.PIPE,
             creationflags=creationflags,
+            # Unix: give the launcher (and the qemu child it spawns) its own
+            # process group, so terminate()'s killpg() cannot hit this app --
+            # without a new session the launcher would share our group and
+            # killpg() would SIGKILL the app (and its caller) too.
+            start_new_session=(os.name != "nt"),
         )
 
         status_url = f"http://127.0.0.1:{cfg.hostPort}/status"
