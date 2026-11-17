@@ -2,7 +2,7 @@
 #    uv export --format requirements-txt --no-hashes --no-dev --no-emit-project -o requirements.txt
 aiohappyeyeballs==2.7.1
     # via aiohttp
-aiohttp==3.14.3
+aiohttp==3.14.4
     # via pyplayready
 aiosignal==1.4.0
     # via aiohttp
